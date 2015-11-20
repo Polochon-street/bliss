@@ -1,4 +1,4 @@
-# Bliss music library v0.1.0
+# Bliss music library v0.2.0
 The bliss music library is the library used to compute distance between songs in [leleleplayer](https://github.com/Polochon-street/leleleplayer)
 
 ## Dependencies
@@ -33,7 +33,12 @@ $ make
 # make install 
 ```
 
-## Sample test file (coming soon)
+## Sample test file
+* See examples/example.c 
+* Compile it (or any project using bliss) with
+```bash
+$ gcc -o example example.c -lbliss
+```
 
 ## How does the analysis process work?
 

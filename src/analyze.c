@@ -72,3 +72,24 @@ int bl_analyze(char *filename, struct bl_song *current_song, int debug, int anal
 	}
 }
 
+float bl_distance(char *filename1, char *filename2, struct bl_song *song1, struct bl_song *song2, int debug) {
+	struct d2vector envelope_result1;
+	struct d2vector envelope_result2;
+	struct d4vector v1, v2;
+	float distance;
+
+	bl_analyze(filename1, song1, debug, 1);
+	bl_analyze(filename2, song2, debug, 1);
+
+	v1 = song1->force_vector;
+	v2 = song2->force_vector;
+
+	distance = sqrt((v1.x - v2.x)*(v1.x - v2.x) + (v1.y - v2.y)*(v1.y - v2.y)
+		+ (v1.z - v2.z)*(v1.z - v2.z) + (v1.t - v2.t)*(v1.t - v2.t));
+
+	if(debug) {
+		printf("Computed distance: %f\n", distance);
+	}
+
+	return distance;
+}

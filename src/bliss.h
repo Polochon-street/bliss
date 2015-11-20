@@ -48,5 +48,6 @@ float bl_amp_sort(struct bl_song, int debug);
 struct d2vector bl_envelope_sort(struct bl_song, int debug);
 int bl_audio_decode(const char *file, struct bl_song *, int analyze);
 int bl_analyze(char *filename, struct bl_song *, int debug, int analyze); 
+float bl_distance(char *filename1, char *filename2, struct bl_song *, struct bl_song *, int debug);
 float bl_freq_sort(struct bl_song, int debug);
 void bl_free_song(struct bl_song *);
