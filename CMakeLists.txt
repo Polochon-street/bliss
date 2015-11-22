@@ -19,6 +19,7 @@ add_library(bliss SHARED
     src/decode.c
     src/envelope_sort.c
     src/frequency_sort.c
+	src/helpers.c
     src/analyze.c)
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}

@@ -1,3 +1,5 @@
+#include "bliss.h"
+
 void bl_free_song(struct bl_song * const song) {
 	if(song->artist) {
 		free(song->artist);
