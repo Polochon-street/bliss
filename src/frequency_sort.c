@@ -13,7 +13,7 @@ static const int WINDOW_SIZE = (1 << WIN_BITS);
 #define AIGU_INF 17
 #define AIGU_SUP 104
 
-float bl_freq_sort(struct bl_song const * const song, int debug) {
+float bl_frequency_sort(struct bl_song const * const song) {
     // FFT transform context
 	RDFTContext* fft;
     // Hann window values
