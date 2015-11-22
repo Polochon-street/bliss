@@ -89,14 +89,14 @@ float bl_frequency_sort(struct bl_song const * const song) {
 			float re = x[d * 2];
 			float im = x[d * 2 + 1];
 			float raw = (re * re) + (im * im);
-			power_spectrum[d] = raw;
+			power_spectrum[d] += raw;
 		}
 	}
 
     // Normalize it and compute real power in dB
 	for(int d = 1; d <= WINDOW_SIZE / 2; ++d) {
 		power_spectrum[d] = sqrt(power_spectrum[d] / WINDOW_SIZE);  // TODO: Why?
-
+	
         // Get power spectrum peak
 		peak = fmax(power_spectrum[d], peak);
 	}
@@ -135,5 +135,5 @@ float bl_frequency_sort(struct bl_song const * const song) {
 
     // Return final score, weighted by coefficients in order to have -4 for a panel of calm songs,
 	// and 4 for a panel of loud songs. (only useful if you want an absolute « Loud » and « Calm » result
-	return ((1. / 3.) * bands_sum + 10.6);
+	return ((1. / 3.) * bands_sum + 68. / 3.);
 }
