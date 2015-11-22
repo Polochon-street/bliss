@@ -32,6 +32,7 @@ struct bl_song {
 	int nSamples;
 	int sample_rate;
 	int bitrate;
+	int resnum;
 	int nb_bytes_per_sample;
 	int calm_or_loud;
 	int64_t duration;
