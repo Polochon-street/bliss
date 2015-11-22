@@ -79,6 +79,25 @@ float bl_distance(
         struct bl_song * song1,
         struct bl_song * song2);
 
+/**
+ * Compute the cosine similarity between two songs.
+ *
+ * @param[in] filename1  is the path to the first song to compare.
+ * @param[in] filename2  is the path to the second song to compare.
+ * @param[out] song1  is the resulting `bl_song` structure for the first song,
+ *                    after analysis.
+ * @param[out] song2  is the resulting `bl_song` structure for the second song,
+ *                    after analysis.
+ *
+ * @return The cosine similarity between the two songs.
+ */
+float bl_cosine_similarity(
+        char const * const filename1,
+        char const * const filename2,
+        struct bl_song * song1,
+        struct bl_song * song2);
+
+
 
 /**********************
  * Specific analyzers *

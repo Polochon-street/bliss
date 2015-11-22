@@ -17,8 +17,10 @@ int main (int argc, char **argv) {
 	struct bl_song song1;
 	struct bl_song song2;
 	float distance = bl_distance(filename1, filename2, &song1, &song2);
+	float similarity = bl_cosine_similarity(filename1, filename2, &song1, &song2);
 
     printf("Distance between %s and %s is: %f\n", filename1, filename2, distance);
+    printf("Similarity between %s and %s is: %f\n", filename1, filename2, similarity);
 
 	return EXIT_SUCCESS;
 }
