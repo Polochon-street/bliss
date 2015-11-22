@@ -230,8 +230,7 @@ int bl_audio_decode(
 	avpkt.data = NULL;
 	avpkt.size = 0;
 
-    // Read the end of audio
-    // TODO: Why?
+    // Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
 	do {
 		avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
 	} while(got_frame);

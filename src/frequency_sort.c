@@ -7,11 +7,11 @@
 // Length of the samples used in FFT
 static const int WINDOW_SIZE = (1 << WIN_BITS);
 
-// TODO: Why not used?
-#define GRAVE_INF 2
-#define GRAVE_SUP 4
-#define AIGU_INF 17
-#define AIGU_SUP 104
+// Arbitrary frequency band limits
+#define LOW_INF 5 
+#define LOW_SUP 30
+#define HIGH_INF 59
+#define HIGH_SUP 117
 
 float bl_frequency_sort(struct bl_song const * const song) {
     // FFT transform context
@@ -27,18 +27,19 @@ float bl_frequency_sort(struct bl_song const * const song) {
     // Power maximum value
 	float peak = 0;
 
-    // TODO
-	float tab_bandes[5];
-	float tab_sum;
+    // Array containing frequency mean of different bands 
+	float bands[5];
+	// Weighted sum of frequency bands
+	float bands_sum;
 
     // Initialize Hann window
 	for(int i = 0; i < WINDOW_SIZE; ++i) {
 		hann_window[i] = .5f * (1.0f - cos(2 * M_PI * i / (WINDOW_SIZE - 1)));
     }
 
-    // TODO
+    // Initialize band array
 	for(int i = 0; i < 5; ++i) {
-		tab_bandes[i] = 0.0f;
+		bands[i] = 0.0f;
     }
 
     // Get the number of frames in one channel
@@ -48,8 +49,8 @@ float bl_frequency_sort(struct bl_song const * const song) {
 	x = (FFTSample*)av_malloc(WINDOW_SIZE * sizeof(FFTSample));
 
     // Zero-initialize power spectrum
-	power_spectrum = (FFTSample*) av_malloc((WINDOW_SIZE * sizeof(FFTSample)));
-	for(int i = 0; i <= WINDOW_SIZE / 2; ++i) {  // Why / 2 ?
+	power_spectrum = (FFTSample*) av_malloc((WINDOW_SIZE * sizeof(FFTSample)) / 2);
+	for(int i = 0; i <= WINDOW_SIZE / 2; ++i) {  // 2 factor due to x's complex nature and power_spectrum's real nature.
 		power_spectrum[i] = 0.0f;
     }
 
@@ -83,7 +84,7 @@ float bl_frequency_sort(struct bl_song const * const song) {
 		av_rdft_calc(fft, x);
 
         // Fill-in power spectrum
-        power_spectrum[0] = x[0] * x[0];  // TODO: Why not x[1]?
+        power_spectrum[0] = x[0] * x[0];  // Ignore x[1] due to ffmpeg's fft specifity
 		for(int d = 1; d < WINDOW_SIZE / 2; ++d) {
 			float re = x[d * 2];
 			float im = x[d * 2 + 1];
@@ -98,35 +99,41 @@ float bl_frequency_sort(struct bl_song const * const song) {
 
         // Get power spectrum peak
 		peak = fmax(power_spectrum[d], peak);
-
-        // Compute power spectrum in dB
-        // TODO: Should not it be in a separate loop as peak may vary in the loop?
-		power_spectrum[d] = 20 * log10(power_spectrum[d] / peak) - 3;  // TODO: Why -3?
 	}
 
+	// Compute power spectrum in dB with 3dB attenuation
+	for(int d = 1; d <= WINDOW_SIZE / 2; ++d) {
+		power_spectrum[d] = 20 * log10(power_spectrum[d] / peak) - 3;
+	}
     // Sum power in frequency bands
-    // TODO: What are magic numbers?
-	tab_bandes[0] = (power_spectrum[1] + power_spectrum[2]) / 2;
-	tab_bandes[1] = (power_spectrum[3] + power_spectrum[4]) / 2;
-	for(int i = 5; i <= 30; ++i) {
-		tab_bandes[2] += power_spectrum[i];
+    // Arbitrary separation in frequency bands
+	bands[0] = (power_spectrum[1] + power_spectrum[2]) / 2;
+
+	bands[1] = (power_spectrum[3] + power_spectrum[4]) / 2;
+
+	for(int i = LOW_INF; i <= LOW_SUP; ++i) {
+		bands[2] += power_spectrum[i];
     }
-	tab_bandes[2] /= (29 - 4);
-	for(int i = 31; i <= 59; ++i) {
-		tab_bandes[3] += power_spectrum[i];
+	bands[2] /= (LOW_SUP - LOW_INF);
+
+	for(int i = LOW_SUP + 1; i <= HIGH_INF; ++i) {
+		bands[3] += power_spectrum[i];
     }
-	tab_bandes[3] /= (58 - 30);
-	for(int i = 60; i <= 117; ++i) {
-		tab_bandes[4] += power_spectrum[i];
+	bands[3] /= (HIGH_INF - (LOW_SUP + 1));
+
+	for(int i = HIGH_INF + 1; i <= HIGH_SUP; ++i) {
+		bands[4] += power_spectrum[i];
     }
-	tab_bandes[4] /= (116 - 59);
-	tab_sum = tab_bandes[4] + tab_bandes[3] + tab_bandes[2] - tab_bandes[0] - tab_bandes[1];
+	bands[4] /= (HIGH_SUP - (HIGH_INF + 1));
+
+	bands_sum = bands[4] + bands[3] + bands[2] - bands[0] - bands[1];
 
     // Clean everything
 	av_free(x);
 	av_free(power_spectrum);
 	av_rdft_end(fft);
 
-    // TODO: Why?
-	return ((1. / 3.) * tab_sum + (68. / 3.));
+    // Return final score, weighted by coefficients in order to have -4 for a panel of calm songs,
+	// and 4 for a panel of loud songs. (only useful if you want an absolute « Loud » and « Calm » result
+	return ((1. / 3.) * bands_sum + 10.6);
 }

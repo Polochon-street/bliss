@@ -62,8 +62,7 @@ float bl_amplitude_sort(struct bl_song const * const song) {
 		}
 	}
 
-    // Compute smoothed histogram
-    // TODO: Where does it come from?
+    // Compute smoothed histogram with a FIR filter
 	for(int g = 0; g <= N_PASSES; ++g) {
 		histogram_smooth[0] = histogram[0];
 		histogram_smooth[1] = 1. / 4. * (
@@ -78,14 +77,13 @@ float bl_amplitude_sort(struct bl_song const * const song) {
                         (6 * histogram[i-1]) + (7 * histogram[i]) +
                         (6 * histogram[i+1]) + (3 * histogram[i+2]) +
                         histogram[i+3]);
-        }
+		}
 		for(int i = 3; i < HISTOGRAM_SIZE - 5; ++i) {
 			histogram[i] = histogram_smooth[i];
         }
 	}
 
-    // Normalize it
-    // TODO: Why?
+    // Normalize it (optional)
 	for(int i = 0; i < HISTOGRAM_SIZE; ++i) {
 		histogram_smooth[i] /= (start - end);
 		histogram_smooth[i] *= 100.;
@@ -97,6 +95,7 @@ float bl_amplitude_sort(struct bl_song const * const song) {
 		histogram_integral += histogram_smooth[i];
     }
 
-    // TODO: Where does it come from?
+	// Return final score, weighted by coefficients in order to have -4 for a panel of calm songs,
+	// and 4 for a panel of loud songs. (only useful if you want an absolute « Loud » and « Calm » result
 	return (-0.2f * histogram_integral + 6.0f);
 }

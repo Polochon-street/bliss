@@ -10,17 +10,17 @@
 // Associated size of the input data for the FFT
 const int WINDOW_SIZE = (1 << WINDOW_BITS);
 
-
 void bl_envelope_sort(struct envelope_result_s * result,
         struct bl_song const * const song) {
     // Real FFT context
 	RDFTContext* fft;
-    // TODO
-	FFTSample* d_freq;
-    // TODO
+    // Hold FFT spectrum
+	FFTSample* spectrum;
+	// Complex DFT of input
 	FFTSample* x;
-	int precision = 350;  // TODO
-	int freq_size = WINDOW_SIZE / 2;  // TODO
+	// Arbitrary sample drop interval
+	int precision = 350;
+	int freq_size = WINDOW_SIZE / 2;
     // Make the envelope converge to zero in 0.45s
 	float decr_speed = 1 / ((float)song->sample_rate * 0.45);
     // Distance between frequencies in the DFT space
@@ -39,18 +39,13 @@ void bl_envelope_sort(struct envelope_result_s * result,
     // Peaks in the DFT as frequencies
     float frequencies_max[3] = {0., 0., 0.};
 
-    // TODO: Why modifying song?
-	/*if (song->nSamples % freq_size > 0) {
-		song->nSamples -= song->nSamples % freq_size;
-    }*/
-
     // Set up a real to complex FFT
 	fft = av_rdft_init(WINDOW_BITS, DFT_R2C);
 
-    // Allocate d_freq array
-	d_freq = av_malloc(freq_size * sizeof(FFTSample));
+    // Allocate spectrum array
+	spectrum = av_malloc(freq_size * sizeof(FFTSample));
 	for(int i = 0; i < freq_size; ++i) {
-		d_freq[i] = 0.0f;
+		spectrum[i] = 0.0f;
     }
 
     // Allocate x array
@@ -59,7 +54,7 @@ void bl_envelope_sort(struct envelope_result_s * result,
 		x[i] = 0.0f;
     }
 
-    // TODO
+    // On-the-fly envelope computation and derivation 
 	for(int i = 0; i < song->nSamples; ++i) {
 		envelope = fmax(
                 envelope_prev - (decr_speed * envelope_prev),
@@ -75,9 +70,9 @@ void bl_envelope_sort(struct envelope_result_s * result,
 					float re = x[d*2];
 					float im = x[d*2+1];
 					float raw = re*re + im*im;
-					d_freq[d] += raw;
+					spectrum[d] += raw;
 				}
-				d_freq[0] = 0;
+				spectrum[0] = 0;
 			}
 		} else if(i % precision == 0) {
 			if((i / precision) % WINDOW_SIZE != 0) {
@@ -94,14 +89,14 @@ void bl_envelope_sort(struct envelope_result_s * result,
     // Find three major peaks in the DFT
     // (up to freq_size / 2 as spectrum is symmetric)
 	for(int i = 1; i < freq_size / 2; ++i) {
-		if(d_freq[indices_max[0]] < d_freq[i]) {
+		if(spectrum[indices_max[0]] < spectrum[i]) {
 			indices_max[2] = indices_max[1];
 			indices_max[1] = indices_max[0];
 			indices_max[0] = i;
-		} else if(d_freq[indices_max[1]] < d_freq[i]) {
+		} else if(spectrum[indices_max[1]] < spectrum[i]) {
 				indices_max[2] = indices_max[1];
 				indices_max[1] = i;
-		} else if(d_freq[indices_max[2]] < d_freq[i]) {
+		} else if(spectrum[indices_max[2]] < spectrum[i]) {
 			indices_max[2] = i;
         }
 	}
@@ -110,6 +105,8 @@ void bl_envelope_sort(struct envelope_result_s * result,
     for(int i = 0; i < 3; ++i) {
         frequencies_max[i] = 1 / ((indices_max[i] + 1) * frequency_step);
     }
+
+	/* TODO Highly experimental (read: almost nonfuctionnal) attack part; to be completed as soon as possible */
 
     // Compute final tempo and attack ratings
     result->tempo = ( -6 * fmin(
@@ -120,7 +117,7 @@ void bl_envelope_sort(struct envelope_result_s * result,
 
     // Free everything
 	av_rdft_end(fft);
-	av_free(d_freq);
+	av_free(spectrum);
 	av_free(x);
 
 	return;

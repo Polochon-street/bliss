@@ -6,8 +6,7 @@
 
 
 int bl_analyze(char const * const filename,
-        struct bl_song * const current_song)
-{
+        struct bl_song * const current_song) {
 	float rating;
 	struct envelope_result_s envelope_result = {0.0f, 0.0f};
 
@@ -45,8 +44,7 @@ int bl_analyze(char const * const filename,
 }
 
 
-float bl_distance(
-        char const * const filename1,
+float bl_distance(char const * const filename1,
         char const * const filename2,
         struct bl_song * song1,
         struct bl_song * song2) {
