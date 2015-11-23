@@ -10,8 +10,8 @@
 // Associated size of the input data for the FFT
 const int WINDOW_SIZE = (1 << WINDOW_BITS);
 
-void bl_envelope_sort(struct envelope_result_s * result,
-        struct bl_song const * const song) {
+void bl_envelope_sort(struct bl_song const * const song,
+        struct envelope_result_s * result) {
     // Real FFT context
 	RDFTContext* fft;
     // Hold FFT spectrum
@@ -54,7 +54,7 @@ void bl_envelope_sort(struct envelope_result_s * result,
 		x[i] = 0.0f;
     }
 
-    // On-the-fly envelope computation and derivation 
+    // On-the-fly envelope computation and derivation
 	for(int i = 0; i < song->nSamples; ++i) {
 		envelope = fmax(
                 envelope_prev - (decr_speed * envelope_prev),
