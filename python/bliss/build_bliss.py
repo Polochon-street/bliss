@@ -2,7 +2,7 @@ from cffi import FFI
 
 ffi = FFI()
 
-ffi.set_source("_bliss",
+ffi.set_source("bliss._bliss",
                "#include \"bliss.h\"",
                sources=["../src/amplitude_sort.c",
                         "../src/analyze.c",

@@ -1,5 +1,5 @@
-from _bliss import ffi, lib
-import collections
+from bliss._bliss import ffi, lib
+import collections.abc
 
 
 class bl_song(collections.abc.Mapping):
@@ -240,36 +240,3 @@ def cosine_similarity(filename1, filename2):
         "song1": bl_song(c_struct=song1),
         "song2": bl_song(c_struct=song2)
     }
-
-
-if __name__ == "__main__":
-    import json
-
-    # Some testing and debug code
-    song = bl_song()
-    song.set("artist", "foobar")
-    song.set("force", 1)
-    print(bl_song)
-    print(song.get("artist"))
-    print(str(song.get("force")))
-    print(song["artist"])
-    song["artist"] = "foo"
-    print(song["artist"])
-
-    song = bl_song("/tmp/test.mp3")
-    print(song["genre"])
-    song.free()
-
-    for key in song:
-        print(key)
-        print("ok")
-
-    print(distance("/tmp/test.mp3", "/tmp/test.mp3")["distance"])
-    print(cosine_similarity("/tmp/test.mp3", "/tmp/test.mp3")["similarity"])
-
-    with bl_song("/tmp/test.mp3") as song:
-        print(song["artist"])
-        print(song["force_vector"])
-        # song["sample_array"] = []
-        # print(dict(song))
-        # print(json.dumps(song))
