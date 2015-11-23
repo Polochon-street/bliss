@@ -1,8 +1,9 @@
 from _bliss import ffi, lib
+import collections
 import json
 
 
-class bl_song:
+class bl_song(collections.abc.Mapping):
     """
     Wrapper to ease manipulation of the `bl_song` C struct.
 
@@ -78,12 +79,6 @@ class bl_song:
         """
         value_dict = {k: self.get(k) for k in self._types}
         return value_dict.__repr__()
-
-    def as_dict(self):
-        """
-        Dict representation of the dictionary.
-        """
-        return {k: self.get(k) for k in self._types}
 
     def get(self, key):
         """
@@ -273,5 +268,5 @@ with bl_song("/tmp/test.mp3") as song:
     print(song["artist"])
     print(song["force_vector"])
     #song["sample_array"] = []
-    #print(song.as_dict())
-    #print(json.dumps(song.as_dict()))
+    #print(dict(song))
+    #print(json.dumps(song))
