@@ -118,18 +118,23 @@ class bl_song(collections.abc.Mapping):
         """
         # Ease manipulation of char* data members, convert python str()
         if self._types[key] == ffi.typeof("char *") and value != ffi.NULL:
-            value = ffi.new("char[]", value.encode("utf-8"))
+            if value != ffi.NULL:
+                value = ffi.new("char[]", value.encode("utf-8"))
             # Keep the value in a dict in this object to keep it alive and safe
             # from the garbage collector.
             self._keepalive[key] = value
         # Same for force_vector_s fields
         elif self._types[key] == ffi.typeof("struct force_vector_s"):
+            if value == ffi.NULL:
+                return
             # Initialization from a valid initializer (tuple, list or dict)
-            value = ffi.new("struct force_vector_s", value)
+            value = ffi.new("struct force_vector_s[]", [value])
+            self._keepalive[key] = value
+            value = value[0]
         # Same for array of int fields
         elif self._types[key] == ffi.typeof("int8_t *"):
-            # TODO: Segfault
-            value = ffi.new("int8_t[]", value)
+            if value != ffi.NULL:
+                value = ffi.new("int8_t[]", value)
             # Keep the value in a dict in this object to keep it alive and safe
             # from the garbage collector.
             self._keepalive[key] = value
@@ -194,6 +199,9 @@ class bl_song(collections.abc.Mapping):
         Free dynamically allocated data in the underlying C struct (artist,
         genre, etc). Must be called at deletion to prevent memory leaks.
         """
+        for k in list(self._keepalive):
+            del(self._keepalive[k])
+            self.set(k, ffi.NULL)
         lib.bl_free_song(self._c_struct)
 
 

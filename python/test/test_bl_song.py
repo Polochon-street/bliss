@@ -21,12 +21,13 @@ if __name__ == "__main__":
 
     for key in song:
         print(key)
-        print("ok")
 
     with bl_song("/tmp/test.mp3") as song:
         print(song["artist"])
         print(song["force_vector"])
-        # song["sample_array"] = []
-        # print(dict(song))
-        # print(json.dumps(song))
-
+        song["sample_array"] = []
+        song["nSamples"] = 0  # Do *not* forget to update number of samples
+        song["force_vector"] = {"tempo": 1., "attack": 2., "amplitude": 3.,
+                                "frequency": 4.}
+        print(dict(song))
+        print(json.dumps(dict(song)))
