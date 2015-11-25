@@ -4,7 +4,7 @@ from bliss.bl_song import bl_song
 
 def distance(filename1, filename2):
     """
-    Wrapper around `bl_distance` function.
+    Wrapper around `bl_distance_file` function.
 
     Params:
         - filename1 is the first file to use.
@@ -18,7 +18,7 @@ def distance(filename1, filename2):
     filename1 = ffi.new("char[]", filename1.encode("utf-8"))
     filename2 = ffi.new("char[]", filename2.encode("utf-8"))
     return {
-        "distance": lib.bl_distance(filename1, filename2, song1, song2),
+        "distance": lib.bl_distance_file(filename1, filename2, song1, song2),
         "song1": bl_song(c_struct=song1),
         "song2": bl_song(c_struct=song2)
     }
