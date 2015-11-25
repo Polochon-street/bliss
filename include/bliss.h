@@ -59,6 +59,27 @@ int bl_analyze(char const * const filename,
 
 
 /**
+ * Compute the distance between two songs stored in audio files.
+ *
+ * @remark Distance is computed using a standard euclidian distance between
+ * force vectors.
+ *
+ * @param[in] filename1  is the path to the first song to compare.
+ * @param[in] filename2  is the path to the second song to compare.
+ * @param[out] song1  is the resulting `bl_song` structure for the first song,
+ *                    after analysis.
+ * @param[out] song2  is the resulting `bl_song` structure for the second song,
+ *                    after analysis.
+ *
+ * @return The distance between the two songs stored in audio files.
+ */
+float bl_distance_file(
+        char const * const filename1,
+        char const * const filename2,
+        struct bl_song * song1,
+        struct bl_song * song2);
+
+/**
  * Compute the distance between two songs.
  *
  * @remark Distance is computed using a standard euclidian distance between
@@ -74,10 +95,28 @@ int bl_analyze(char const * const filename,
  * @return The distance between the two songs.
  */
 float bl_distance(
+		struct bl_song * song1,
+        struct bl_song * song2);
+
+
+/**
+ * Compute the cosine similarity between two songs stored in audio files.
+ *
+ * @param[in] filename1  is the path to the first song to compare.
+ * @param[in] filename2  is the path to the second song to compare.
+ * @param[out] song1  is the resulting `bl_song` structure for the first song,
+ *                    after analysis.
+ * @param[out] song2  is the resulting `bl_song` structure for the second song,
+ *                    after analysis.
+ *
+ * @return The cosine similarity between the two songs stored in audio files.
+ */
+float bl_cosine_similarity_file(
         char const * const filename1,
         char const * const filename2,
         struct bl_song * song1,
         struct bl_song * song2);
+
 
 /**
  * Compute the cosine similarity between two songs.
@@ -92,8 +131,6 @@ float bl_distance(
  * @return The cosine similarity between the two songs.
  */
 float bl_cosine_similarity(
-        char const * const filename1,
-        char const * const filename2,
         struct bl_song * song1,
         struct bl_song * song2);
 

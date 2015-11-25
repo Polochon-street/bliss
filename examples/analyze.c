@@ -1,5 +1,5 @@
 /**
- * Compute distance between two songs and output it to stdout.
+ * Analyzes and fill in a struct song and output it to stdout.
  */
 #include <stdio.h>
 #include <bliss.h>
@@ -45,6 +45,7 @@ int main (int argc, char **argv) {
     printf("Track number: %s\n", song.tracknumber);
     printf("genre: %s\n", song.genre);
 
+	bl_free_song(&song);
 	return EXIT_SUCCESS;
 }
 
