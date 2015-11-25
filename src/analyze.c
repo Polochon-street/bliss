@@ -43,15 +43,15 @@ int bl_analyze(char const * const filename,
 	}
 }
 
-float bl_distance(struct bl_song * song1,
-        struct bl_song * song2) {
+float bl_distance(struct force_vector_s v_song1,
+        struct force_vector_s v_song2) {
 	struct force_vector_s v1, v2;
 	float distance;
 
     // TODO: Error handling
 
-	v1 = song1->force_vector;
-	v2 = song2->force_vector;
+	v1 = v_song1; 
+	v2 = v_song2;
 
 	distance = sqrt(
             (v1.tempo - v2.tempo) * (v1.tempo - v2.tempo) +
@@ -85,13 +85,13 @@ float bl_distance_file(char const * const filename1,
 	return distance;
 }
 
-float bl_cosine_similarity(struct bl_song *song1,
-		struct bl_song *song2) {
+float bl_cosine_similarity(struct force_vector_s v_song1,
+		struct force_vector_s v_song2) {
 	struct force_vector_s v1, v2;
 	float similarity;
 
-	v1 = song1->force_vector;
-	v2 = song2->force_vector;
+	v1 = v_song1;
+	v2 = v_song2;
 
 	similarity = (v1.tempo*v2.tempo + v1.amplitude*v2.amplitude +
 			v1.frequency*v2.frequency + v1.attack*v2.attack) / (

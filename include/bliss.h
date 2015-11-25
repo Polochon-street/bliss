@@ -85,18 +85,14 @@ float bl_distance_file(
  * @remark Distance is computed using a standard euclidian distance between
  * force vectors.
  *
- * @param[in] filename1  is the path to the first song to compare.
- * @param[in] filename2  is the path to the second song to compare.
- * @param[out] song1  is the resulting `bl_song` structure for the first song,
- *                    after analysis.
- * @param[out] song2  is the resulting `bl_song` structure for the second song,
- *                    after analysis.
+ * @param[in] v_song1  is the first song's force vector to compare.
+ * @param[in] v_song2  is the second song's force vector to compare.
  *
  * @return The distance between the two songs.
  */
 float bl_distance(
-		struct bl_song * song1,
-        struct bl_song * song2);
+		struct force_vector_s v_song1,
+        struct force_vector_s v_song2);
 
 
 /**
@@ -121,18 +117,14 @@ float bl_cosine_similarity_file(
 /**
  * Compute the cosine similarity between two songs.
  *
- * @param[in] filename1  is the path to the first song to compare.
- * @param[in] filename2  is the path to the second song to compare.
- * @param[out] song1  is the resulting `bl_song` structure for the first song,
- *                    after analysis.
- * @param[out] song2  is the resulting `bl_song` structure for the second song,
- *                    after analysis.
+ * @param[in] v_song1  is the first song's force vector to compare.
+ * @param[in] v_song2  is the second song's force vector to compare.
  *
  * @return The cosine similarity between the two songs.
  */
 float bl_cosine_similarity(
-        struct bl_song * song1,
-        struct bl_song * song2);
+        struct force_vector_s v_song1,
+        struct force_vector_s v_song2);
 
 
 
