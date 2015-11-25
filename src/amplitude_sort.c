@@ -60,7 +60,9 @@ float bl_amplitude_sort(struct bl_song const * const song) {
 			histogram[(uint16_t)fabs((float)(*p32) * quot_32to16)] += 1;
             ++p32;
 		}
-	}
+	} else {
+       return BL_UNEXPECTED;
+    }
 
     // Compute smoothed histogram with a FIR filter
 	for(int g = 0; g <= N_PASSES; ++g) {

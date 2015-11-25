@@ -13,7 +13,7 @@ int bl_analyze(char const * const filename,
     // Decode audio track
 	if(0 == bl_audio_decode(filename, current_song)) {
         // Analyze global envelope
-        bl_envelope_sort(&envelope_result, current_song);
+        bl_envelope_sort(current_song, &envelope_result);
         // Analyze tempo
         current_song->force_vector.tempo = envelope_result.tempo;
         // Analyze amplitude
@@ -83,7 +83,7 @@ float bl_cosine_similarity(char const * const filename1,
 	similarity = (v1.tempo*v2.tempo + v1.amplitude*v2.amplitude +
 			v1.frequency*v2.frequency + v1.attack*v2.attack) / (
 			sqrt(v1.tempo*v1.tempo + v1.amplitude*v1.amplitude +
-				v1.frequency*v1.frequency + v1.attack*v1.attack) * 
+				v1.frequency*v1.frequency + v1.attack*v1.attack) *
 			sqrt(v2.tempo*v2.tempo + v2.amplitude*v2.amplitude +
 				v2.frequency*v2.frequency + v2.attack*v2.attack));
 

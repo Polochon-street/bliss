@@ -85,7 +85,7 @@ int bl_audio_decode(
 
     // Allocate sample_array
 	song->sample_array = malloc(size);
-	for (int i = 0; i < size; ++i) {
+	for (unsigned int i = 0; i < size; ++i) {
 		song->sample_array[i] = 0;
     }
 

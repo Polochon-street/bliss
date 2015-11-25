@@ -123,12 +123,12 @@ float bl_cosine_similarity(
  * As you have already guessed, a song with a lot of attacks also tends to wake
  * humans up very quickly.
  *
+ * @param[in]  song  the song to analyze.
  * @param[out] result  an `envelope_result_s` structure to handle the resulting
  * ratings.
- * @param[in]  song  the song to analyze.
  */
-void bl_envelope_sort(struct envelope_result_s * result,
-        struct bl_song const * const song);
+void bl_envelope_sort(struct bl_song const * const song,
+        struct envelope_result_s * result);
 
 
 /**

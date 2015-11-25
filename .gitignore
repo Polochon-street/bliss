@@ -1,1 +1,4 @@
 build
+python/_bliss*
+.eggs
+__pycache__
