@@ -40,6 +40,26 @@ $ make
 $ gcc -o example example.c -lbliss
 ```
 
+## Sample audio test file
+* After building analyze binary, `./analyze ../audio/loud.mp3` should return:
+```
+Analysis for music ../audio/loud.mp3:
+Force: 0.000000
+Force vector: (2.517007, 0.107364, -1.432200, 10.210846)
+Channels: 2
+Number of samples: 25021440
+Sample rate: 44100
+Bitrate: 198332
+Number of bytes per sample: 2
+Calm or loud: Loud
+Duration: 283
+Artist: David TMX
+Title: Lost in dreams
+Album: Renaissance
+Track number: 14
+genre: (255)
+```
+
 ## How does the analysis process work?
 
 For every song analyzed, libbliss returns a struct song which contains, among other things, 
