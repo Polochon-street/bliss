@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <libavformat/avformat.h>
 
-#define BL_VERSION 0.5
+#define BL_VERSION 0.51
 
 static const int BL_LOUD = 0;
 static const int BL_CALM = 1;
