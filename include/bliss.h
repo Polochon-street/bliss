@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <libavformat/avformat.h>
 
+#define BL_VERSION 0.5
+
 static const int BL_LOUD = 0;
 static const int BL_CALM = 1;
 static const int BL_UNKNOWN = 2;
@@ -220,5 +222,12 @@ int bl_audio_decode(char const * const filename,
  * @param song  a `bl_song` struct representing the song to free.
  */
 void bl_free_song(struct bl_song * const song);
+
+/**
+ * Display the current version number of bliss
+ *
+ * @return  The current version, as written in `BL_VERSION`
+ */
+float bl_version(void);
 
 #endif  // BL_BLISS_H_

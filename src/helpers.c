@@ -22,3 +22,8 @@ void bl_free_song(struct bl_song * const song) {
 		song->sample_array = NULL;
 	}
 }
+
+float bl_version(void) {
+	printf("Using bliss analyzer version %0.1f.\n", BL_VERSION);
+	return (float)BL_VERSION;
+}
