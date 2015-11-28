@@ -1,7 +1,11 @@
 language: c
-before_install:
-- sudo apt-get update -qq
-- sudo apt-get install -y libavutil-dev libavcodec-dev libavformat-dev libavresample-dev
+addons:
+    apt:
+        packages:
+            - libavutil-dev
+            - libavcodec-dev
+            - libavformat-dev
+            - libavresample-dev
 script:
     - cmake . && cmake --build .
     - make test
