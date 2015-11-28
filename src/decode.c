@@ -238,7 +238,9 @@ int bl_audio_decode(
     // Free memory
 	avcodec_close(codec_context);
 	av_frame_unref(decoded_frame);
+	# if LIBAVUTIL_VERSION_MAJOR > 51
 	av_frame_free(&decoded_frame);
+	#endif
 	av_free_packet(&avpkt);
 	avformat_close_input(&context);
 
