@@ -6,7 +6,7 @@ The bliss music library is the library used to compute distance between songs in
 
 ## Installation
 
-### Linux users 
+### Linux users
 
 * clone repository on github
 ```bash
@@ -14,7 +14,7 @@ $ git clone https://github.com/Polochon-street/bliss.git
 ```
 * go to bliss root directory
 ```bash
-$ cd bliss 
+$ cd bliss
 ```
 * Create and enter the build directory
 ```bash
@@ -28,44 +28,32 @@ $ cmake .. -DCMAKE_BUILD_TYPE=Release
 ```bash
 $ make
 ```
-* Install the library 
+* Install the library
 ```bash
-# make install 
+# make install
 ```
 
 ## Sample test file
-* See examples/example.c 
+* See examples/example.c
 * Compile it (or any project using bliss) with
 ```bash
 $ gcc -o example example.c -lbliss
 ```
 
-## Sample audio test file
-* After building analyze binary, `./analyze ../audio/loud.mp3` should return:
+## Unittests
+This library comes with some unittests. To build them, just run
 ```
-Analysis for music ../audio/loud.mp3:
-Force: 0.000000
-Force vector: (2.517007, 0.107364, -1.432200, 10.210846)
-Channels: 2
-Number of samples: 25021440
-Sample rate: 44100
-Bitrate: 198332
-Number of bytes per sample: 2
-Calm or loud: Loud
-Duration: 283
-Artist: David TMX
-Title: Lost in dreams
-Album: Renaissance
-Track number: 14
-genre: (255)
+$ make test
 ```
+in the `build/` folder. Unittests source files can be found in the `tests/` folder.
+
 
 ## How does the analysis process work?
 
-For every song analyzed, libbliss returns a struct song which contains, among other things, 
+For every song analyzed, libbliss returns a struct song which contains, among other things,
 four floats, each rating an aspect of the song:
 
-* The [tempo](https://en.wikipedia.org/wiki/Tempo "link to wikipedia") rating draws the envelope of the whole song, and then computes its DFT, obtaining peaks at the frequency of each dominant beat. 
+* The [tempo](https://en.wikipedia.org/wiki/Tempo "link to wikipedia") rating draws the envelope of the whole song, and then computes its DFT, obtaining peaks at the frequency of each dominant beat.
 The period of each dominant beat can then be deduced from the frequencies, hinting at the song's tempo.<br />
 Warning: the tempo is not equal to the force of the song. As an example , a heavy metal track can have no steady beat at all, giving a very low tempo score while being very loud.
 
