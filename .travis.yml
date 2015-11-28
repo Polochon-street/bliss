@@ -2,5 +2,9 @@ language: c
 before_install:
 - sudo apt-get update -qq
 - sudo apt-get install -y libavutil-dev libavcodec-dev libavformat-dev libavresample-dev
-script: cmake . && cmake --build .
-compiler: gcc
+script:
+    - cmake . && cmake --build .
+    - make test
+compiler:
+    - gcc
+    - clang
