@@ -9,14 +9,11 @@ pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec)
 include_directories(${MULTIMEDIA_INCLUDE_DIRS} include/)
 link_directories(${MULTIMEDIA_LIBRARY_DIRS})
 add_definitions(${MULTIMEDIA_CFLAGS_OTHER})
-add_definitions(-Wall -Wno-long-long -pedantic)
+add_definitions(-Wall -Wno-long-long -pedantic -std=c99)
 
 #####################################
 # Bliss target to build the library #
 #####################################
-set_property(TARGET bliss
-    PROPERTY C_STANDARD 99)
-
 add_library(bliss SHARED
     src/amplitude_sort.c
     src/decode.c
