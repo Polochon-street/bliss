@@ -14,7 +14,7 @@ ffi.set_source("bliss._bliss",
                include_dirs=["/usr/include/ffmpeg/", "../include/"])
 
 header = '\n'.join([i for i in open("../include/bliss.h", 'r').readlines()
-                    if not i.startswith("#")])
+                    if not i.strip().startswith("#")])
 ffi.cdef(header)
 
 if __name__ == "__main__":
