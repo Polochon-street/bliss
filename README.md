@@ -5,17 +5,25 @@ See below for a technical description of the project.
 
 ## Usage
 * Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
-![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png) 
+![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png)
 * Use `bl_distance_file()` to compute the euclidian distance between two songs
 * Python bindings are also available (doc TODO)
 
 ## Dependencies
+
 * libavformat
 * libavutil
 * libavcodec
 * libswresample (or libavresample, if libswresample isn't present)
-* cffi for the python bindings
-* (ubuntu) python3-setuptools
+
+If you are running Ubuntu (e.g. 14.04), you should `apt-get install libavutil-dev libavformat-dev libavcodec-dev libavresample-dev`.
+
+If you are running Arch Linux, `pacman -S ffmpeg` should be enough.
+
+### For the Python bindings
+
+* python-cffi
+* python-setuptools
 
 ## Installation
 
@@ -87,3 +95,7 @@ Using the value in dB for each band, the final formula corresponds to freq\_resu
 The final value is obtained by dividing the sum of the positive derivates by the number of samples, in order to avoid different results just because of the songs' length.<br />
 As you have already guessed, a song with a lot of attacks also tends to wake humans up very quickly.
 
+
+## Python bindings
+
+Please refer to the `README.md` file in `python/` folder.
