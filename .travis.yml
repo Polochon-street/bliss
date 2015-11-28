@@ -1,2 +1,3 @@
 language: c
+script: cmake --build
 compiler: gcc
