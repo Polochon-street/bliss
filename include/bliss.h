@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <libavformat/avformat.h>
 
+#ifndef M_PI
+#define M_PI       3.14159265358979323846
+#endif
+
 #define BL_VERSION 0.51
 
 static const int BL_LOUD = 0;
