@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 2.8)
 
 project(bliss C)
 
@@ -9,7 +9,7 @@ pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec)
 include_directories(${MULTIMEDIA_INCLUDE_DIRS} include/)
 link_directories(${MULTIMEDIA_LIBRARY_DIRS})
 add_definitions(${MULTIMEDIA_CFLAGS_OTHER})
-add_definitions(-Wall -Wno-long-long -pedantic)
+add_definitions(-Wall -Wno-long-long -pedantic -std=c99)
 
 #####################################
 # Bliss target to build the library #
@@ -21,13 +21,10 @@ add_library(bliss SHARED
     src/frequency_sort.c
 	src/helpers.c
     src/analyze.c)
+
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}
     m)
-
-set_property(TARGET bliss
-    PROPERTY C_STANDARD 99)
-
 
 #############################
 # Examples building targets #

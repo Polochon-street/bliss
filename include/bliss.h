@@ -4,7 +4,17 @@
 #include <stdio.h>
 #include <libavformat/avformat.h>
 
+#ifndef M_PI
+#define M_PI       3.14159265358979323846
+#endif
+
 #define BL_VERSION 0.51
+
+#if LIBAVUTIL_VERSION_MAJOR < 54
+	#define av_frame_alloc avcodec_alloc_frame
+	#define av_frame_unref avcodec_get_frame_defaults
+	#define av_frame_free avcodec_free_frame
+#endif
 
 static const int BL_LOUD = 0;
 static const int BL_CALM = 1;
