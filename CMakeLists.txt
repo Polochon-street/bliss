@@ -14,6 +14,9 @@ add_definitions(-Wall -Wno-long-long -pedantic)
 #####################################
 # Bliss target to build the library #
 #####################################
+set_property(TARGET bliss
+    PROPERTY C_STANDARD 99)
+
 add_library(bliss SHARED
     src/amplitude_sort.c
     src/decode.c
@@ -21,13 +24,10 @@ add_library(bliss SHARED
     src/frequency_sort.c
 	src/helpers.c
     src/analyze.c)
+
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}
     m)
-
-set_property(TARGET bliss
-    PROPERTY C_STANDARD 99)
-
 
 #############################
 # Examples building targets #
