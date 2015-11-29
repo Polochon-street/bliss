@@ -28,10 +28,10 @@ void bl_envelope_sort(struct bl_song const * const song,
     // Derivative of the envelope
 	double d_envelope = 0;
     // Max value for a sample
-	uint64_t sample_max = (1 << (8 * song->nb_bytes_per_sample - 1));
+	int64_t sample_max = ((1 << (8 * song->nb_bytes_per_sample - 1)));
     // Auxiliary variables to compute the envelope
-	float envelope = 0;
-    float envelope_prev = 0;
+	double envelope = 0;
+    double envelope_prev = 0;
     // Attack rating
 	double attack = 0;
     // Peaks in the DFT
@@ -56,9 +56,14 @@ void bl_envelope_sort(struct bl_song const * const song,
 
     // On-the-fly envelope computation and derivation
 	for(int i = 0; i < song->nSamples; ++i) {
-		envelope = fmax(
+		if(2 == song->nb_bytes_per_sample)	
+			envelope = fmax(
                 envelope_prev - (decr_speed * envelope_prev),
                 (float)(abs(((int16_t*)song->sample_array)[i])));
+		if(4 == song->nb_bytes_per_sample) 
+			envelope = fmax(
+                envelope_prev - (decr_speed * envelope_prev),
+                (float)(abs(((int32_t*)song->sample_array)[i])));
 
 		if((i >= precision) && (i % precision == 0)) {
 			if((i / precision) % WINDOW_SIZE != 0) {
@@ -80,9 +85,8 @@ void bl_envelope_sort(struct bl_song const * const song,
             }
         }
 
-		d_envelope = (double)(envelope - envelope_prev) / (double)sample_max;
+		d_envelope = (double)(envelope - envelope_prev)/(fabs((double)sample_max));
 		attack += fmax(d_envelope * d_envelope, 0.);
-
 		envelope_prev = envelope;
 	}
 

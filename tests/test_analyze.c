@@ -34,7 +34,7 @@ void test_loud(void) {
     assert_floateq(song.force_vector.tempo, 2.517007);
     assert_floateq(song.force_vector.amplitude, 0.107364);
     assert_floateq(song.force_vector.frequency, -1.432200);
-    assert_floateq(song.force_vector.attack, 10.210846);
+    assert_floateq(song.force_vector.attack, 10.210849);
 
     assert_eq(song.channels, 2);
 
