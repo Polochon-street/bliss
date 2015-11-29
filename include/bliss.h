@@ -8,7 +8,7 @@
 #define M_PI       3.14159265358979323846
 #endif
 
-#define BL_VERSION 0.51
+#define BL_VERSION 0.52
 
 #if LIBAVUTIL_VERSION_MAJOR < 54
 	#define av_frame_alloc avcodec_alloc_frame
@@ -109,6 +109,9 @@ float bl_distance(
 
 /**
  * Compute the cosine similarity between two songs stored in audio files.
+ *
+ * @remark Returns a value between -1 and 1; -1 means songs are total opposites,
+ * 1 means that they are completely similar.
  *
  * @param[in] filename1  is the path to the first song to compare.
  * @param[in] filename2  is the path to the second song to compare.
