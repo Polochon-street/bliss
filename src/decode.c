@@ -1,8 +1,12 @@
+#include <libswresample/swresample.h>
+#include <libavutil/opt.h>
+
 #include "bliss.h"
 
 int bl_audio_decode(
         char const * const filename,
         struct bl_song * const song) {
+	int ret;
     // Contexts and libav variables
     AVPacket avpkt;
 	AVFormatContext* context;
@@ -27,7 +31,7 @@ int bl_audio_decode(
 	int got_frame;
     // Position in the data buffer
 	int index;
-
+	struct SwrContext *swr_ctx;
     // Initialize AV lib
 	av_register_all();
 	context = avformat_alloc_context();
@@ -92,8 +96,30 @@ int bl_audio_decode(
 	beginning = song->sample_array;
 	index = 0;
 
+	song->is_float = 0;
 	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
 	song->channels = codec_context->channels;
+
+	if(codec_context->sample_fmt == AV_SAMPLE_FMT_FLT ||
+		codec_context->sample_fmt == AV_SAMPLE_FMT_DBL ||
+		codec_context->sample_fmt == AV_SAMPLE_FMT_FLTP ||
+		codec_context->sample_fmt == AV_SAMPLE_FMT_DBLP) {
+		song->is_float = 1;
+		song->nb_bytes_per_sample = 2;
+	
+		swr_ctx = swr_alloc();
+		av_opt_set_int(swr_ctx, "in_channel_layout", codec_context->channel_layout, 0);
+		av_opt_set_int(swr_ctx, "in_sample_rate", codec_context->sample_rate, 0);
+		av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt", codec_context->sample_fmt, 0);
+
+		av_opt_set_int(swr_ctx, "out_channel_layout", codec_context->channel_layout, 0);
+		av_opt_set_int(swr_ctx, "out_sample_rate", codec_context->sample_rate, 0);
+		av_opt_set_sample_fmt(swr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+		if((ret = swr_init(swr_ctx)) < 0) {
+			fprintf(stderr, "Could not allocate resampler context\n");
+			return BL_UNEXPECTED;
+		}		
+	}
 
     // Zero initialize tags
 	song->artist = NULL;
@@ -192,14 +218,30 @@ int bl_audio_decode(
                         decoded_frame->nb_samples,
                         codec_context->sample_fmt,
                         1);
-
+			
                 if ((index * song->nb_bytes_per_sample + data_size) > size) {
                     size += data_size;
                     beginning = realloc(beginning, size);
                     song->nSamples += data_size / song->nb_bytes_per_sample;
                 }
                 int8_t *p = beginning + (index * song->nb_bytes_per_sample);
-                if (1 == is_planar) {
+				if(song->is_float == 1) {
+					uint8_t **int_buffer;
+					int buff_size;
+					buff_size = av_samples_alloc_array_and_samples(&int_buffer, decoded_frame->linesize,
+						song->channels, decoded_frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
+					ret = swr_convert(swr_ctx, int_buffer, buff_size,
+						(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
+					if(ret < 0) {
+						fprintf(stderr, "Error while converting from floating-point to int\n");
+						return BL_UNEXPECTED;
+					}
+					memcpy((index * song->nb_bytes_per_sample) + beginning,
+						int_buffer[0],	
+						buff_size);
+                   	index += buff_size / song->nb_bytes_per_sample;
+				}
+                else if(1 == is_planar) {
                     for (int i = 0;
                          i < (decoded_frame->nb_samples * song->nb_bytes_per_sample);
                          i += song->nb_bytes_per_sample) {
