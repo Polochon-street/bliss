@@ -2,7 +2,10 @@
 The bliss music library is the library used to compute distance between songs in [leleleplayer](https://github.com/Polochon-street/leleleplayer)
 
 ## Dependencies
-* ffmpeg
+* libavformat
+* libavutil
+* libavcodec
+* libswresample
 
 ## Installation
 
