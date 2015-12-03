@@ -236,7 +236,7 @@ int bl_audio_decode(
 					av_samples_alloc(int_buffer, decoded_frame->linesize,
 						song->channels, decoded_frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
 					ret = avresample_convert(avr_ctx, int_buffer, 0, buff_size,
-						(const uint8_t**)decoded_frame->extended_data, is_planar, decoded_frame->nb_samples);
+						decoded_frame->extended_data, is_planar, decoded_frame->nb_samples);
 					if(ret < 0) {
 						fprintf(stderr, "Error while converting from floating-point to int\n");
 						return BL_UNEXPECTED;
