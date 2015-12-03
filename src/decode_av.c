@@ -226,9 +226,14 @@ int bl_audio_decode(
                 }
                 int8_t *p = beginning + (index * song->nb_bytes_per_sample);
 				if(song->is_float == 1) {
+					int nb_planes = is_planar ? song->channels : 1;
 					uint8_t **int_buffer;
+					int_buffer = calloc(nb_planes, sizeof(*int_buffer));
 					int buff_size;
-					buff_size = av_samples_alloc(int_buffer, decoded_frame->linesize,
+					buff_size = av_samples_get_buffer_size(decoded_frame->linesize,
+						song->channels, decoded_frame->nb_samples,
+						AV_SAMPLE_FMT_S16, 0);
+					av_samples_alloc(int_buffer, decoded_frame->linesize,
 						song->channels, decoded_frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
 					ret = avresample_convert(avr_ctx, int_buffer, 0, buff_size,
 						(const uint8_t**)decoded_frame->extended_data, is_planar, decoded_frame->nb_samples);
