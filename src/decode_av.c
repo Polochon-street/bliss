@@ -110,11 +110,11 @@ int bl_audio_decode(
 		avr_ctx = avresample_alloc_context();
 		av_opt_set_int(avr_ctx, "in_channel_layout", codec_context->channel_layout, 0);
 		av_opt_set_int(avr_ctx, "in_sample_rate", codec_context->sample_rate, 0);
-		av_opt_set_sample_fmt(avr_ctx, "in_sample_fmt", codec_context->sample_fmt, 0);
+		av_opt_set_int(avr_ctx, "in_sample_fmt", codec_context->sample_fmt, 0);
 
 		av_opt_set_int(avr_ctx, "out_channel_layout", codec_context->channel_layout, 0);
 		av_opt_set_int(avr_ctx, "out_sample_rate", codec_context->sample_rate, 0);
-		av_opt_set_sample_fmt(avr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+		av_opt_set_int(avr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
 		if((ret = avresample_open(avr_ctx)) < 0) {
 			fprintf(stderr, "Could not allocate resampler context\n");
 			return BL_UNEXPECTED;
@@ -228,7 +228,7 @@ int bl_audio_decode(
 				if(song->is_float == 1) {
 					uint8_t **int_buffer;
 					int buff_size;
-					buff_size = av_samples_alloc_array_and_samples(&int_buffer, decoded_frame->linesize,
+					buff_size = av_samples_alloc(int_buffer, decoded_frame->linesize,
 						song->channels, decoded_frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
 					ret = avresample_convert(avr_ctx, int_buffer, 0, buff_size,
 						(const uint8_t**)decoded_frame->extended_data, is_planar, decoded_frame->nb_samples);

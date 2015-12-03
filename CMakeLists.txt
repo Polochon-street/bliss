@@ -43,6 +43,7 @@ endif()
 
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}
+	${RESAMPLE_LIBRARIES}
     m)
 
 #############################
