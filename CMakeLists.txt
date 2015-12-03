@@ -5,22 +5,39 @@ project(bliss C)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec)
+pkg_check_modules(RESAMPLE QUIET libswresample)
 
-include_directories(${MULTIMEDIA_INCLUDE_DIRS} include/)
-link_directories(${MULTIMEDIA_LIBRARY_DIRS})
-add_definitions(${MULTIMEDIA_CFLAGS_OTHER})
+if(!PKG_CONFIG_FOUND)
+pkg_check_modules(RESAMPLE REQUIRED libavresample)
+set(AVRESAMPLE, TRUE)
+endif()
+
+include_directories(${MULTIMEDIA_INCLUDE_DIRS} ${RESAMPLE_INCLUDE_DIRS} include/)
+link_directories(${MULTIMEDIA_LIBRARY_DIRS} ${RESAMPLE_INCLUDE_DIRS})
+add_definitions(${MULTIMEDIA_CFLAGS_OTHER} ${RESAMPLE_INCLUDE_DIRS})
 add_definitions(-Wall -Wno-long-long -pedantic -std=c99)
 
 #####################################
 # Bliss target to build the library #
 #####################################
-add_library(bliss SHARED
-    src/amplitude_sort.c
-    src/decode.c
-    src/envelope_sort.c
-    src/frequency_sort.c
-	src/helpers.c
-    src/analyze.c)
+
+if(AVRESAMPLE)
+	add_library(bliss SHARED
+    	src/amplitude_sort.c
+    	src/decode_av.c
+    	src/envelope_sort.c
+    	src/frequency_sort.c
+		src/helpers.c
+    	src/analyze.c)
+else()
+	add_library(bliss SHARED
+    	src/amplitude_sort.c
+    	src/decode.c
+    	src/envelope_sort.c
+    	src/frequency_sort.c
+		src/helpers.c
+    	src/analyze.c)
+endif()
 
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}
