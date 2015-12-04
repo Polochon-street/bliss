@@ -14,6 +14,7 @@ int bl_audio_decode(
 	AVCodecContext* codec_context = NULL;
 	AVCodec *codec = NULL;
     AVFrame *decoded_frame = NULL;
+	AVAudioResampleContext *avr_ctx;
 
     // Size of the samples
     uint64_t size = 0;
@@ -31,7 +32,6 @@ int bl_audio_decode(
 	int got_frame;
     // Position in the data buffer
 	int index;
-	AVAudioResampleContext *avr_ctx;
     // Initialize AV lib
 	av_register_all();
 	context = avformat_alloc_context();
@@ -100,6 +100,7 @@ int bl_audio_decode(
 	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
 	song->channels = codec_context->channels;
 
+	// If the song is in a floating-point format, prepare the conversion to int16
 	if(codec_context->sample_fmt == AV_SAMPLE_FMT_FLT ||
 		codec_context->sample_fmt == AV_SAMPLE_FMT_DBL ||
 		codec_context->sample_fmt == AV_SAMPLE_FMT_FLTP ||
@@ -224,26 +225,30 @@ int bl_audio_decode(
                     beginning = realloc(beginning, size);
                     song->nSamples += data_size / song->nb_bytes_per_sample;
                 }
+
                 int8_t *p = beginning + (index * song->nb_bytes_per_sample);
+
+				// If the song is in a floating-point format, convert it to int16
 				if(song->is_float == 1) {
 					int nb_planes = is_planar ? song->channels : 1;
-					uint8_t **int_buffer;
-					int_buffer = calloc(nb_planes, sizeof(*int_buffer));
+					uint8_t **out_buffer;
+					out_buffer = calloc(nb_planes, sizeof(*out_buffer));
 					int buff_size;
 					buff_size = av_samples_get_buffer_size(decoded_frame->linesize,
 						song->channels, decoded_frame->nb_samples,
 						AV_SAMPLE_FMT_S16, 0);
-					av_samples_alloc(int_buffer, decoded_frame->linesize,
+					av_samples_alloc(out_buffer, decoded_frame->linesize,
 						song->channels, decoded_frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
-					ret = avresample_convert(avr_ctx, int_buffer, 0, buff_size,
+					ret = avresample_convert(avr_ctx, out_buffer, 0, buff_size,
 						decoded_frame->extended_data, is_planar, decoded_frame->nb_samples);
 					if(ret < 0) {
 						fprintf(stderr, "Error while converting from floating-point to int\n");
 						return BL_UNEXPECTED;
 					}
 					memcpy((index * song->nb_bytes_per_sample) + beginning,
-						int_buffer[0],	
+						out_buffer[0],	
 						buff_size);
+					av_freep(&out_buffer[0]);
                    	index += buff_size / song->nb_bytes_per_sample;
 				}
                 else if(1 == is_planar) {
