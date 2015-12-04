@@ -1,11 +1,21 @@
 # Bliss music analyzer v0.5.2
-The bliss music library is the library used to compute distance between songs in [leleleplayer](https://github.com/Polochon-street/leleleplayer)
+Bliss music library is a C library used to compute distance between songs in [leleleplayer](https://github.com/Polochon-street/leleleplayer).
+It is can be useful for creating « intelligent » playlists, for instance.
+See below for a technical description of the project.
+
+## Usage
+* Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
+![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png) 
+* Use `bl_distance_file()` to compute the euclidian distance between two songs
+* Python bindings are also available (doc TODO)
 
 ## Dependencies
 * libavformat
 * libavutil
 * libavcodec
-* libswresample
+* libswresample (or libavresample, if libswresample isn't present)
+* cffi for the python bindings
+* (ubuntu) python3-setuptools
 
 ## Installation
 
@@ -33,15 +43,21 @@ $ make
 ```
 * Install the library
 ```bash
-# make install
+(root) make install
+```
+* (optional) Install the python bindings
+```bash
+(root) cd python && python setup.py install
 ```
 
-## Sample test file
-* See examples/example.c
-* Compile it (or any project using bliss) with
+
+## Usage examples
+* See examples/analyze.c and examples/distance.c
+* Compile any project using bliss with
 ```bash
 $ gcc -o example example.c -lbliss
 ```
+* Examples for python bindings are in python/test
 
 ## Unittests
 This library comes with some unittests. To build them, just run
