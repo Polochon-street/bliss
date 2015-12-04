@@ -4,7 +4,8 @@ It is can be useful for creating « intelligent » playlists, for instance.
 See below for a technical description of the project.
 
 ## Usage
-* Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs
+* Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
+![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png) 
 * Use `bl_distance_file()` to compute the euclidian distance between two songs
 * Python bindings are also available (doc TODO)
 
