@@ -14,6 +14,7 @@ See below for a technical description of the project.
 * libavcodec
 * libswresample (or libavresample, if libswresample isn't present)
 * cffi for the python bindings
+* (ubuntu) python3-setuptools
 
 ## Installation
 
