@@ -1,8 +1,12 @@
 from bliss._bliss import ffi, lib
-import collections.abc
+try:
+    # Python > 3.3
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 
 
-class bl_song(collections.abc.Mapping):
+class bl_song(Mapping):
     """
     Wrapper to ease manipulation of the `bl_song` C struct.
 
