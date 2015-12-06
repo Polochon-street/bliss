@@ -28,7 +28,7 @@ int bl_analyze(char const * const filename,
                 current_song->force_vector.amplitude +
                 current_song->force_vector.frequency +
                 fmax(current_song->force_vector.attack, 0));
-
+		current_song->force = rating;
         if(rating > 0) {
             current_song->calm_or_loud = BL_LOUD;
         } else if(rating < 0) {

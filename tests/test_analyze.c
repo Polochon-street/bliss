@@ -29,7 +29,7 @@ void test_loud(void) {
     struct bl_song song;
     bl_analyze("../audio/loud.mp3", &song);
 
-    assert_floateq(song.force, 0.0);
+    assert_floateq(song.force, 11.403019);
 
     assert_floateq(song.force_vector.tempo, 2.517007);
     assert_floateq(song.force_vector.amplitude, 0.107364);
@@ -59,6 +59,7 @@ void test_loud(void) {
     assert_streq(song.tracknumber, "14");
 
     assert_streq(song.genre, "(255)");
+	bl_free_song(&song);
 }
 
 

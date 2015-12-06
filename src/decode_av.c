@@ -249,6 +249,7 @@ int bl_audio_decode(
 						out_buffer[0],	
 						buff_size);
 					av_freep(&out_buffer[0]);
+					free(out_buffer);
                    	index += buff_size / song->nb_bytes_per_sample;
 				}
                 else if(1 == is_planar) {
@@ -288,6 +289,8 @@ int bl_audio_decode(
 	} while(got_frame);
 
     // Free memory
+	if(song->is_float)
+		avresample_free(&avr_ctx);
 	avcodec_close(codec_context);
 	av_frame_unref(decoded_frame);
 	# if LIBAVUTIL_VERSION_MAJOR > 51

@@ -21,6 +21,14 @@ void bl_free_song(struct bl_song * const song) {
 		free(song->sample_array);
 		song->sample_array = NULL;
 	}
+	if(song->filename) {
+		free(song->filename);
+		song->filename = NULL;
+	}
+	if(song->genre) {
+		free(song->genre);
+		song->genre = NULL;
+	}
 }
 
 float bl_version(void) {

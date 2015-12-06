@@ -49,7 +49,7 @@ float bl_frequency_sort(struct bl_song const * const song) {
 	x = (FFTSample*)av_malloc(WINDOW_SIZE * sizeof(FFTSample));
 
     // Zero-initialize power spectrum
-	power_spectrum = (FFTSample*) av_malloc((WINDOW_SIZE * sizeof(FFTSample)) / 2);
+	power_spectrum = (FFTSample*) av_malloc((WINDOW_SIZE * sizeof(FFTSample)) / 2 + 1*sizeof(FFTSample));
 	for(int i = 0; i <= WINDOW_SIZE / 2; ++i) {  // 2 factor due to x's complex nature and power_spectrum's real nature.
 		power_spectrum[i] = 0.0f;
     }
