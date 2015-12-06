@@ -7,7 +7,7 @@ See below for a technical description of the project.
 * Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
 ![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png) 
 * Use `bl_distance_file()` to compute the euclidian distance between two songs
-* Python bindings are also available (doc TODO)
+* Python bindings are also available. See [the wiki](https://github.com/Polochon-street/bliss/wiki/Python-Bindings) to use learn how to use them.
 
 ## Dependencies
 * libavformat
