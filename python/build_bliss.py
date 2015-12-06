@@ -27,7 +27,8 @@ ffi.set_source("bliss._bliss",
                         os.path.normpath(dname + "/../src/frequency_sort.c"),
                         os.path.normpath(dname + "/../src/helpers.c")],
                libraries=["avformat", "avutil", "avcodec", resample[1]],
-               include_dirs=["/usr/include/ffmpeg/", dname + "/../include"])
+               include_dirs=["/usr/include/ffmpeg/", dname + "/../include"],
+               extra_compile_args=["-std=c99"])
 
 header = ''.join([i for i in open(dname + "/../include/bliss.h",
                                   'r').readlines()

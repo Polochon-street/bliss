@@ -3,3 +3,4 @@ python/_bliss*
 .eggs
 __pycache__
 _bliss.c
+*.pyc
