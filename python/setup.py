@@ -18,6 +18,6 @@ setup(
     #     "License :: OSI Approved :: BSD License",
     # ],
     setup_requires=["cffi>=1.0.0"],
-    cffi_modules=["./bliss/build_bliss.py:ffi"],
+    cffi_modules=["./build_bliss.py:ffi"],
     install_requires=["cffi>=1.0.0"],
 )
