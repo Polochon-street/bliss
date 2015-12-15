@@ -58,26 +58,14 @@ float bl_frequency_sort(struct bl_song const * const song) {
 	fft = av_rdft_init(WIN_BITS, DFT_R2C);
 
 	for(int i = 0; i < n_frames * WINDOW_SIZE * song->channels; i += song->channels * WINDOW_SIZE) {
-		if(2 == song->nb_bytes_per_sample) {  // 16 bits sound
-			if(2 == song->channels) {  // Stereo sound
-				for(int d = 0; d < WINDOW_SIZE; ++d) {
-					x[d] = (float)((((int16_t*)song->sample_array)[i+2*d] + ((int16_t*)song->sample_array)[i+2*d+1])/2) * hann_window[d];
-                }
-            } else {  // Mono sound
-				for(int d = 0; d < WINDOW_SIZE; ++d) {
-					x[d] = (float)(((int16_t*)song->sample_array)[i+d])*hann_window[d];
-                }
+		if(2 == song->channels) {  // Stereo sound
+			for(int d = 0; d < WINDOW_SIZE; ++d) {
+				x[d] = (float)((((int16_t*)song->sample_array)[i+2*d] + ((int16_t*)song->sample_array)[i+2*d+1])/2) * hann_window[d];
             }
-		} else if (4 == song->nb_bytes_per_sample) {  // 32 bits sound
-			if(2 == song->channels) {  // Stereo sound
-				for(int d = 0; d < WINDOW_SIZE; ++d) {
-					x[d] = (float)((((int32_t*)song->sample_array)[i+2*d] + ((int32_t*)song->sample_array)[i+2*d+1])/2)*hann_window[d];
-                }
-            } else {  // Mono sound
-                for(int d = 0; d < WINDOW_SIZE; ++d) {
-                    x[d] = (float)(((int16_t*)song->sample_array)[i+d])*hann_window[d];
-                }
-            }
+		} else {  // Mono sound
+			for(int d = 0; d < WINDOW_SIZE; ++d) {
+				x[d] = (float)(((int16_t*)song->sample_array)[i+d])*hann_window[d];
+			}
 		}
 
         // Compute FFT

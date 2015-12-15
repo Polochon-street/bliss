@@ -56,15 +56,10 @@ void bl_envelope_sort(struct bl_song const * const song,
 
     // On-the-fly envelope computation and derivation
 	for(int i = 0; i < song->nSamples; ++i) {
-		if(2 == song->nb_bytes_per_sample)	
-			envelope = fmax(
-                envelope_prev - (decr_speed * envelope_prev),
-                (float)(abs(((int16_t*)song->sample_array)[i])));
-		if(4 == song->nb_bytes_per_sample) 
-			envelope = fmax(
-                envelope_prev - (decr_speed * envelope_prev),
-                (float)(abs(((int32_t*)song->sample_array)[i])));
-
+		envelope = fmax(
+			envelope_prev - (decr_speed * envelope_prev),
+			(float)(abs(((int16_t*)song->sample_array)[i])));
+	
 		if((i >= precision) && (i % precision == 0)) {
 			if((i / precision) % WINDOW_SIZE != 0) {
 				x[(i / precision) % WINDOW_SIZE - 1] = envelope;

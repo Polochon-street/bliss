@@ -96,16 +96,14 @@ int bl_audio_decode(
 	beginning = song->sample_array;
 	index = 0;
 
-	song->is_float = 0;
+	song->not_s16 = 0;
 	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
 	song->channels = codec_context->channels;
 
 	// If the song is in a floating-point format, prepare the conversion to int16
-	if(codec_context->sample_fmt == AV_SAMPLE_FMT_FLT ||
-		codec_context->sample_fmt == AV_SAMPLE_FMT_DBL ||
-		codec_context->sample_fmt == AV_SAMPLE_FMT_FLTP ||
-		codec_context->sample_fmt == AV_SAMPLE_FMT_DBLP) {
-		song->is_float = 1;
+	if(codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
+		codec_context->sample_fmt != AV_SAMPLE_FMT_S16P) {
+		song->not_s16 = 1;
 		song->nb_bytes_per_sample = 2;
 	
 		swr_ctx = swr_alloc();
@@ -228,8 +226,8 @@ int bl_audio_decode(
 
                 int8_t *p = beginning + (index * song->nb_bytes_per_sample);
 
-				// If the song is in a floating-point format, convert it to int16
-				if(song->is_float == 1) {
+				// If the song isn't in a 16-bit format, convert it to
+				if(song->not_s16 == 1) {
 					uint8_t **out_buffer;
 					int buff_size;
 					buff_size = av_samples_alloc_array_and_samples(&out_buffer, decoded_frame->linesize,
@@ -283,7 +281,7 @@ int bl_audio_decode(
 	} while(got_frame);
 
     // Free memory
-	if(song->is_float)
+	if(song->not_s16)
 		swr_free(&swr_ctx);
 	avcodec_close(codec_context);
 	av_frame_unref(decoded_frame);

@@ -19,9 +19,6 @@ float bl_amplitude_sort(struct bl_song const * const song) {
     // Smoothed histogram array
 	float histogram_smooth[HISTOGRAM_SIZE];
 
-    // Mapping of 32 bits values onto 16 bits of the histogram
-	float quot_32to16 = (float)(HISTOGRAM_SIZE - 1) / (float)(1u << 31);
-
     // Integral of the histogram
 	float histogram_integral = 0;
 
@@ -32,38 +29,18 @@ float bl_amplitude_sort(struct bl_song const * const song) {
 	}
 
     // Fill-in histograms
-	if(2 == song->nb_bytes_per_sample) {
-        // Find beginning of data
-		for(start = 0; ((int16_t*)song->sample_array)[start] == 0; ++start) {
-		}
-        // Find end of data
-		for(end = song->nSamples - 1; ((int16_t*)song->sample_array)[end] == 0; --end) {
-		}
-        // Add values to the histogram
-		int16_t* p16 = (int16_t*)song->sample_array + start;
-		for(int i = start; i <= end; ++i) {
-			histogram[abs(*p16)] += 1;
-            ++p16;
-		}
-	} else if(4 == song->nb_bytes_per_sample) {
-        // Find beginning of data
-		for(start = 0; 0 == ((int32_t*)song->sample_array)[start]; ++start) {
-        }
-        // Find end of data
-		for(end = song->nSamples - 1; 0 == ((int32_t*)song->sample_array)[end]; --end) {
-        }
-        // Add values to the histogram
-		int32_t* p32 = (int32_t*)song->sample_array + start;
-		for(int i = start; i <= end; ++i) {
-            // Histogram has 2^16 fields, then we have to map 32 bits value
-            // onto 16 bits
-			histogram[(uint16_t)fabs((float)(*p32) * quot_32to16)] += 1;
-            ++p32;
-		}
-	} else {
-       return BL_UNEXPECTED;
-    }
-
+    // Find beginning of data
+	for(start = 0; ((int16_t*)song->sample_array)[start] == 0; ++start)
+		;
+	// Find end of data
+	for(end = song->nSamples - 1; ((int16_t*)song->sample_array)[end] == 0; --end)
+		;
+	// Add values to the histogram
+	int16_t* p16 = (int16_t*)song->sample_array + start;
+	for(int i = start; i <= end; ++i) {
+		histogram[abs(*p16)] += 1;
+		++p16;
+	}
     // Compute smoothed histogram with a FIR filter
 	for(int g = 0; g <= N_PASSES; ++g) {
 		histogram_smooth[0] = histogram[0];
