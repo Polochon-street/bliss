@@ -20,7 +20,7 @@ If you are running Ubuntu (e.g. 14.04), you should `apt-get install libavutil-de
 
 If you are running Arch Linux, `pacman -S ffmpeg` should be enough.
 
-### For the Python bindings
+For the Python bindings
 
 * python-cffi
 * python-setuptools
