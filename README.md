@@ -6,7 +6,8 @@ See below for a technical description of the project.
 ## Usage
 * Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
 ![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png)
-* Use `bl_distance_file()` to compute the euclidian distance between two songs
+* Use `bl_distance_file()` to compute the euclidian distance between two songs. If the distance is < 5, the songs are really similar; between 5 and 10, they are quite similar, between 10 and 15 means quite opposite, and > 15 « total opposites ».
+* Combine both functions to obtain a better result - for example, a good condition to find similar songs would be « if cosine_distance >= 0.90 AND distance <= 5 then... » .
 * Python bindings are also available. See [the wiki](https://github.com/Polochon-street/bliss/wiki/Python-Bindings) to use learn how to use them.
 
 ## Dependencies
