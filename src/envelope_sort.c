@@ -81,7 +81,6 @@ void bl_envelope_sort(struct bl_song const * const song,
         }
 
 		d_envelope = (double)(envelope - envelope_prev)/(fabs((double)sample_max));
-		d_envelope = d_envelope > 0 ? d_envelope : 0;
 		attack += d_envelope * d_envelope;
 		envelope_prev = envelope;
 	}
