@@ -13,7 +13,7 @@ int bl_audio_decode(
 	int audio_stream;
 	AVCodecContext* codec_context = NULL;
 	AVCodec *codec = NULL;
-    AVFrame *decoded_frame = NULL;
+	AVFrame *decoded_frame = NULL;
 	struct SwrContext *swr_ctx;
 
     // Size of the samples
@@ -70,32 +70,33 @@ int bl_audio_decode(
     strcpy(song->filename, filename);
 
 	song->sample_rate = codec_context->sample_rate;
-	song->duration = context->duration / AV_TIME_BASE;
+	song->duration = (uint64_t)(context->duration) / ((uint64_t)AV_TIME_BASE);
     song->bitrate = context->bit_rate;
-
+	song->not_s16 = 0;
+	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
+	song->channels = codec_context->channels;
+	
     // Get number of samples
 	size = (
             ((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
             ((uint64_t)AV_TIME_BASE)
            ) *
-        codec_context->channels *
-        av_get_bytes_per_sample(codec_context->sample_fmt);
+        song->channels *
+        song->nb_bytes_per_sample;
+
 	song->nSamples = (
             (
              ((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
              ((uint64_t)AV_TIME_BASE)
             ) *
-        codec_context->channels);
+        song->channels
+			);
 
     // Allocate sample_array
 	song->sample_array = calloc(size, 1);
 
 	beginning = song->sample_array;
 	index = 0;
-
-	song->not_s16 = 0;
-	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
-	song->channels = codec_context->channels;
 
 	// If the song is in a floating-point format, prepare the conversion to int16
 	if(codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
@@ -114,7 +115,7 @@ int bl_audio_decode(
 		if((ret = swr_init(swr_ctx)) < 0) {
 			fprintf(stderr, "Could not allocate resampler context\n");
 			return BL_UNEXPECTED;
-		}		
+		}
 	}
 
     // Zero initialize tags
@@ -214,12 +215,6 @@ int bl_audio_decode(
                         decoded_frame->nb_samples,
                         codec_context->sample_fmt,
                         1);
-			
-                if ((index * song->nb_bytes_per_sample + data_size) > size) {
-                    size += data_size;
-                    beginning = realloc(beginning, size);
-                    song->nSamples += data_size / song->nb_bytes_per_sample;
-                }
 
                 int8_t *p = beginning + (index * song->nb_bytes_per_sample);
 
@@ -276,7 +271,6 @@ int bl_audio_decode(
 	do {
 		avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
 	} while(got_frame);
-
     // Free memory
 	if(song->not_s16)
 		swr_free(&swr_ctx);

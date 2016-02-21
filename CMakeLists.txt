@@ -57,8 +57,12 @@ add_executable(distance
     examples/distance.c)
 target_link_libraries(distance bliss)
 
+add_executable(detect-gapless
+	examples/detect-gapless.c)
+target_link_libraries(detect-gapless bliss)
+
 add_custom_target(examples
-    DEPENDS analyze distance)
+    DEPENDS analyze distance detect-gapless)
 
 
 ##############################
