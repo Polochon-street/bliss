@@ -68,7 +68,7 @@ struct bl_song {
  * error-specific.
  */
 int bl_analyze(char const * const filename,
-        struct bl_song * current_song);
+	struct bl_song * current_song);
 
 
 /**
@@ -87,10 +87,10 @@ int bl_analyze(char const * const filename,
  * @return The distance between the two songs stored in audio files.
  */
 float bl_distance_file(
-        char const * const filename1,
-        char const * const filename2,
-        struct bl_song * song1,
-        struct bl_song * song2);
+	char const * const filename1,
+	char const * const filename2,
+	struct bl_song * song1,
+	struct bl_song * song2);
 
 /**
  * Compute the distance between two songs.
@@ -104,8 +104,8 @@ float bl_distance_file(
  * @return The distance between the two songs.
  */
 float bl_distance(
-		struct force_vector_s v_song1,
-        struct force_vector_s v_song2);
+	struct force_vector_s v_song1,
+	struct force_vector_s v_song2);
 
 
 /**
@@ -124,10 +124,10 @@ float bl_distance(
  * @return The cosine similarity between the two songs stored in audio files.
  */
 float bl_cosine_similarity_file(
-        char const * const filename1,
-        char const * const filename2,
-        struct bl_song * song1,
-        struct bl_song * song2);
+	char const * const filename1,
+	char const * const filename2,
+	struct bl_song * song1,
+	struct bl_song * song2);
 
 
 /**
@@ -139,12 +139,12 @@ float bl_cosine_similarity_file(
  * @return The cosine similarity between the two songs.
  */
 float bl_cosine_similarity(
-        struct force_vector_s v_song1,
-        struct force_vector_s v_song2);
+	struct force_vector_s v_song1,
+	struct force_vector_s v_song2);
 
 float bl_canberra_distance(
-        struct force_vector_s v_song1,
-        struct force_vector_s v_song2);
+	struct force_vector_s v_song1,
+	struct force_vector_s v_song2);
 
 
 /**********************
@@ -176,7 +176,7 @@ float bl_canberra_distance(
  * ratings.
  */
 void bl_envelope_sort(struct bl_song const * const song,
-        struct envelope_result_s * result);
+	struct envelope_result_s * result);
 
 
 /**
@@ -226,7 +226,7 @@ float bl_frequency_sort(struct bl_song const * const song);
  * @return `BL_OK` if everything went fine, `BL_UNEXPECTED` otherwise.
  */
 int bl_audio_decode(char const * const filename,
-        struct bl_song * const song);
+	struct bl_song * const song);
 
 
 /***********
