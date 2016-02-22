@@ -12,7 +12,7 @@ static const int INTEGRAL_SUP = 2000;
 float bl_amplitude_sort(struct bl_song const * const song) {
     // Start and end offsets of the data in the sample_array
 	int start;
-    int end;
+	int end;
 
     // Histogram array
 	float histogram[HISTOGRAM_SIZE];
@@ -45,21 +45,24 @@ float bl_amplitude_sort(struct bl_song const * const song) {
 	for(int g = 0; g <= N_PASSES; ++g) {
 		histogram_smooth[0] = histogram[0];
 		histogram_smooth[1] = 1. / 4. * (
-                histogram[0] + (2 * histogram[1]) + histogram[2]);
+			histogram[0] + (2 * histogram[1]) + histogram[2]
+		);
 		histogram_smooth[2] = 1. / 9. * (
-                histogram[0] + (2 * histogram[1]) +
-                (3 * histogram[2]) + (2 * histogram[3]) +
-                histogram[4]);
+			histogram[0] + (2 * histogram[1]) +
+			(3 * histogram[2]) + (2 * histogram[3]) +
+			histogram[4]
+		);
 		for(int i = 3; i < HISTOGRAM_SIZE - 5; ++i) {
 			histogram_smooth[i] = 1. / 27. * (
-                        histogram[i-3] + (3 * histogram[i-2]) +
-                        (6 * histogram[i-1]) + (7 * histogram[i]) +
-                        (6 * histogram[i+1]) + (3 * histogram[i+2]) +
-                        histogram[i+3]);
+				histogram[i-3] + (3 * histogram[i-2]) +
+				(6 * histogram[i-1]) + (7 * histogram[i]) +
+				(6 * histogram[i+1]) + (3 * histogram[i+2]) +
+				histogram[i+3]
+			);
 		}
 		for(int i = 3; i < HISTOGRAM_SIZE - 5; ++i) {
 			histogram[i] = histogram_smooth[i];
-        }
+		}
 	}
 
     // Normalize it (optional)
@@ -72,7 +75,7 @@ float bl_amplitude_sort(struct bl_song const * const song) {
     // Compute integral of the smoothed histogram
 	for(int i = INTEGRAL_INF; i <= INTEGRAL_SUP; ++i) {
 		histogram_integral += histogram_smooth[i];
-    }
+	}
 
 	// Return final score, weighted by coefficients in order to have -4 for a panel of calm songs,
 	// and 4 for a panel of loud songs. (only useful if you want an absolute « Loud » and « Calm » result

@@ -47,7 +47,7 @@ struct bl_song {
 	int nb_bytes_per_sample;
 	int calm_or_loud;
 	int not_s16;
-	int64_t duration;
+	uint64_t duration;
 	char* filename;
 	char* artist;
 	char* title;
@@ -142,6 +142,9 @@ float bl_cosine_similarity(
         struct force_vector_s v_song1,
         struct force_vector_s v_song2);
 
+float bl_canberra_distance(
+        struct force_vector_s v_song1,
+        struct force_vector_s v_song2);
 
 
 /**********************

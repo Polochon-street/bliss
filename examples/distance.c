@@ -18,14 +18,14 @@ int main (int argc, char **argv) {
 	struct bl_song song2;
 
 	float distance = bl_distance_file(filename1, filename2, &song1, &song2);
-	bl_free_song(&song1);
-	bl_free_song(&song2);
+//	float canberra_distance = bl_canberra_distance(song1.force_vector, song2.force_vector);
+	float similarity = bl_cosine_similarity(song1.force_vector, song2.force_vector);
 
-	float similarity = bl_cosine_similarity_file(filename1, filename2, &song1, &song2);
 	bl_free_song(&song1);
 	bl_free_song(&song2);
 
     printf("Distance between %s and %s is: %f\n", filename1, filename2, distance);
+//    printf("Canberra distance between %s and %s is: %f\n", filename1, filename2, canberra_distance);
     printf("Similarity between %s and %s is: %f\n", filename1, filename2, similarity);
 
 	return EXIT_SUCCESS;
