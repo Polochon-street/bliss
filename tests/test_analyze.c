@@ -29,16 +29,16 @@ void test_loud(void) {
     struct bl_song song;
     bl_analyze("../audio/loud.mp3", &song);
 
-    assert_floateq(song.force, 11.403019);
+    assert_floateq(song.force, 11.405784);
 
     assert_floateq(song.force_vector.tempo, 2.517007);
     assert_floateq(song.force_vector.amplitude, 0.107364);
     assert_floateq(song.force_vector.frequency, -1.432200);
-    assert_floateq(song.force_vector.attack, 10.199646);
+    assert_floateq(song.force_vector.attack, 10.213614);
 
     assert_eq(song.channels, 2);
 
-    assert_eq(song.nSamples, 25021440);
+    assert_eq(song.nSamples, 25017174);
 
     assert_eq(song.sample_rate, 44100);
 

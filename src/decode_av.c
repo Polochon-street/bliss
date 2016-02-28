@@ -70,22 +70,28 @@ int bl_audio_decode(
 	strcpy(song->filename, filename);
 
 	song->sample_rate = codec_context->sample_rate;
-	song->duration = context->duration / AV_TIME_BASE;
+	song->duration = (uint64_t)(context->duration) / ((uint64_t)AV_TIME_BASE);
 	song->bitrate = context->bit_rate;
+	song->not_s16 = 0;
+	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
+	song->channels = codec_context->channels;
 
 	// Get number of samples
 	size = (
 		((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
 		((uint64_t)AV_TIME_BASE)
 		) *
-		codec_context->channels *
-		av_get_bytes_per_sample(codec_context->sample_fmt);
+		song->channels *
+		song->nb_bytes_per_sample;
+
+	// Estimated number of samples
 	song->nSamples = (
 		(
 		((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
 		((uint64_t)AV_TIME_BASE)
 		) *
-		codec_context->channels);
+		song->channels
+	);
 
 	// Allocate sample_array
 	song->sample_array = calloc(size, 1);
@@ -221,10 +227,16 @@ int bl_audio_decode(
 					codec_context->sample_fmt,
 				1);
 
-				if ((index * song->nb_bytes_per_sample + data_size) > size) {
-					size += data_size;
-					beginning = realloc(beginning, size);
-					song->nSamples += data_size / song->nb_bytes_per_sample;
+				if((index * song->nb_bytes_per_sample + data_size) > size) {
+					int8_t *ptr;
+					ptr = realloc(beginning, size + data_size);
+					if(ptr != NULL) {
+						beginning = ptr;
+						size += data_size;
+						song->nSamples += data_size / song->nb_bytes_per_sample;
+					}
+					else
+						break;
 				}
 
 				int8_t *p = beginning + (index * song->nb_bytes_per_sample);
@@ -285,6 +297,9 @@ int bl_audio_decode(
 	// Free memory
 	avpkt.data = NULL;
 	avpkt.size = 0;
+
+	// Use correct number of samples after decoding
+	song->nSamples = index;
 
 	// Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
 	do {

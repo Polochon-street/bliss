@@ -84,13 +84,14 @@ int bl_audio_decode(
 		song->channels *
 		song->nb_bytes_per_sample;
 
+	// Estimated number of samples
 	song->nSamples = (
 		(
 		((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
 		((uint64_t)AV_TIME_BASE)
 		) *
 		song->channels
-		);
+	);
 
 	// Allocate sample_array
 	song->sample_array = calloc(size, 1);
@@ -162,7 +163,7 @@ int bl_audio_decode(
 	tags_dictionary = av_dict_get(context->metadata, "ALBUM", NULL, 0);
 	if (tags_dictionary!= NULL) {
 		song->album= malloc(strlen(tags_dictionary->value) + 1);
-	strcpy(song->album, tags_dictionary->value);
+		strcpy(song->album, tags_dictionary->value);
 	}
 	else {
 		song->album= malloc(11 * sizeof(char));
@@ -211,10 +212,10 @@ int bl_audio_decode(
 				avpkt.size = 0;
 			}
 
-			av_free_packet(&avpkt);
+			av_packet_unref(&avpkt);
 
 			// Copy decoded data into a huge array
-			if (got_frame) {
+			if(got_frame) {
 				size_t data_size = av_samples_get_buffer_size(
 					NULL,
 					codec_context->channels,
@@ -222,6 +223,17 @@ int bl_audio_decode(
 					codec_context->sample_fmt,
 				1);
 
+				if((index * song->nb_bytes_per_sample + data_size) > size) {
+					int8_t *ptr;
+					ptr = realloc(beginning, size + data_size);
+					if(ptr != NULL) {
+						beginning = ptr;
+						size += data_size;
+						song->nSamples += data_size / song->nb_bytes_per_sample;
+					}
+					else
+						break;
+				}
 				int8_t *p = beginning + (index * song->nb_bytes_per_sample);
 
 				// If the song isn't in a 16-bit format, convert it to
@@ -240,7 +252,7 @@ int bl_audio_decode(
 						out_buffer[0], buff_size);
 					av_freep(&out_buffer[0]);
 					free(out_buffer);
-                   	index += buff_size / song->nb_bytes_per_sample;
+					index += buff_size / song->nb_bytes_per_sample;
 				}
 				else if(1 == is_planar) {
 					for (int i = 0;
@@ -266,7 +278,7 @@ int bl_audio_decode(
 		else {
 			// Dropping packets that do not belong to the audio stream
 			// (such as album cover)
-			av_free_packet(&avpkt);
+			av_packet_unref(&avpkt);
 		}
 	}
 	song->sample_array = beginning;
@@ -275,6 +287,9 @@ int bl_audio_decode(
 	avpkt.data = NULL;
 	avpkt.size = 0;
 
+	// Use correct number of samples after decoding
+	song->nSamples = index; 
+	
 	// Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
 	do {
 		avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
@@ -287,7 +302,7 @@ int bl_audio_decode(
 	# if LIBAVUTIL_VERSION_MAJOR > 51
 	av_frame_free(&decoded_frame);
 	#endif
-	av_free_packet(&avpkt);
+	av_packet_unref(&avpkt);
 	avformat_close_input(&context);
 
 	return BL_OK;

@@ -10,7 +10,7 @@ int bl_analyze(char const * const filename,
 	float rating;
 	struct envelope_result_s envelope_result = {0.0f, 0.0f};
 
-    // Decode audio track
+	// Decode audio track
 	if(0 == bl_audio_decode(filename, current_song)) {
 		// Analyze global envelope
 		bl_envelope_sort(current_song, &envelope_result);
