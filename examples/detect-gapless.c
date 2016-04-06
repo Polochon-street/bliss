@@ -25,19 +25,19 @@ int main (int argc, char **argv) {
 	bl_audio_decode(filename2, &song2);
 
 	printf("Song 1\n");
-	printf("%"PRId16"\n", ((int16_t*)song1.sample_array)[song1.nSamples-1]);
 	printf("%"PRId16"\n", ((int16_t*)song1.sample_array)[song1.nSamples-2]);
+	printf("%"PRId16"\n", ((int16_t*)song1.sample_array)[song1.nSamples-1]);
 	
 	printf("Song 2\n");
 	printf("%"PRId16"\n", ((int16_t*)song2.sample_array)[0]);
 	printf("%"PRId16"\n", ((int16_t*)song2.sample_array)[1]);
 	
-	if(abs(((int16_t*)song1.sample_array)[song1.nSamples-1]) >= 5 && abs(((int16_t*)song2.sample_array)[0]) >= 5) {
-		diff_chan1 = fabs((((float)((int16_t*)song1.sample_array)[song1.nSamples-1] - ((int16_t*)song2.sample_array)[0]) / (float)INT16_MAX));
+	if(abs(((int16_t*)song1.sample_array)[song1.nSamples-2]) >= 5 && abs(((int16_t*)song2.sample_array)[0]) >= 5) {
+		diff_chan1 = fabs((((float)((int16_t*)song1.sample_array)[song1.nSamples-2] - ((int16_t*)song2.sample_array)[0]) / (float)INT16_MAX));
 	}
 
-	if(abs(((int16_t*)song1.sample_array)[song1.nSamples-2]) >= 5 && abs(((int16_t*)song2.sample_array)[1]) >= 5) {
-		diff_chan2 = fabs((((float)((int16_t*)song1.sample_array)[song1.nSamples-2] - ((int16_t*)song2.sample_array)[1]) / (float)INT16_MAX));
+	if(abs(((int16_t*)song1.sample_array)[song1.nSamples-1]) >= 5 && abs(((int16_t*)song2.sample_array)[1]) >= 5) {
+		diff_chan2 = fabs((((float)((int16_t*)song1.sample_array)[song1.nSamples-1] - ((int16_t*)song2.sample_array)[1]) / (float)INT16_MAX));
 	}
 
 	printf("Difference between two songs (channel 1): %f\n", diff_chan1);

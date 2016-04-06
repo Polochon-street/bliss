@@ -25,12 +25,12 @@ add_definitions(-Wall -Wno-long-long -pedantic -std=c99)
 
 if(AVRESAMPLE)
 	add_library(bliss SHARED
-    	src/amplitude_sort.c
-    	src/decode_av.c
-    	src/envelope_sort.c
-    	src/frequency_sort.c
+	src/amplitude_sort.c
+		src/decode_av.c
+		src/envelope_sort.c
+		src/frequency_sort.c
 		src/helpers.c
-    	src/analyze.c)
+	src/analyze.c)
 else()
 	add_library(bliss SHARED
     	src/amplitude_sort.c
@@ -83,3 +83,16 @@ set_tests_properties(ctest_run_test_analyze PROPERTIES DEPENDS ctest_build_test_
 ###################
 install(TARGETS bliss DESTINATION /usr/lib)
 install(FILES include/bliss.h DESTINATION /usr/include)
+
+##############
+# Generators #
+##############
+
+set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_NAME "bliss-music")
+set(CPACK_DEBIAN_PACKAGE_VERSION "0.6")
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libavutil-dev, libavformat-dev, libavcodec-dev, libavresample-dev")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "polochonstreet@gmx.fr")
+set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "A music analyzis library")
+include(CPack)

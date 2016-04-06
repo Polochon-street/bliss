@@ -36,6 +36,8 @@ int bl_audio_decode(
 	av_register_all();
 	context = avformat_alloc_context();
 
+	av_log_set_level(AV_LOG_QUIET);
+
 	// Open input file
 	if (avformat_open_input(&context, filename, NULL, NULL) < 0) {
 		fprintf(stderr, "Couldn't open file: %s. Error %d encountered.\n", filename, errno);
