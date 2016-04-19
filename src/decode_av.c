@@ -96,7 +96,10 @@ int bl_audio_decode(
 	);
 
 	// Allocate sample_array
-	song->sample_array = calloc(size, 1);
+	if((song->sample_array = calloc(size, 1)) == NULL) {
+		fprintf(stderr, "Could not allocate enough memory\n");
+		return BL_UNEXPECTED;
+	}
 
 	beginning = song->sample_array;
 	index = 0;
