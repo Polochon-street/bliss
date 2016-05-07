@@ -31,6 +31,16 @@ void bl_free_song(struct bl_song * const song) {
 	}
 }
 
+void bl_initialize_song(struct bl_song *song) {
+	song->artist = NULL;
+	song->title = NULL;
+	song->album = NULL;
+	song->tracknumber = NULL;
+	song->sample_array = NULL;
+	song->filename = NULL;
+	song->genre = NULL;
+}
+
 float bl_version(void) {
 	printf("Using bliss analyzer version %0.1f.\n", BL_VERSION);
 	return (float)BL_VERSION;

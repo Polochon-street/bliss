@@ -16,6 +16,9 @@ int main (int argc, char **argv) {
 	struct bl_song song1;
 	struct bl_song song2;
 
+	bl_initialize_song(&song1);
+	bl_initialize_song(&song2);
+
 	float distance = bl_distance_file(filename1, filename2, &song1, &song2);
 	float similarity = bl_cosine_similarity(song1.force_vector, song2.force_vector);
 

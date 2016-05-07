@@ -247,4 +247,12 @@ void bl_free_song(struct bl_song * const song);
  */
 float bl_version(void);
 
+/**
+ * Initialize a bl_song by settings pointers to NULL so that it can be freed even 
+ * if an analysis couldn't be performed.
+ *
+ * @param song  a `bl_song` struct representing the song to initialize
+ */
+void bl_initialize_song(struct bl_song * const song);
+
 #endif  // BL_BLISS_H_

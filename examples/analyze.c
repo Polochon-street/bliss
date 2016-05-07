@@ -14,6 +14,7 @@ int main (int argc, char **argv) {
 	char const * const filename = argv[1];
 
 	struct bl_song song;
+	bl_initialize_song(&song);
 	if(bl_analyze(filename, &song) != BL_UNEXPECTED) {
 		char calm_or_loud[10] = "";
 		if (BL_CALM == song.calm_or_loud) {
@@ -52,6 +53,7 @@ int main (int argc, char **argv) {
 	}
 	else {
 		fprintf(stderr, "Couldn't analyze song\n");
+		bl_free_song(&song);
 		return EXIT_FAILURE;
 	}
 }
