@@ -19,7 +19,7 @@
 static const int BL_LOUD = 0;
 static const int BL_CALM = 1;
 static const int BL_UNKNOWN = 2;
-static const int BL_UNEXPECTED = 3;
+static const int BL_UNEXPECTED = -2;
 static const int BL_OK = 0;
 
 struct force_vector_s {

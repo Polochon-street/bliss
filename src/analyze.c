@@ -87,7 +87,7 @@ float bl_distance_file(char const * const filename1,
 		return distance;
 	}
 	else
-		return -1;
+		return BL_UNEXPECTED;
 }
 
 float bl_cosine_similarity(struct force_vector_s v_song1,
