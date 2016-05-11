@@ -64,7 +64,7 @@ $ make
 * See examples/analyze.c and examples/distance.c
 * Compile any project using bliss with
 ```bash
-$ gcc -o example example.c -lbliss
+$ gcc -o example example.c -lbliss $(pkg-config --cflags libavutil libavformat libavcodec)
 ```
 * Examples for python bindings are in python/test
 
