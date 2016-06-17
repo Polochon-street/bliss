@@ -45,3 +45,31 @@ float bl_version(void) {
 	printf("Using bliss analyzer version %0.1f.\n", BL_VERSION);
 	return (float)BL_VERSION;
 }
+
+float bl_mean(int16_t *sample_array, int nSamples) {
+	double mean = 0;
+	size_t i;
+
+	for(i = 0; i < nSamples; ++i)
+		mean += (double)sample_array[i];
+
+	return mean / nSamples;
+}
+
+// TODO Online algorithm
+float bl_variance(int16_t *sample_array, int nSamples) {
+	double mean = 0;
+	double variance = 0;
+	size_t i;
+
+	for(i = 0; i < nSamples; ++i)
+		mean += (double)sample_array[i];
+
+	mean /= nSamples;
+
+	for(i = 0; i < nSamples; ++i) {
+		variance += ((double)(sample_array[i]) - mean)*((double)(sample_array[i]) - mean);
+	}
+
+	return variance / nSamples;
+}

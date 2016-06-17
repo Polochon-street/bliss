@@ -255,4 +255,17 @@ float bl_version(void);
  */
 void bl_initialize_song(struct bl_song * const song);
 
+/**
+ *
+ * DOC TODO
+ *
+ */
+float bl_mean(int16_t *sample_array, int nSamples);
+
+/**
+ *
+ * DOC TODO
+ *
+ */
+float bl_variance(int16_t *sample_array, int nSamples);
 #endif  // BL_BLISS_H_

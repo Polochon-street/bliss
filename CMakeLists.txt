@@ -27,7 +27,7 @@ if(AVRESAMPLE)
 	add_library(bliss SHARED
 	src/amplitude_sort.c
 		src/decode_av.c
-		src/envelope_sort.c
+		src/tempo_atk_sort.c
 		src/frequency_sort.c
 		src/helpers.c
 	src/analyze.c)
@@ -35,7 +35,7 @@ else()
 	add_library(bliss SHARED
     	src/amplitude_sort.c
     	src/decode.c
-    	src/envelope_sort.c
+    	src/tempo_atk_sort.c
     	src/frequency_sort.c
 		src/helpers.c
     	src/analyze.c)
