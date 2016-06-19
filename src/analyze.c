@@ -4,7 +4,6 @@
 // Library headers
 #include "bliss.h"
 
-
 int bl_analyze(char const * const filename,
 		struct bl_song * const current_song) {
 	float rating;
@@ -12,16 +11,21 @@ int bl_analyze(char const * const filename,
 
 	// Decode audio track
 	if(0 == bl_audio_decode(filename, current_song)) {
-		// Analyze global envelope
-		bl_envelope_sort(current_song, &envelope_result);
 		// Analyze tempo
-		current_song->force_vector.tempo = envelope_result.tempo;
+		current_song->force_vector.tempo = 0;
 		// Analyze amplitude
-		current_song->force_vector.amplitude = bl_amplitude_sort(current_song);
+		//current_song->force_vector.amplitude = bl_amplitude_sort(current_song);
+		current_song->force_vector.amplitude = 0;
 		// Analyze frequencies
-		current_song->force_vector.frequency = bl_frequency_sort(current_song);
+		//current_song->force_vector.frequency = bl_frequency_sort(current_song);
+		current_song->force_vector.frequency = 0;
 		// Analyze attack
-		current_song->force_vector.attack = envelope_result.attack;
+
+		// Analyze global envelope (LAST BECAUSE IT MODIFIES SAMPLE_ARRAY)
+		bl_envelope_sort(current_song, &envelope_result);
+		current_song->force_vector.tempo = envelope_result.tempo;
+		//current_song->force_vector.attack = envelope_result.attack;
+		current_song->force_vector.attack = 0;
 
 		// Compute global rating
 		rating = (fmax(current_song->force_vector.tempo, 0) +

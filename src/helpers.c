@@ -46,29 +46,29 @@ float bl_version(void) {
 	return (float)BL_VERSION;
 }
 
-float bl_mean(int16_t *sample_array, int nSamples) {
+float bl_mean(double *sample_array, int nSamples) {
 	double mean = 0;
 	size_t i;
 
 	for(i = 0; i < nSamples; ++i)
-		mean += (double)sample_array[i];
+		mean += sample_array[i];
 
 	return mean / nSamples;
 }
 
 // TODO Online algorithm
-float bl_variance(int16_t *sample_array, int nSamples) {
+float bl_variance(double *sample_array, int nSamples) {
 	double mean = 0;
 	double variance = 0;
 	size_t i;
 
 	for(i = 0; i < nSamples; ++i)
-		mean += (double)sample_array[i];
+		mean += sample_array[i];
 
 	mean /= nSamples;
 
 	for(i = 0; i < nSamples; ++i) {
-		variance += ((double)(sample_array[i]) - mean)*((double)(sample_array[i]) - mean);
+		variance += (sample_array[i] - mean)*((double)(sample_array[i]) - mean);
 	}
 
 	return variance / nSamples;
