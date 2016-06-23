@@ -66,14 +66,13 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Pre-treatment: Compute mean & variance to normalize the signal to have zero mean and unity variance
 	signal_mean = bl_mean(normalized_song, song->nSamples);
 	signal_variance = bl_variance(normalized_song, song->nSamples);
-	printf("signal_mean %f signal_ variance %f\n", signal_mean, signal_variance);
 
 	for(int i = 0; i < song->nSamples; ++i) {
 		normalized_song[i] = ( normalized_song[i] - signal_mean ) / signal_variance;
 	}
 
 	// Bandpass filter bank
-	for(int i = 0; i < 1; ++i) {
+	for(int i = 0; i < 36; ++i) {
 		int d = 0;
 		for(int b = 0; b < (song->nSamples - song->nSamples % fft_winsize) - fft_winsize; b += (int)fft_winsize/2) {
 			// Applying filter
@@ -114,8 +113,10 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double *dlowpassed_array[36];
 	double *weighted_average[36];
 	double registry2[7];
-	for(int i = 0; i < 7; ++i)
+	for(int i = 0; i < 7; ++i) {
+		registry[i] = 0.0;
 		registry2[i] = 0.0;
+	}
 	for(int i = 0; i < 36; ++i) {
 		upsampled_array[i] = calloc(2*nb_frames, sizeof(double));
 		lowpassed_array[i] = calloc(2*nb_frames, sizeof(double));
@@ -126,10 +127,11 @@ void bl_envelope_sort(struct bl_song const * const song,
 	float mu = 100.0;
 	float lambda = 0.8;
 	double final = 0;
+	double c, d;
 
 	y = 0;
 
-	for(int i = 0; i < 1; ++i) { // 2, or more like 36
+	for(int i = 0; i < 36; ++i) { // 2, or more like 36
 		for(int j = 0; j < nb_frames - 1; j++) {
 			upsampled_array[i][2*j] = log(1 + mu*filtered_array[i][j]) / log(1 +mu);
 			upsampled_array[i][2*j + 1] = 0;
@@ -143,15 +145,17 @@ void bl_envelope_sort(struct bl_song const * const song,
 				registry2[k-1] = registry2[k-2];
 			}
 			registry[0] = upsampled_array[i][j];
-			registry2[0] = lowpassed_array[i][j];
+			registry2[0] = y;
 			
-			y = 0;		
+			y = 0;
+			d = 0;
+			c = 0;
 			for(int k = 0; k < 7; ++k)
-				y += butterb[k] * registry[k] / buttera[0] - buttera[k] * registry2[k] / buttera[0];
+				d += butterb[k] * registry[k];
+			for(int k = 1; k < 7; ++k)
+				c += buttera[k] * registry2[k-1];
+			y = (d -c ) / buttera[0];
 			lowpassed_array[i][j] = y;
-		}
-		for(int k = 0; k < 2*nb_frames; ++k) {
-			printf("%f\n", lowpassed_array[0][k]);
 		}
 
 		dlowpassed_array[i][0] = lowpassed_array[i][0];
@@ -163,12 +167,14 @@ void bl_envelope_sort(struct bl_song const * const song,
 			weighted_average[i][j] = (1 - lambda) * lowpassed_array[i][j] + lambda * 172 * dlowpassed_array[i][j] / 10;
 	}
 
-	for(int i = 0; i < 1; ++i) 
+	for(int i = 0; i < 36; ++i) 
 		for(int j = 0; j < nb_frames*2 - 1; ++j)
 			final += weighted_average[i][j];
 
-	printf("atk result: %f\n", final);
-	printf("Final atk result: %f\n", final / song->nSamples);
+	// "Normalize" the result
+	result->attack = -1142 * final / song->nSamples + 56;
+
+	printf("Final atk result: %f\n", result->attack);
 	// On-the-fly envelope computation and derivation
 /*	for(int i = 0; i < song->nSamples; ++i) {
 		envelope = fmax(
