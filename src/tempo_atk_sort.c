@@ -44,6 +44,8 @@ void bl_envelope_sort(struct bl_song const * const song,
 	FFTSample *fft_array;
 	// Complex DFT of input
 	FFTSample* x;
+	// Hold final FFT spectrum;
+	FFTSample *final_fft;
 	// Set up a real to complex FFT TODO
 	fft = av_rdft_init(10, DFT_R2C); // log2(1024) = 10
 	double *normalized_song;
@@ -102,7 +104,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 			float sum_fft = 0;
 			for(int k = 0; k < fft_winsize/2; ++k)
 				sum_fft += fft_array[k] * fft_array[k];
-			filtered_array[i][(int)ceil((double)d / (double)fft_winsize)] += sum_fft;
+			filtered_array[i][(int)floor((double)d / (double)fft_winsize)] += sum_fft;
 			d += fft_winsize;
 		}
 	}
@@ -112,16 +114,14 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double *lowpassed_array[36];
 	double *dlowpassed_array[36];
 	double *weighted_average[36];
+	FFTSample *band_sum;
 	double registry2[7];
-	for(int i = 0; i < 7; ++i) {
-		registry[i] = 0.0;
-		registry2[i] = 0.0;
-	}
 	for(int i = 0; i < 36; ++i) {
 		upsampled_array[i] = calloc(2*nb_frames, sizeof(double));
 		lowpassed_array[i] = calloc(2*nb_frames, sizeof(double));
 		dlowpassed_array[i] = calloc(2*nb_frames, sizeof(double));
 		weighted_average[i] = calloc(2*nb_frames, sizeof(double));
+		band_sum = calloc(2*nb_frames, sizeof(FFTSample));
 	}
 
 	float mu = 100.0;
@@ -137,6 +137,13 @@ void bl_envelope_sort(struct bl_song const * const song,
 			upsampled_array[i][2*j + 1] = 0;
 		//	printf("%f %f %f\n", filtered_array[i][j], upsampled_array[i][2*j], upsampled_array[i][2*j+1]);
 		}
+
+		for(int r = 0; r < 7; ++r) {
+			registry[r] = 0.0;
+			registry2[r] = 0.0;
+		}
+
+		y = 0;
 
 		// LOWPASS_FILTER
 		for(int j = 0; j < nb_frames*2 - 1; ++j) {
@@ -154,7 +161,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 				d += butterb[k] * registry[k];
 			for(int k = 1; k < 7; ++k)
 				c += buttera[k] * registry2[k-1];
-			y = (d -c ) / buttera[0];
+			y = (d - c) / buttera[0];
 			lowpassed_array[i][j] = y;
 		}
 
@@ -163,19 +170,51 @@ void bl_envelope_sort(struct bl_song const * const song,
 			dlowpassed_array[i][j] = lowpassed_array[i][j] - lowpassed_array[i][j-1];
 			dlowpassed_array[i][j] = MAX(dlowpassed_array[i][j], 0);
 		}
-		for(int j = 0; j < nb_frames*2 - 1; ++j)
+		for(int j = 0; j < nb_frames*2 - 1; ++j) {
 			weighted_average[i][j] = (1 - lambda) * lowpassed_array[i][j] + lambda * 172 * dlowpassed_array[i][j] / 10;
+		}
 	}
 
-	for(int i = 0; i < 36; ++i) 
+	for(int j = 0; j < 2*nb_frames - 1; ++j) {
+		for(int i = 0; i < 36; ++i) {
+			band_sum[j] += weighted_average[i][j];
+		}
+	}
+
+	double log_truncated_nb_frames = floor(log2(2*nb_frames));
+	int truncated_nb_frames = (int)floor(exp(log(2)*log_truncated_nb_frames));
+
+	fft = av_rdft_init(log_truncated_nb_frames, DFT_R2C);
+	final_fft = calloc(truncated_nb_frames, sizeof(FFTSample));
+
+	av_rdft_calc(fft, band_sum);
+	for(int k = 0; k < truncated_nb_frames / 2; ++k) {
+		float re = band_sum[k*2];
+		float im = band_sum[k*2+1];
+		float abs = sqrt(re*re + im*im);
+		
+		final_fft[k] += abs;
+	}
+	fft_array[0] = sqrt(band_sum[0] * band_sum[0]);
+
+	for(int k = 0; k < truncated_nb_frames / 2; ++k) 
+		printf("%f\n", final_fft[k]);
+
+/*	for(int i = 0; i < 36; ++i) 
 		for(int j = 0; j < nb_frames*2 - 1; ++j)
-			final += weighted_average[i][j];
+			final += weighted_average[i][j];*/
 
 	// "Normalize" the result
-	result->attack = -1142 * final / song->nSamples + 56;
+	/* result->attack = -1142 * final / song->nSamples + 56;
 
-	printf("Final atk result: %f\n", result->attack);
+	printf("Final atk result: %f\n", result->attack);*/
 	// On-the-fly envelope computation and derivation
+
+
+
+
+
+
 /*	for(int i = 0; i < song->nSamples; ++i) {
 		envelope = fmax(
 			envelope_prev - (decr_speed * envelope_prev),
