@@ -1,5 +1,6 @@
 // System headers
-#include <libavcodec/avfft.h>
+//#include <libavcodec/avfft.h>
+#include <fftw3.h>
 #include <math.h>
 
 // Library header
@@ -25,42 +26,40 @@ void bl_envelope_sort(struct bl_song const * const song,
 	float signal_mean = 0;
 	// Signal variance
 	float signal_variance = 0;
-	// First fft window size
-	int fft_winsize = 1024;
+	// First fft window size (1014 = 23ms * 44.1kHz)
+	int fft_winsize = 1014;
 	// Temporary filtered band
 	double temp_band[fft_winsize];
 	// FIR Registry
 	double registry[256];
 	double y;
-	for(int j = 0; j < 33; ++j)
-		registry[j] = 0.0;
-	// Real FFT context
-	RDFTContext* fft;
+	// Real FFT plan 
+	fftw_plan p;
 	int nb_frames = ( song->nSamples - (song->nSamples % fft_winsize) ) * 2 / fft_winsize;
 	double *filtered_array[36];
 	for(int i = 0; i < 36; ++i)
 		filtered_array[i] = calloc(nb_frames, sizeof(double));
 	// Hold FFT spectrum
-	FFTSample *fft_array;
-	// Complex DFT of input
-	FFTSample* x;
+	double fft_array[fft_winsize/2 + 1];
+	// Hold fft input
+	double *in;
+	in = fftw_malloc(fft_winsize * sizeof(double));
+	for(int i = 0; i < fft_winsize; ++i) {
+		in[i] = 0.0f;
+	}
+	// Hold fft output
+	fftw_complex *out;
+	out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_winsize);
 	// Hold final FFT spectrum;
-	FFTSample *final_fft;
-	// Set up a real to complex FFT TODO
-	fft = av_rdft_init(10, DFT_R2C); // log2(1024) = 10
+	double *final_fft;
+	// Set up a real to complex FFT 
+	p = fftw_plan_dft_r2c_1d(fft_winsize, in, out, FFTW_ESTIMATE);
 	double *normalized_song;
 	normalized_song = (double*)malloc(song->nSamples * sizeof(double));
 	// Allocate spectrum array
-	fft_array = av_malloc(fft_winsize * sizeof(FFTSample));
-	for(int i = 0; i < fft_winsize; ++i) {
-		fft_array[i] = 0.0f;
-	}
-
+	//fft_array = calloc(fft_winsize, sizeof(double));
 	// Allocate x array
-	x = av_malloc(fft_winsize * sizeof(FFTSample));
-	for(int i = 0; i < fft_winsize; ++i) {
-		x[i] = 0.0f;
-	}
+
 
 	for(int i = 0; i < song->nSamples; ++i)
 		normalized_song[i] = (double)((int16_t*)song->sample_array)[i] / 32767; // TODO replace with adequate max
@@ -76,7 +75,9 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Bandpass filter bank
 	for(int i = 0; i < 36; ++i) {
 		int d = 0;
-		for(int b = 0; b < (song->nSamples - song->nSamples % fft_winsize) - fft_winsize; b += (int)fft_winsize/2) {
+		for(int b = 0; b < (song->nSamples - song->nSamples % fft_winsize) - fft_winsize; b += (int)fft_winsize / 2) {
+			for(int j = 0; j < 33; ++j)
+				registry[j] = 0.0;
 			// Applying filter
 			for(int j = b; j < b + fft_winsize; ++j) {
 				for(int k = 33; k > 1; --k)
@@ -87,22 +88,21 @@ void bl_envelope_sort(struct bl_song const * const song,
 				y = 0;
 				for(int k = 0; k < 33; ++k)
 					y += coeffs[i][k] * registry[k];
-				x[j - b] = y;
+				in[j - b] = y;
 			}
 			// End of filter
-			av_rdft_calc(fft, x);
-			for(int k = 0; k < fft_winsize; ++k) {
+			fftw_execute(p);
+			for(int k = 0; k < fft_winsize/2 + 1; ++k) {
 				fft_array[k] = 0.0;
 			}
-			for(int k = 1; k < fft_winsize / 2; ++k) {
-				float re = x[k*2];
-				float im = x[k*2+1];
-				float abs = sqrt(re*re + im*im);
-				fft_array[k] += abs;
+			for(int k = 0; k < fft_winsize/2 + 1; ++k) {
+				double re = out[k][0];
+				double im = out[k][1];
+				double abs = sqrt(re*re + im*im);
+				fft_array[k] = abs;
 			}
-			fft_array[0] = sqrt(x[0] * x[0]);
 			float sum_fft = 0;
-			for(int k = 0; k < fft_winsize/2; ++k)
+			for(int k = 0; k < fft_winsize/2 + 1; ++k)
 				sum_fft += fft_array[k] * fft_array[k];
 			filtered_array[i][(int)floor((double)d / (double)fft_winsize)] += sum_fft;
 			d += fft_winsize;
@@ -114,14 +114,13 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double *lowpassed_array[36];
 	double *dlowpassed_array[36];
 	double *weighted_average[36];
-	FFTSample *band_sum;
+	double *band_sum;
 	double registry2[7];
 	for(int i = 0; i < 36; ++i) {
 		upsampled_array[i] = calloc(2*nb_frames, sizeof(double));
 		lowpassed_array[i] = calloc(2*nb_frames, sizeof(double));
 		dlowpassed_array[i] = calloc(2*nb_frames, sizeof(double));
 		weighted_average[i] = calloc(2*nb_frames, sizeof(double));
-		band_sum = calloc(2*nb_frames, sizeof(FFTSample));
 	}
 
 	float mu = 100.0;
@@ -175,30 +174,77 @@ void bl_envelope_sort(struct bl_song const * const song,
 		}
 	}
 
+	for(int i = 0; i < 36; ++i) {
+		free(upsampled_array[i]);
+		free(filtered_array[i]);
+		free(lowpassed_array[i]);
+		free(dlowpassed_array[i]);
+	}
+
+	band_sum = calloc(2*nb_frames, sizeof(double));
+	fftw_free(out);
+	out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2*nb_frames);
+
 	for(int j = 0; j < 2*nb_frames - 1; ++j) {
 		for(int i = 0; i < 36; ++i) {
 			band_sum[j] += weighted_average[i][j];
 		}
 	}
 
-	double log_truncated_nb_frames = floor(log2(2*nb_frames));
-	int truncated_nb_frames = (int)floor(exp(log(2)*log_truncated_nb_frames));
 
-	fft = av_rdft_init(log_truncated_nb_frames, DFT_R2C);
-	final_fft = calloc(truncated_nb_frames, sizeof(FFTSample));
+	double fs2 = 2*fs / fft_winsize;
+	double df2 = fs2 / (double)(2 * nb_frames);
+	// Between 50ms and 2s (before and after, the human ear don't perceive recurring sounds)
+	// (aka between 0.5 Hz and 20 Hz)
+	int interval_min = (int)floor(1 / df2);
+	int interval_max = (int)floor(20 / df2);
+	int peak_loc3 = 0;
+	double peak_val3 = 0;
+	int peak_loc2 = 0;
+	double peak_val2 = 0;
+	int peak_loc = 0;
+	double peak_val = 0;
 
-	av_rdft_calc(fft, band_sum);
-	for(int k = 0; k < truncated_nb_frames / 2; ++k) {
-		float re = band_sum[k*2];
-		float im = band_sum[k*2+1];
+	printf("Interval min: %d\nInterval max: %d\n", interval_min, interval_max);
+	printf("df: %f\n", df2);
+
+	fftw_destroy_plan(p);
+	p = fftw_plan_dft_r2c_1d(2*nb_frames, band_sum, out, FFTW_ESTIMATE);
+	final_fft = calloc(2*nb_frames, sizeof(double));
+
+	fftw_execute(p);
+	for(int k = 0; k < (2 * nb_frames) / 2 + 1; ++k) {
+		float re = out[k][0];
+		float im = out[k][1];
 		float abs = sqrt(re*re + im*im);
 		
 		final_fft[k] += abs;
 	}
-	fft_array[0] = sqrt(band_sum[0] * band_sum[0]);
 
-	for(int k = 0; k < truncated_nb_frames / 2; ++k) 
-		printf("%f\n", final_fft[k]);
+	for(int k = interval_min; k < interval_max; ++k) {
+		if(final_fft[k] > peak_val3 && (final_fft[k] >= final_fft[k-1]) &&
+			final_fft[k] >= final_fft[k+1]) {
+			if(final_fft[k] > peak_val) {
+				peak_val = final_fft[k];
+				peak_loc = k;
+			}
+			else if(final_fft[k] > peak_val2) {
+				peak_val2 = final_fft[k];
+				peak_loc2 = k;
+			}
+			else {
+				peak_val3 = final_fft[k];
+				peak_loc3 = k;
+			}
+		}
+	}
+
+	fftw_free(in);
+	fftw_free(out);
+
+	printf("Peak loc: %d\nFrequency: %f\nPeriod: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
+	printf("Peak loc2: %d\nFrequency: %f\nPeriod: %f\n", peak_loc2, peak_loc2*df2, 1 / (peak_loc2*df2));
+	printf("Peak loc3: %d\nFrequency: %f\nPeriod: %f\n", peak_loc3, peak_loc3*df2, 1 / (peak_loc3*df2));
 
 /*	for(int i = 0; i < 36; ++i) 
 		for(int j = 0; j < nb_frames*2 - 1; ++j)

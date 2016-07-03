@@ -4,7 +4,7 @@ project(bliss C)
 
 find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec)
+pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec fftw3)
 pkg_check_modules(RESAMPLE QUIET libswresample)
 
 if(NOT RESAMPLE_FOUND)
