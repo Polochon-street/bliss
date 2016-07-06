@@ -196,7 +196,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double df2 = fs2 / (double)(2 * nb_frames);
 	// Between 50ms and 2s (before and after, the human ear don't perceive recurring sounds)
 	// (aka between 0.5 Hz and 20 Hz)
-	int interval_min = (int)floor(1 / df2);
+	int interval_min = (int)floor(0.5 / df2);
 	int interval_max = (int)floor(20 / df2);
 	int peak_loc3 = 0;
 	double peak_val3 = 0;
@@ -229,12 +229,16 @@ void bl_envelope_sort(struct bl_song const * const song,
 				peak_loc = k;
 			}
 			else if(final_fft[k] > peak_val2) {
-				peak_val2 = final_fft[k];
-				peak_loc2 = k;
+				if(fabs(k - peak_loc) > 40) {
+					peak_val2 = final_fft[k];
+					peak_loc2 = k;
+				}
 			}
 			else {
-				peak_val3 = final_fft[k];
-				peak_loc3 = k;
+				if(fabs(k - peak_loc2) > 40) {
+					peak_val3 = final_fft[k];
+					peak_loc3 = k;
+				}
 			}
 		}
 	}
