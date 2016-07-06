@@ -204,6 +204,12 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double peak_val2 = 0;
 	int peak_loc = 0;
 	double peak_val = 0;
+	double tempo1_score = 0;
+	double tempo2_score = 0;
+	double tempo3_score = 0;
+	double peak1_percentage = 1;
+	double peak2_percentage = 0;
+	double peak3_percentage = 0;
 
 	printf("Interval min: %d\nInterval max: %d\n", interval_min, interval_max);
 	printf("df: %f\n", df2);
@@ -243,10 +249,20 @@ void bl_envelope_sort(struct bl_song const * const song,
 		}
 	}
 
+	peak2_percentage = peak_val2 / peak_val;
+	peak3_percentage = peak_val3 / peak_val;
+
+	/* Final = -4.1026 * x + 4.2052 */
+
+	tempo1_score = -4.1026 / (peak_loc * df2) + 4.2052;
+	tempo2_score = -4.1026 / (peak_loc2 * df2) + 4.2052;
+	tempo3_score = -4.1026 / (peak_loc3 * df2) + 4.2052;
+
 	fftw_free(in);
 	fftw_free(out);
 
 	printf("Peak loc: %d\nFrequency: %f\nPeriod: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
+
 	printf("Peak loc2: %d\nFrequency: %f\nPeriod: %f\n", peak_loc2, peak_loc2*df2, 1 / (peak_loc2*df2));
 	printf("Peak loc3: %d\nFrequency: %f\nPeriod: %f\n", peak_loc3, peak_loc3*df2, 1 / (peak_loc3*df2));
 
