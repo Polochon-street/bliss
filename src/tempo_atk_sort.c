@@ -252,101 +252,29 @@ void bl_envelope_sort(struct bl_song const * const song,
 	peak2_percentage = peak_val2 / peak_val;
 	peak3_percentage = peak_val3 / peak_val;
 
-	/* Final = -4.1026 * x + 4.2052 */
-
 	tempo1_score = -4.1026 / (peak_loc * df2) + 4.2052;
 	tempo2_score = -4.1026 / (peak_loc2 * df2) + 4.2052;
 	tempo3_score = -4.1026 / (peak_loc3 * df2) + 4.2052;
 
+	// Free everything
 	fftw_free(in);
 	fftw_free(out);
 
-	printf("Peak loc: %d\nFrequency: %f\nPeriod: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
+	for(int i = 0; i < 36; ++i) 
+		for(int j = 0; j < nb_frames*2 - 1; ++j)
+			final += weighted_average[i][j];
 
+	printf("Peak loc: %d\nFrequency: %f\nPeriod: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
 	printf("Peak loc2: %d\nFrequency: %f\nPeriod: %f\n", peak_loc2, peak_loc2*df2, 1 / (peak_loc2*df2));
 	printf("Peak loc3: %d\nFrequency: %f\nPeriod: %f\n", peak_loc3, peak_loc3*df2, 1 / (peak_loc3*df2));
-
-/*	for(int i = 0; i < 36; ++i) 
-		for(int j = 0; j < nb_frames*2 - 1; ++j)
-			final += weighted_average[i][j];*/
-
-	// "Normalize" the result
-	/* result->attack = -1142 * final / song->nSamples + 56;
-
-	printf("Final atk result: %f\n", result->attack);*/
-	// On-the-fly envelope computation and derivation
-
-
-
-
-
-
-/*	for(int i = 0; i < song->nSamples; ++i) {
-		envelope = fmax(
-			envelope_prev - (decr_speed * envelope_prev),
-			(float)(abs(((int16_t*)song->sample_array)[i])));
-	
-		if((i >= precision) && (i % precision == 0)) {
-			if((i / precision) % WINDOW_SIZE != 0) {
-				x[(i / precision) % WINDOW_SIZE - 1] = envelope;
-			}
-			else {
-				x[WINDOW_SIZE - 1] = envelope;
-				av_rdft_calc(fft, x);
-				for(int d = 1; d < freq_size - 1; ++d) {
-					float re = x[d*2];
-					float im = x[d*2+1];
-					float raw = re*re + im*im;
-					spectrum[d] += raw;
-				}
-				spectrum[0] = 0;
-			}
-		}
-		else if(i % precision == 0) {
-			if((i / precision) % WINDOW_SIZE != 0) {
-				x[(i / precision) % WINDOW_SIZE - 1] = envelope;
-			}
-		}
-
-		d_envelope = (double)(envelope - envelope_prev)/(fabs((double)sample_max));
-		attack += d_envelope * d_envelope;
-		envelope_prev = envelope;
-	}
-
-    // Find three major peaks in the DFT
-    // (up to freq_size / 2 as spectrum is symmetric)
-	for(int i = 1; i < freq_size / 2; ++i) {
-		if(spectrum[indices_max[0]] < spectrum[i]) {
-			indices_max[2] = indices_max[1];
-			indices_max[1] = indices_max[0];
-			indices_max[0] = i;
-		}
-		else if(spectrum[indices_max[1]] < spectrum[i]) {
-				indices_max[2] = indices_max[1];
-				indices_max[1] = i;
-		}
-		else if(spectrum[indices_max[2]] < spectrum[i]) {
-			indices_max[2] = i;
-        }
-	}
-	
-	// Compute corresponding frequencies
-	for(int i = 0; i < 3; ++i) {
-		frequencies_max[i] = 1 / ((indices_max[i] + 1) * frequency_step);
-	}
+	printf("Tempo score 1: %f\n", tempo1_score);
+	printf("Tempo score 2: %f\n", tempo2_score);
+	printf("Tempo score 3: %f\n", tempo3_score);
+	printf("Atk score: %f\n", -1142 * final / song->nSamples + 56);
 
 	// Compute final tempo and attack ratings
-	result->tempo = ( -6 * fmin(
-		fmin(frequencies_max[0], frequencies_max[1]),
-		fmax(frequencies_max[1], frequencies_max[2]))
-		) + 6;  // TODO ???
-	result->attack = attack / song->nSamples * pow(10, 7) - 6;  // TODO ???
-
-	// Free everything
-	av_rdft_end(fft);
-	av_free(spectrum);
-	av_free(x);
-
-	return; */
-	return;
+	result->tempo1 = tempo1_score;
+	result->tempo2 = tempo2_score;
+	result->tempo3 = tempo3_score;
+	result->attack = -1142 * final / song->nSamples + 56;
 }
