@@ -19,8 +19,12 @@ void bl_envelope_sort(struct bl_song const * const song,
 	float signal_mean = 0;
 	// Signal variance
 	float signal_variance = 0;
-	// First fft window size (1014 = 23ms * 44.1kHz)
+	// First RDFT window size (1014 = 23ms * 44.1kHz)
 	int fft_winsize = 1014;
+	// First RDFT window size (double version, to avoid a useless cast)
+	double double_fft_winsize = 1014.0;
+	// Half fft_winsize;
+	int half_fft_winsize = fft_winsize / 2;
 	// FIR registry
 	double registry[256];
 	// FIR temporary output
@@ -29,6 +33,8 @@ void bl_envelope_sort(struct bl_song const * const song,
 	fftw_plan p;
 	// Estimate the number of frames of size fft_winsize
 	int nb_frames = ( song->nSamples - (song->nSamples % fft_winsize) ) * 2 / fft_winsize;
+	// Hold bandpass iteration number
+	int iteration_number = (song->nSamples - song->nSamples % fft_winsize) - fft_winsize;
 	// Hold signal filtered by 36 different bandpass filters
 	double *filtered_array[36];
 	// Hold first RDFT spectrum
@@ -71,12 +77,12 @@ void bl_envelope_sort(struct bl_song const * const song,
 		normalized_song[i] = (normalized_song[i] - signal_mean) / signal_variance;
 	}
 
+	// TODO change 33 by a macro
 	// Apply and store 36 bandpassed and RDFT'd signals
 	for(int i = 0; i < 36; ++i) {
-		int d = 0;
-		for(int b = 0; b < (song->nSamples - song->nSamples % fft_winsize) - fft_winsize; b += (int)fft_winsize / 2) {
-			for(int j = 0; j < 33; ++j)
-				registry[j] = 0.0;
+		double d = 0;
+		for(int b = 0; b < iteration_number; b += half_fft_winsize) {
+			memset(registry, 0, 33*sizeof(double));
 			// Apply filter
 			for(int j = b; j < b + fft_winsize; ++j) {
 				for(int k = 33; k > 1; --k)
@@ -100,8 +106,8 @@ void bl_envelope_sort(struct bl_song const * const song,
 			float sum_fft = 0;
 			for(int k = 0; k < fft_winsize/2 + 1; ++k)
 				sum_fft += fft_array_bp[k] * fft_array_bp[k];
-			filtered_array[i][(int)floor((double)d / (double)fft_winsize)] += sum_fft;
-			d += fft_winsize;
+			filtered_array[i][(int)floor(d / double_fft_winsize)] += sum_fft;
+			d += double_fft_winsize;
 		}
 	}
 
