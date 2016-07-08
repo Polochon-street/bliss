@@ -1,5 +1,6 @@
 // System headers
 #include <fftw3.h>
+#include <omp.h>
 #include <math.h>
 
 // Library header
@@ -26,7 +27,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Half fft_winsize;
 	int half_fft_winsize = fft_winsize / 2;
 	// FIR registry
-	double registry[256];
+	double registry[33];
 	// FIR temporary output
 	double y;
 	// RDFT plan 
@@ -48,7 +49,9 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Hold normalized signal
 	double *normalized_song;
 
-	normalized_song = (double*)malloc(song->nSamples * sizeof(double));
+	register int k;
+
+	normalized_song = malloc(song->nSamples * sizeof(double));
 
 	for(int i = 0; i < 36; ++i)
 		filtered_array[i] = calloc(nb_frames, sizeof(double));
@@ -79,33 +82,38 @@ void bl_envelope_sort(struct bl_song const * const song,
 
 	// TODO change 33 by a macro
 	// Apply and store 36 bandpassed and RDFT'd signals
-	for(int i = 0; i < 36; ++i) {
+	int i;
+	for(i = 0; i < 36; ++i) {
 		double d = 0;
 		for(int b = 0; b < iteration_number; b += half_fft_winsize) {
 			memset(registry, 0, 33*sizeof(double));
 			// Apply filter
 			for(int j = b; j < b + fft_winsize; ++j) {
-				for(int k = 33; k > 1; --k)
-					registry[k-1] = registry[k-2];
-
-				registry[0] = normalized_song[j];
-				
 				y = 0;
-				for(int k = 0; k < 33; ++k)
-					y += coeffs[i][k] * registry[k];
-				in[j - b] = y;
-			}
+ 				for(k = 32; k > 15; --k) {
+ 					registry[k] = registry[k-1];
+ 				}
+				for(k = 15; k > 0; --k) {
+					registry[k] = registry[k-1];
+					y += coeffs[i][k] * (registry[k] + registry[32-k]);
+				}
+
+				y += registry[16] * coeffs[i][16];
+				registry[0] = normalized_song[j];
+ 				y += coeffs[i][0] * (registry[0] + registry[32]);
+
+ 				in[j - b] = y;
+			} 
 			// End of filter
 			fftw_execute(p);
-			for(int k = 0; k < fft_winsize/2 + 1; ++k) {
+			float sum_fft = 0;
+			for(k = 0; k < fft_winsize/2 + 1; ++k) {
 				double re = out[k][0];
 				double im = out[k][1];
-				double abs = sqrt(re*re + im*im);
+				double abs = re*re + im*im;
 				fft_array_bp[k] = abs;
+				sum_fft += fft_array_bp[k];
 			}
-			float sum_fft = 0;
-			for(int k = 0; k < fft_winsize/2 + 1; ++k)
-				sum_fft += fft_array_bp[k] * fft_array_bp[k];
 			filtered_array[i][(int)floor(d / double_fft_winsize)] += sum_fft;
 			d += double_fft_winsize;
 		}
@@ -151,7 +159,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 
 		// Apply low pass filter 
 		for(int j = 0; j < nb_frames*2; ++j) {
-			for(int k = 7; k > 1; --k) {
+			for(k = 7; k > 1; --k) {
 				registry[k-1] = registry[k-2];
 				registry2[k-1] = registry2[k-2];
 			}
@@ -161,9 +169,9 @@ void bl_envelope_sort(struct bl_song const * const song,
 			y = 0;
 			d = 0;
 			c = 0;
-			for(int k = 0; k < 7; ++k)
+			for(k = 0; k < 7; ++k)
 				d += butterb[k] * registry[k];
-			for(int k = 1; k < 7; ++k)
+			for(k = 1; k < 7; ++k)
 				c += buttera[k] * registry2[k-1];
 			y = (d - c) / buttera[0];
 			temp_filtered_array2[i][j] = y;
@@ -226,7 +234,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	p = fftw_plan_dft_r2c_1d(2*nb_frames, band_sum, out, FFTW_ESTIMATE);
 	fftw_execute(p);
 
-	for(int k = 0; k < (2 * nb_frames) / 2 + 1; ++k) {
+	for(k = 0; k < (2 * nb_frames) / 2 + 1; ++k) {
 		float re = out[k][0];
 		float im = out[k][1];
 		float abs = sqrt(re*re + im*im);
@@ -235,7 +243,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	}
 
 	// Find the 3 major peaks between 50ms and 2s
-	for(int k = interval_min; k < interval_max; ++k) {
+	for(k = interval_min; k < interval_max; ++k) {
 		if(fft_array_tempo[k] > peak_val3 && (fft_array_tempo[k] >= fft_array_tempo[k-1]) &&
 			fft_array_tempo[k] >= fft_array_tempo[k+1]) {
 			if(fft_array_tempo[k] > peak_val) {
