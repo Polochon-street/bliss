@@ -16,20 +16,16 @@ int bl_analyze(char const * const filename,
 		current_song->force_vector.tempo2 = 0;
 		current_song->force_vector.tempo3 = 0;
 		// Analyze amplitude
-		//current_song->force_vector.amplitude = bl_amplitude_sort(current_song);
-		current_song->force_vector.amplitude = 0;
+		current_song->force_vector.amplitude = bl_amplitude_sort(current_song);	
 		// Analyze frequencies
-		//current_song->force_vector.frequency = bl_frequency_sort(current_song);
-		current_song->force_vector.frequency = 0;
-		// Analyze attack
+		current_song->force_vector.frequency = bl_frequency_sort(current_song);
 
-		// Analyze global envelope (LAST BECAUSE IT MODIFIES SAMPLE_ARRAY)
+		// Analyze global envelope 
 		bl_envelope_sort(current_song, &envelope_result);
 		current_song->force_vector.tempo1 = envelope_result.tempo1;
 		current_song->force_vector.tempo2 = envelope_result.tempo2;
 		current_song->force_vector.tempo3 = envelope_result.tempo3;
-		//current_song->force_vector.attack = envelope_result.attack;
-		current_song->force_vector.attack = 0;
+		current_song->force_vector.attack = envelope_result.attack;
 
 		// Compute global rating
 		rating = (fmax(current_song->force_vector.tempo1, 0) +

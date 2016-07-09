@@ -1,6 +1,5 @@
 // System headers
 #include <fftw3.h>
-#include <omp.h>
 #include <math.h>
 
 // Library header
@@ -9,6 +8,7 @@
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MAX_INT16 (1 << 15)
+#define NB_COEFFS 17
 
 /* Beat detection achieved thanks to <TODO link> */
 
@@ -27,17 +27,17 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Half fft_winsize;
 	int half_fft_winsize = fft_winsize / 2;
 	// FIR registry
-	double registry[33];
+	double registry[NB_COEFFS];
 	// FIR temporary output
-	double y;
+	
 	// RDFT plan 
 	fftw_plan p;
 	// Estimate the number of frames of size fft_winsize
 	int nb_frames = ( song->nSamples - (song->nSamples % fft_winsize) ) * 2 / fft_winsize;
 	// Hold bandpass iteration number
 	int iteration_number = (song->nSamples - song->nSamples % fft_winsize) - fft_winsize;
-	// Hold signal filtered by 36 different bandpass filters
-	double *filtered_array[36];
+	// Hold signal filtered by 5 different bandpass filters
+	double *filtered_array[5];
 	// Hold first RDFT spectrum
 	double fft_array_bp[fft_winsize/2 + 1];
 	// Hold first RDFT input
@@ -53,7 +53,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 
 	normalized_song = malloc(song->nSamples * sizeof(double));
 
-	for(int i = 0; i < 36; ++i)
+	for(int i = 0; i < 1; ++i)
 		filtered_array[i] = calloc(nb_frames, sizeof(double));
 
 	in = fftw_malloc(fft_winsize * sizeof(double));
@@ -68,7 +68,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 
 	/* End initialization */
 	
-	/* Part 1: Bandpass filtering over 36 frequency bands */
+	/* Part 1: Bandpass filtering over 5 frequency bands */
 
 	for(int i = 0; i < song->nSamples; ++i)
 		normalized_song[i] = (double)((int16_t*)song->sample_array)[i] / MAX_INT16; 
@@ -80,27 +80,29 @@ void bl_envelope_sort(struct bl_song const * const song,
 		normalized_song[i] = (normalized_song[i] - signal_mean) / signal_variance;
 	}
 
-	// TODO change 33 by a macro
-	// Apply and store 36 bandpassed and RDFT'd signals
-	int i;
-	for(i = 0; i < 36; ++i) {
+	// TODO change 17 by a macro
+	// Apply and store 5 bandpassed and RDFT'd signals
+	int currentindex = 0;
+	for(int i = 0; i < 1; ++i) {
 		double d = 0;
+		double y;
 		for(int b = 0; b < iteration_number; b += half_fft_winsize) {
-			memset(registry, 0, 33*sizeof(double));
+			memset(registry, 0, NB_COEFFS*sizeof(double));
+			int idx_first = 0;
 			// Apply filter
 			for(int j = b; j < b + fft_winsize; ++j) {
 				y = 0;
- 				for(k = 32; k > 15; --k) {
+ 				for(k = NB_COEFFS - 1; k > 7; --k) {
  					registry[k] = registry[k-1];
  				}
-				for(k = 15; k > 0; --k) {
+				for(k = 7; k > 0; --k) {
 					registry[k] = registry[k-1];
-					y += coeffs[i][k] * (registry[k] + registry[32-k]);
+					y += coeffs[i][k] * (registry[k] + registry[NB_COEFFS - 1 - k]);
 				}
 
-				y += registry[16] * coeffs[i][16];
+				y += registry[8] * coeffs[i][8];
 				registry[0] = normalized_song[j];
- 				y += coeffs[i][0] * (registry[0] + registry[32]);
+ 				y += coeffs[i][0] * (registry[0] + registry[NB_COEFFS - 1]);
 
  				in[j - b] = y;
 			} 
@@ -118,13 +120,14 @@ void bl_envelope_sort(struct bl_song const * const song,
 			d += double_fft_winsize;
 		}
 	}
+	
 
 	/* Part two: process the filtered signal a bit more */
 
 	// Create two ill-named temporary arrays to avoid allocating five well-named ones
-	double *temp_filtered_array1[36];
-	double *temp_filtered_array2[36];
-	double *weighted_average[36];
+	double *temp_filtered_array1[1];
+	double *temp_filtered_array2[1];
+	double *weighted_average[1];
 	// Hold the sum of the band's intensity
 	double *band_sum;
 	// Hold the low pass registry
@@ -135,14 +138,16 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double atk_sum = 0;
 	double c, d;
 
-	for(int i = 0; i < 36; ++i) {
+	for(int i = 0; i < 1; ++i) {
 		temp_filtered_array1[i] = calloc(2*nb_frames, sizeof(double));
 		temp_filtered_array2[i] = calloc(2*nb_frames, sizeof(double));
 		weighted_average[i] = calloc(2*nb_frames, sizeof(double));
 	}
 	band_sum = calloc(2*nb_frames, sizeof(double));
 
-	for(int i = 0; i < 36; ++i) { 
+	double y = 0;
+
+	for(int i = 0; i < 1; ++i) { 
 		// Upsample array by 2
 		for(int j = 0; j < nb_frames; j++) {
 			temp_filtered_array1[i][2*j] = log(1 + mu*filtered_array[i][j]) / log(1 +mu);
@@ -224,7 +229,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 
 	// Sum all bands' weighted average
 	for(int j = 0; j < 2*nb_frames - 1; ++j) {
-		for(int i = 0; i < 36; ++i) {
+		for(int i = 0; i < 1; ++i) {
 			band_sum[j] += weighted_average[i][j];
 		}
 	}
@@ -273,7 +278,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	tempo2_score = -4.1026 / (peak_loc2 * df2) + 4.2052;
 	tempo3_score = -4.1026 / (peak_loc3 * df2) + 4.2052;
 
-	for(int i = 0; i < 36; ++i) 
+	for(int i = 0; i < 1; ++i) 
 		for(int j = 0; j < nb_frames*2 - 1; ++j)
 			atk_sum += weighted_average[i][j];
 
@@ -288,7 +293,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Free everything
 	fftw_free(in);
 	fftw_free(out);
-	for(int i = 0; i < 36; ++i) {
+	for(int i = 0; i < 1; ++i) {
 		free(temp_filtered_array1[i]);
 		free(temp_filtered_array2[i]);
 	}
