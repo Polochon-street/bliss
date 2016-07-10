@@ -297,9 +297,14 @@ void bl_envelope_sort(struct bl_song const * const song,
 	// Free everything
 	fftw_free(in);
 	fftw_free(out);
+	free(fft_array_tempo);
+	free(band_sum);
+	free(normalized_song);
 	for(int i = 0; i < 1; ++i) {
 		free(temp_filtered_array1[i]);
 		free(temp_filtered_array2[i]);
+		free(filtered_array[i]);
+		free(weighted_average[i]);
 	}
 
 	// Compute final tempo and attack ratings

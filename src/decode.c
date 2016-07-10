@@ -104,7 +104,7 @@ int bl_audio_decode(
 	beginning = song->sample_array;
 	index = 0;
 
-	// If the song is in a floating-point format, prepare the conversion to int16
+	// If the song is in a floating-point format or int32, prepare the conversion to int16
 	if(codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
 		codec_context->sample_fmt != AV_SAMPLE_FMT_S16P) {
 		song->not_s16 = 1;
