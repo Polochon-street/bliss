@@ -219,6 +219,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double tempo1_score = 0;
 	double tempo2_score = 0;
 	double tempo3_score = 0;
+	double atk_score = 0;
 	// Amplitude of peak n against amplitude of peak 1
 	double peak2_percentage = 0;
 	double peak3_percentage = 0;
@@ -283,13 +284,15 @@ void bl_envelope_sort(struct bl_song const * const song,
 		for(int j = 0; j < nb_frames*2 - 1; ++j)
 			atk_sum += weighted_average[i][j];
 
-/*	printf("Peak loc: %d, Frequency: %f, Period: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
+	atk_score = -3.33 * atk_sum * 10000 / song->nSamples + 60,
+
+	/*printf("Peak loc: %d, Frequency: %f, Period: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
 	printf("Peak loc2: %d, Frequency: %f, Period: %f, Percentage: %f\n", peak_loc2, peak_loc2*df2, 1 / (peak_loc2*df2), peak2_percentage);
 	printf("Peak loc3: %d, Frequency: %f, Period: %f, Percentage: %f\n", peak_loc3, peak_loc3*df2, 1 / (peak_loc3*df2), peak3_percentage);
 	printf("Tempo score 1: %f\n", tempo1_score);
 	printf("Tempo score 2: %f\n", tempo2_score);
 	printf("Tempo score 3: %f\n", tempo3_score);
-	printf("Atk score: %f\n", -1142 * atk_sum / song->nSamples + 56);*/
+	printf("Atk score: %f\n", atk_score);*/
 
 	// Free everything
 	fftw_free(in);
@@ -303,5 +306,5 @@ void bl_envelope_sort(struct bl_song const * const song,
 	result->tempo1 = tempo1_score;
 	result->tempo2 = tempo2_score;
 	result->tempo3 = tempo3_score;
-	result->attack = -1142 * atk_sum / song->nSamples + 56;
+	result->attack = atk_score;
 }
