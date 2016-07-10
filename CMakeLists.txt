@@ -91,7 +91,7 @@ install(FILES include/bliss.h DESTINATION /usr/include)
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_NAME "bliss-music")
-set(CPACK_DEBIAN_PACKAGE_VERSION "0.6")
+set(CPACK_DEBIAN_PACKAGE_VERSION "1.0")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libavutil-dev, libavformat-dev, libavcodec-dev, libavresample-dev")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "polochonstreet@gmx.fr")
