@@ -4,3 +4,5 @@ python/_bliss*
 __pycache__
 _bliss.c
 *.pyc
+*.egg-info
+python/dist

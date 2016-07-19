@@ -146,10 +146,6 @@ float bl_cosine_similarity(
 	struct force_vector_s v_song1,
 	struct force_vector_s v_song2);
 
-float bl_canberra_distance(
-	struct force_vector_s v_song1,
-	struct force_vector_s v_song2);
-
 
 /**********************
  * Specific analyzers *
@@ -252,7 +248,7 @@ void bl_free_song(struct bl_song * const song);
 float bl_version(void);
 
 /**
- * Initialize a bl_song by settings pointers to NULL so that it can be freed even 
+ * Initialize a bl_song by settings pointers to NULL so that it can be freed even
  * if an analysis couldn't be performed.
  *
  * @param song  a `bl_song` struct representing the song to initialize
