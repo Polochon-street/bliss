@@ -10,7 +10,7 @@
 #define MAX_INT16 (1 << 15)
 #define NB_COEFFS 17
 
-/* Beat detection achieved thanks to <TODO link> */
+/* Beat detection achieved thanks to Anssi Klapuri http://www.cs.tut.fi/sgn/arg/klap/sapmeter.pdf */
 
 void bl_envelope_sort(struct bl_song const * const song,
 		struct envelope_result_s * result) {
