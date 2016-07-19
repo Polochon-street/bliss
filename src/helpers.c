@@ -48,7 +48,7 @@ float bl_version(void) {
 
 float bl_mean(double *sample_array, int nSamples) {
 	double mean = 0;
-	size_t i;
+	int i;
 
 	for(i = 0; i < nSamples; ++i)
 		mean += sample_array[i];
@@ -60,7 +60,7 @@ float bl_mean(double *sample_array, int nSamples) {
 float bl_variance(double *sample_array, int nSamples) {
 	double mean = 0;
 	double variance = 0;
-	size_t i;
+	int i;
 
 	for(i = 0; i < nSamples; ++i)
 		mean += sample_array[i];

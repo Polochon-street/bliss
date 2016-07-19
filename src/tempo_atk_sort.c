@@ -306,6 +306,8 @@ void bl_envelope_sort(struct bl_song const * const song,
 		free(filtered_array[i]);
 		free(weighted_average[i]);
 	}
+	fftw_destroy_plan(p);
+	fftw_cleanup();
 
 	// Compute final tempo and attack ratings
 	result->tempo1 = tempo1_score;
