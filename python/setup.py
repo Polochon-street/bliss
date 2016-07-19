@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="Bliss",
-    version="0.3.0",
+    version="1.0.0",
     author="Phyks (Lucas Verney)",
     author_email="phyks@phyks.me",
     description="A wrapper around Bliss.",

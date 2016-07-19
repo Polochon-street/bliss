@@ -10,4 +10,4 @@ BL_UNKNOWN = lib.BL_UNKNOWN
 BL_UNEXPECTED = lib.BL_UNEXPECTED
 BL_OK = lib.BL_OK
 
-__all__ = ["bl_song", "distance", "version", "BL_LOUD"]
+__all__ = ["bl_song", "distance", "version"]
