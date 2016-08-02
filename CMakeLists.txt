@@ -18,7 +18,7 @@ include_directories(${MULTIMEDIA_INCLUDE_DIRS} ${RESAMPLE_INCLUDE_DIRS} include/
 link_directories(${MULTIMEDIA_LIBRARY_DIRS} ${RESAMPLE_LIBRARY_DIRS})
 add_definitions(${MULTIMEDIA_CFLAGS_OTHER} ${RESAMPLE_CFLAGS_OTHER})
 add_definitions(-Wall -Wno-long-long -pedantic -std=c99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
 #####################################
 # Bliss target to build the library #
