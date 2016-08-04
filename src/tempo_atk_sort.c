@@ -129,6 +129,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double *weighted_average[1];
 	// Hold the sum of the band's intensity
 	double *band_sum;
+	double *smoothed_sum;
 	// Hold the low pass registry
 	double registry2[7];
 	// Coefficients values extracted from the paper (see above)
@@ -143,6 +144,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 		weighted_average[i] = calloc(2*nb_frames, sizeof(double));
 	}
 	band_sum = calloc(2*nb_frames, sizeof(double));
+	smoothed_sum = calloc(2*nb_frames, sizeof(double));
 
 	double y = 0;
 
@@ -232,6 +234,64 @@ void bl_envelope_sort(struct bl_song const * const song,
 			band_sum[j] += weighted_average[i][j];
 		}
 	}
+
+	int w = 19;
+	int halfw = (int)round(w/2.);
+	double tempsum = 0;
+
+	for(int k = 0; k < 19; ++k)
+		tempsum += band_sum[k];
+	
+	for(int k = 0; k < 2*nb_frames - w; ++k) {
+		smoothed_sum[k+halfw-1] = tempsum;
+		tempsum -= band_sum[k];
+		tempsum += band_sum[k+w];
+	}
+
+	for(int k = 2*nb_frames - w; k < 2 * nb_frames; ++k)
+		smoothed_sum[2*nb_frames - halfw] += band_sum[k];
+
+	for(int k = 0; k < 2*nb_frames; ++k)
+		smoothed_sum[k] /= w;
+
+	/*double registry_smooth[10];
+
+	for(int v = 0; v < 20; ++v) {
+		for(int j = 0; j < 9; ++j)
+			registry_smooth[j+1] = band_sum[j];
+	
+		y = 0;
+	
+		for(int j = 9; j < 2*nb_frames - 9; ++j) {
+			for(int k = 0; k < 9; ++k)
+				registry_smooth[k] = registry_smooth[k+1];
+	
+			registry_smooth[9] = band_sum[j];
+	
+			y = 0;
+			c = 0;
+			d = 0;
+			
+			for(int k = 0; k < 10; ++k)
+				c += registry_smooth[k] * smooth_coeffs[k];
+	
+			for(int k = j; k < j + 9; ++k)
+				d += band_sum[k] * smooth_coeffs[10+k-j];
+	
+			y = c + d;
+			smoothed_sum[j] = y;
+		}
+	}*/
+
+	int beat = 0;
+
+	for(int j = 1; j < 2*nb_frames - 1; ++j) {
+		if(band_sum[j] > band_sum[j-1] && band_sum[j] > band_sum[j+1] && band_sum[j] > 0.55)
+			beat++;
+		//printf("%f\n", band_sum[j]);
+	}
+
+	//printf("%f\n", (float)beat * 60 / (float)song->duration);
 
 	// Update and run RDFT plan
 	fftw_destroy_plan(p);
