@@ -239,7 +239,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	int halfw = (int)round(w/2.);
 	double tempsum = 0;
 
-	for(int k = 0; k < 19; ++k)
+	for(int k = 0; k < w; ++k)
 		tempsum += band_sum[k];
 	
 	for(int k = 0; k < 2*nb_frames - w; ++k) {
@@ -254,7 +254,29 @@ void bl_envelope_sort(struct bl_song const * const song,
 	for(int k = 0; k < 2*nb_frames; ++k)
 		smoothed_sum[k] /= w;
 
-	/*double registry_smooth[10];
+	/* Same as previously */
+
+	for(int k = 0; k < 2*nb_frames; ++k)
+		band_sum[k] = 0;
+
+	tempsum = 0;
+
+	for(int k = 0; k < w; ++k)
+		tempsum += smoothed_sum[k];
+	
+	for(int k = 0; k < 2*nb_frames - w; ++k) {
+		band_sum[k+halfw-1] = tempsum;
+		tempsum -= smoothed_sum[k];
+		tempsum += smoothed_sum[k+w];
+	}
+
+	for(int k = 2*nb_frames - w; k < 2 * nb_frames; ++k)
+		band_sum[2*nb_frames - halfw] += smoothed_sum[k];
+
+	for(int k = 0; k < 2*nb_frames; ++k)
+		band_sum[k] /= w;
+
+	/* double registry_smooth[10];
 
 	for(int v = 0; v < 20; ++v) {
 		for(int j = 0; j < 9; ++j)
@@ -281,20 +303,33 @@ void bl_envelope_sort(struct bl_song const * const song,
 			y = c + d;
 			smoothed_sum[j] = y;
 		}
-	}*/
+	} */
 
 	int beat = 0;
 
-	for(int j = 1; j < 2*nb_frames - 1; ++j) {
+/*	for(int j = 1; j < 2*nb_frames - 1; ++j) {
 		if(band_sum[j] > band_sum[j-1] && band_sum[j] > band_sum[j+1] && band_sum[j] > 0.55)
 			beat++;
 		//printf("%f\n", band_sum[j]);
+	}*/
+
+	float epsilon = 0.000001;
+
+	for(int j = 1; j < 2*nb_frames - 1; ++j) {
+		if(((band_sum[j] - band_sum[j-1]) > epsilon) && ((band_sum[j] - band_sum[j+1]) > epsilon)) {
+			beat++;
+		}
+		//printf("%f\n", band_sum[j]);
 	}
 
-	//printf("%f\n", (float)beat * 60 / (float)song->duration);
+
+	//printf("%f\n", (float)beat / (float)song->duration);
+	tempo1_score = 4 * (float) beat / (float) song->duration - 30.4;
+	tempo2_score = 0;
+	tempo3_score = 0;
 
 	// Update and run RDFT plan
-	fftw_destroy_plan(p);
+	/*fftw_destroy_plan(p);
 	p = fftw_plan_dft_r2c_1d(2*nb_frames, band_sum, out, FFTW_ESTIMATE);
 	fftw_execute(p);
 
@@ -338,7 +373,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	tempo3_score = -4.1026 / (peak_loc3 * df2) + 4.2052;
 
 	tempo2_score *= sqrt(peak2_percentage);
-	tempo3_score *= sqrt(peak3_percentage);
+	tempo3_score *= sqrt(peak3_percentage);*/
 
 	for(int i = 0; i < 1; ++i) 
 		for(int j = 0; j < nb_frames*2 - 1; ++j)
@@ -348,8 +383,8 @@ void bl_envelope_sort(struct bl_song const * const song,
 
 	/*printf("Peak loc: %d, Frequency: %f, Period: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
 	printf("Peak loc2: %d, Frequency: %f, Period: %f, Percentage: %f\n", peak_loc2, peak_loc2*df2, 1 / (peak_loc2*df2), peak2_percentage);
-	printf("Peak loc3: %d, Frequency: %f, Period: %f, Percentage: %f\n", peak_loc3, peak_loc3*df2, 1 / (peak_loc3*df2), peak3_percentage);
-	printf("Tempo score 1: %f\n", tempo1_score);
+	printf("Peak loc3: %d, Frequency: %f, Period: %f, Percentage: %f\n", peak_loc3, peak_loc3*df2, 1 / (peak_loc3*df2), peak3_percentage);*/
+/*	printf("Tempo score 1: %f\n", tempo1_score);
 	printf("Tempo score 2: %f\n", tempo2_score);
 	printf("Tempo score 3: %f\n", tempo3_score);
 	printf("Atk score: %f\n", atk_score);*/
