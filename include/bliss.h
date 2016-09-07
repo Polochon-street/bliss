@@ -268,4 +268,14 @@ float bl_mean(double *sample_array, int nSamples);
  *
  */
 float bl_variance(double *sample_array, int nSamples);
+
+/**
+ *
+ *
+ * DOC TODO
+ *
+ *
+ */
+void bl_rectangular_filter(double *sample_array_out, double * sample_array_in, 
+	int nSamples, int smooth_width);
 #endif  // BL_BLISS_H_

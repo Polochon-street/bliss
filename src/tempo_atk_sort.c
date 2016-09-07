@@ -9,8 +9,31 @@
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MAX_INT16 (1 << 15)
 #define NB_COEFFS 17
+// Hold number of the filterbank's bands. Currently set to one for CPU-consumption reasons.
+#define NB_BANDS 1
 
 /* Beat detection achieved thanks to Anssi Klapuri http://www.cs.tut.fi/sgn/arg/klap/sapmeter.pdf */
+
+void bl_rectangular_filter(double *sample_array_out, double *sample_array_in, int nSamples, int smooth_width) {
+	int half_smooth_w = (int)round(smooth_width/2.);
+	double tempsum = 0;
+
+	for(int k = 0; k < smooth_width; ++k)
+		tempsum += sample_array_in[k];
+	
+	for(int k = 0; k < nSamples - smooth_width; ++k) {
+		sample_array_out[k + half_smooth_w - 1] = tempsum;
+		tempsum -= sample_array_in[k];
+		tempsum += sample_array_in[k + smooth_width];
+	}
+
+	for(int k = nSamples - smooth_width; k < nSamples; ++k)
+		sample_array_out[nSamples - half_smooth_w] += sample_array_in[k];
+
+	for(int k = 0; k < nSamples; ++k) {
+		sample_array_out[k] /= smooth_width;
+	}
+}
 
 void bl_envelope_sort(struct bl_song const * const song,
 		struct envelope_result_s * result) {
@@ -48,16 +71,16 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double *fft_array_tempo;
 	// Hold normalized signal
 	double *normalized_song;
-
+	// Count indices; heavily used so put on a register
 	register int k;
 
 	normalized_song = malloc(song->nSamples * sizeof(double));
 
-	for(int i = 0; i < 1; ++i)
+	for(int i = 0; i < NB_BANDS; ++i)
 		filtered_array[i] = calloc(nb_frames, sizeof(double));
 
 	in = fftw_malloc(fft_winsize * sizeof(double));
-	out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_winsize);
+	out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fft_winsize);
 
 	for(int i = 0; i < fft_winsize; ++i) {
 		in[i] = 0.0f;
@@ -80,15 +103,13 @@ void bl_envelope_sort(struct bl_song const * const song,
 		normalized_song[i] = (normalized_song[i] - signal_mean) / signal_variance;
 	}
 
-	// TODO change 17 by a macro
-	// Apply and store 5 bandpassed and RDFT'd signals
-
-	for(int i = 0; i < 1; ++i) {
+	/* Apply and store NB_BANDS bandpassed and RDFT'd signals */
+	for(int i = 0; i < NB_BANDS; ++i) {
 		double d = 0;
 		double y;
 		for(int b = 0; b < iteration_number; b += half_fft_winsize) {
 			memset(registry, 0, NB_COEFFS*sizeof(double));
-			// Apply filter
+			/* Apply filter */
 			for(int j = b; j < b + fft_winsize; ++j) {
 				y = 0;
  				for(k = NB_COEFFS - 1; k > 7; --k) {
@@ -105,7 +126,8 @@ void bl_envelope_sort(struct bl_song const * const song,
 
  				in[j - b] = y;
 			}
-			// End of filter
+			/* End of filter */
+			/* Compute RDFT of the filtered signal and store it in filtered_array */
 			fftw_execute(p);
 			float sum_fft = 0;
 			for(k = 0; k < fft_winsize/2 + 1; ++k) {
@@ -117,9 +139,10 @@ void bl_envelope_sort(struct bl_song const * const song,
 			}
 			filtered_array[i][(int)floor(d / double_fft_winsize)] += sum_fft;
 			d += double_fft_winsize;
+			/* End of RDFT */
 		}
 	}
-	
+	/* End of filterbank */
 
 	/* Part two: process the filtered signal a bit more */
 
@@ -199,7 +222,40 @@ void bl_envelope_sort(struct bl_song const * const song,
 	fftw_free(out);
 	out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2*nb_frames);
 
-	/* Part 3: Perform the tempo estimation (finally !) */
+	/* Part 3: Perform the BPM estimation (finally !) */
+
+	// Hold final bliss scores
+	double tempo1_score = 0;
+	double tempo2_score = 0;
+	double tempo3_score = 0;
+	double atk_score = 0;
+	// Hold the number of beats detected
+	int beat = 0;
+	fft_array_tempo = calloc(2*nb_frames, sizeof(double));
+
+	// Sum all bands' weighted average to get the final signal
+	for(int j = 0; j < 2*nb_frames - 1; ++j) {
+		for(int i = 0; i < 1; ++i) {
+			smoothed_sum[j] += weighted_average[i][j];
+		}
+	}
+
+	// Apply two rectangular smoothing filters to prepare the peak detection
+	bl_rectangular_filter(band_sum, smoothed_sum, 2*nb_frames, 19);
+	for(int k = 0; k < 2*nb_frames; ++k)
+		smoothed_sum[k] = 0;
+	bl_rectangular_filter(smoothed_sum, band_sum, 2*nb_frames, 19);
+
+	float epsilon = 0.000001;
+
+	for(int j = 1; j < 2*nb_frames - 1; ++j)
+		if(((smoothed_sum[j] - smoothed_sum[j-1]) > epsilon) && ((smoothed_sum[j] - smoothed_sum[j+1]) > epsilon))
+			beat++;
+	
+	/* Commented old version that tried evaluating the tempo. */
+	/* The BPM evaluation proved to be a bit more effective and less computationally expensive, */
+	/* thus this comment. But this may be needed one day, so I'll keep it around a bit. */
+	/*
 
 	// New sampling frequency (after the above processing)
 	double fs2 = 2*fs / fft_winsize;
@@ -217,119 +273,12 @@ void bl_envelope_sort(struct bl_song const * const song,
 	double peak_val2 = 0;
 	int peak_loc = 0;
 	double peak_val = 0;
-	// Hold final bliss scores
-	double tempo1_score = 0;
-	double tempo2_score = 0;
-	double tempo3_score = 0;
-	double atk_score = 0;
 	// Amplitude of peak n against amplitude of peak 1
 	double peak2_percentage = 0;
 	double peak3_percentage = 0;
 
-	fft_array_tempo = calloc(2*nb_frames, sizeof(double));
-
-	// Sum all bands' weighted average
-	for(int j = 0; j < 2*nb_frames - 1; ++j) {
-		for(int i = 0; i < 1; ++i) {
-			band_sum[j] += weighted_average[i][j];
-		}
-	}
-
-	int w = 19;
-	int halfw = (int)round(w/2.);
-	double tempsum = 0;
-
-	for(int k = 0; k < w; ++k)
-		tempsum += band_sum[k];
-	
-	for(int k = 0; k < 2*nb_frames - w; ++k) {
-		smoothed_sum[k+halfw-1] = tempsum;
-		tempsum -= band_sum[k];
-		tempsum += band_sum[k+w];
-	}
-
-	for(int k = 2*nb_frames - w; k < 2 * nb_frames; ++k)
-		smoothed_sum[2*nb_frames - halfw] += band_sum[k];
-
-	for(int k = 0; k < 2*nb_frames; ++k)
-		smoothed_sum[k] /= w;
-
-	/* Same as previously */
-
-	for(int k = 0; k < 2*nb_frames; ++k)
-		band_sum[k] = 0;
-
-	tempsum = 0;
-
-	for(int k = 0; k < w; ++k)
-		tempsum += smoothed_sum[k];
-	
-	for(int k = 0; k < 2*nb_frames - w; ++k) {
-		band_sum[k+halfw-1] = tempsum;
-		tempsum -= smoothed_sum[k];
-		tempsum += smoothed_sum[k+w];
-	}
-
-	for(int k = 2*nb_frames - w; k < 2 * nb_frames; ++k)
-		band_sum[2*nb_frames - halfw] += smoothed_sum[k];
-
-	for(int k = 0; k < 2*nb_frames; ++k)
-		band_sum[k] /= w;
-
-	/* double registry_smooth[10];
-
-	for(int v = 0; v < 20; ++v) {
-		for(int j = 0; j < 9; ++j)
-			registry_smooth[j+1] = band_sum[j];
-	
-		y = 0;
-	
-		for(int j = 9; j < 2*nb_frames - 9; ++j) {
-			for(int k = 0; k < 9; ++k)
-				registry_smooth[k] = registry_smooth[k+1];
-	
-			registry_smooth[9] = band_sum[j];
-	
-			y = 0;
-			c = 0;
-			d = 0;
-			
-			for(int k = 0; k < 10; ++k)
-				c += registry_smooth[k] * smooth_coeffs[k];
-	
-			for(int k = j; k < j + 9; ++k)
-				d += band_sum[k] * smooth_coeffs[10+k-j];
-	
-			y = c + d;
-			smoothed_sum[j] = y;
-		}
-	} */
-
-	int beat = 0;
-
-/*	for(int j = 1; j < 2*nb_frames - 1; ++j) {
-		if(band_sum[j] > band_sum[j-1] && band_sum[j] > band_sum[j+1] && band_sum[j] > 0.55)
-			beat++;
-		//printf("%f\n", band_sum[j]);
-	}*/
-
-	float epsilon = 0.000001;
-
-	for(int j = 1; j < 2*nb_frames - 1; ++j) {
-		if(((band_sum[j] - band_sum[j-1]) > epsilon) && ((band_sum[j] - band_sum[j+1]) > epsilon)) {
-			beat++;
-		}
-		//printf("%f\n", band_sum[j]);
-	}
-
-
-	//printf("%f\n", (float)beat / (float)song->duration);
-	tempo1_score = 4 * (float) beat / (float) song->duration - 30.4;
-	tempo2_score = 0;
-	tempo3_score = 0;
-
 	// Update and run RDFT plan
-	/*fftw_destroy_plan(p);
+	fftw_destroy_plan(p);
 	p = fftw_plan_dft_r2c_1d(2*nb_frames, band_sum, out, FFTW_ESTIMATE);
 	fftw_execute(p);
 
@@ -375,11 +324,22 @@ void bl_envelope_sort(struct bl_song const * const song,
 	tempo2_score *= sqrt(peak2_percentage);
 	tempo3_score *= sqrt(peak3_percentage);*/
 
+	// Compute final attack and tempo ratings
+	// tempo2 and tempo3 scores are leftovers of the previous treatment, kept for compatibility with Blissify 
+	tempo1_score = 4 * (float) beat / (float) song->duration - 30.4;
+	tempo2_score = 0;
+	tempo3_score = 0;
+
 	for(int i = 0; i < 1; ++i) 
 		for(int j = 0; j < nb_frames*2 - 1; ++j)
 			atk_sum += weighted_average[i][j];
 
 	atk_score = -3.33 * atk_sum * 10000 / song->nSamples + 60,
+
+	result->tempo1 = tempo1_score;
+	result->tempo2 = tempo2_score;
+	result->tempo3 = tempo3_score;
+	result->attack = atk_score;
 
 	/*printf("Peak loc: %d, Frequency: %f, Period: %f\n", peak_loc, peak_loc*df2, 1 / (peak_loc*df2));
 	printf("Peak loc2: %d, Frequency: %f, Period: %f, Percentage: %f\n", peak_loc2, peak_loc2*df2, 1 / (peak_loc2*df2), peak2_percentage);
@@ -403,10 +363,4 @@ void bl_envelope_sort(struct bl_song const * const song,
 	}
 	fftw_destroy_plan(p);
 	fftw_cleanup();
-
-	// Compute final tempo and attack ratings
-	result->tempo1 = tempo1_score;
-	result->tempo2 = tempo2_score;
-	result->tempo3 = tempo3_score;
-	result->attack = atk_score;
 }
