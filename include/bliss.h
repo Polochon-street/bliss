@@ -8,7 +8,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define BL_VERSION 1.0
+#define BL_VERSION 1.1
 
 #if LIBAVUTIL_VERSION_MAJOR < 54
 	#define av_frame_alloc avcodec_alloc_frame

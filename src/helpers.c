@@ -56,7 +56,6 @@ float bl_mean(double *sample_array, int nSamples) {
 	return mean / nSamples;
 }
 
-// TODO Online algorithm
 float bl_variance(double *sample_array, int nSamples) {
 	double mean = 0;
 	double variance = 0;

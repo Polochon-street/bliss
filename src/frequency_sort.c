@@ -84,7 +84,7 @@ float bl_frequency_sort(struct bl_song const * const song) {
 
 	// Normalize it and compute real power in dB
 	for(int d = 1; d <= WINDOW_SIZE / 2; ++d) {
-		power_spectrum[d] = sqrt(power_spectrum[d] / WINDOW_SIZE);  // TODO: Why?
+		power_spectrum[d] = sqrt(power_spectrum[d] / WINDOW_SIZE);
 	
 		// Get power spectrum peak
 		peak = fmax(power_spectrum[d], peak);
