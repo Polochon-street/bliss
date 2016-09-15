@@ -256,24 +256,28 @@ float bl_version(void);
 void bl_initialize_song(struct bl_song * const song);
 
 /**
- *
- * DOC TODO
- *
+ * Compute the mean of a double array.
+ * 
+ * @param[in] sample_array	an array of samples
+ * @param[in] nSamples	the array's size (in double)
  */
 float bl_mean(double *sample_array, int nSamples);
 
 /**
+ * Compute the variance of a double array.
  *
- * DOC TODO
- *
+ * @param[in] sample_array	an array of samples
+ * @param[in] nSamples	the array's size (in double)
  */
 float bl_variance(double *sample_array, int nSamples);
 
 /**
+ * A rectangular filter that smoothes an array of samples
  *
- *
- * DOC TODO
- *
+ * @param[in] sample_array_in	an array of samples	
+ * @param[in] nSamples	the array's size (in double)
+ * @param[in] smooth_width	smooth width, e.g. the m adjacents points to average
+ * @param[out] sample_array_out	the filtered sample array
  *
  */
 void bl_rectangular_filter(double *sample_array_out, double * sample_array_in, 
