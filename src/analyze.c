@@ -7,14 +7,11 @@
 int bl_analyze(char const * const filename,
 		struct bl_song * const current_song) {
 	float rating;
-	struct envelope_result_s envelope_result = {0.0f, 0.0f, 0.0f, 0.0f};
+	struct envelope_result_s envelope_result = {0.0f, 0.0f};
 
 	// Decode audio track
 	if(0 == bl_audio_decode(filename, current_song)) {
-		// Analyze tempo
-		current_song->force_vector.tempo1 = 0;
-		current_song->force_vector.tempo2 = 0;
-		current_song->force_vector.tempo3 = 0;
+		current_song->force_vector.tempo = 0;
 		// Analyze amplitude
 		current_song->force_vector.amplitude = bl_amplitude_sort(current_song);	
 		// Analyze frequencies
@@ -22,15 +19,11 @@ int bl_analyze(char const * const filename,
 
 		// Analyze global envelope 
 		bl_envelope_sort(current_song, &envelope_result);
-		current_song->force_vector.tempo1 = envelope_result.tempo1;
-		current_song->force_vector.tempo2 = envelope_result.tempo2;
-		current_song->force_vector.tempo3 = envelope_result.tempo3;
+		current_song->force_vector.tempo = envelope_result.tempo;
 		current_song->force_vector.attack = envelope_result.attack;
 
 		// Compute global rating
-		rating = (fmax(current_song->force_vector.tempo1, 0) +
-			fmax(current_song->force_vector.tempo2, 0) +
-			fmax(current_song->force_vector.tempo3, 0) +
+		rating = (fmax(current_song->force_vector.tempo, 0) +
 			current_song->force_vector.amplitude +
 			current_song->force_vector.frequency +
 			fmax(current_song->force_vector.attack, 0));
@@ -61,9 +54,7 @@ float bl_distance(struct force_vector_s v_song1,
 	v2 = v_song2;
 
 	distance = sqrt(
-		(v1.tempo1 - v2.tempo1) * (v1.tempo1 - v2.tempo1) +
-		(v1.tempo2 - v2.tempo2) * (v1.tempo2 - v2.tempo2) +
-		(v1.tempo3 - v2.tempo3) * (v1.tempo3 - v2.tempo3) +
+		(v1.tempo - v2.tempo) * (v1.tempo - v2.tempo) +
 		(v1.amplitude - v2.amplitude) * (v1.amplitude - v2.amplitude) +
 		(v1.frequency - v2.frequency) * (v1.frequency - v2.frequency) +
 		(v1.attack - v2.attack) * (v1.attack - v2.attack)
@@ -86,9 +77,7 @@ float bl_distance_file(char const * const filename1,
 		v2 = song2->force_vector;
 
 		distance = sqrt(
-		(v1.tempo1 - v2.tempo1) * (v1.tempo1 - v2.tempo1) +
-		(v1.tempo2 - v2.tempo2) * (v1.tempo2 - v2.tempo2) +
-		(v1.tempo3 - v2.tempo3) * (v1.tempo3 - v2.tempo3) +
+		(v1.tempo - v2.tempo) * (v1.tempo - v2.tempo) +
 		(v1.amplitude - v2.amplitude) * (v1.amplitude - v2.amplitude) +
 		(v1.frequency - v2.frequency) * (v1.frequency - v2.frequency) +
 		(v1.attack - v2.attack) * (v1.attack - v2.attack)
@@ -108,14 +97,11 @@ float bl_cosine_similarity(struct force_vector_s v_song1,
 	v1 = v_song1;
 	v2 = v_song2;
 
-	similarity = (v1.tempo1*v2.tempo1 +v1.tempo2*v2.tempo2 +
-			v1.tempo3*v2.tempo3 + v1.amplitude*v2.amplitude +
+	similarity = (v1.tempo*v2.tempo + v1.amplitude*v2.amplitude +
 			v1.frequency*v2.frequency + v1.attack*v2.attack) / (
-			sqrt(v1.tempo1*v1.tempo1 + v1.tempo2*v1.tempo2 +
-				v1.tempo3*v1.tempo3 + v1.amplitude*v1.amplitude +
+			sqrt(v1.tempo*v1.tempo + v1.amplitude*v1.amplitude +
 				v1.frequency*v1.frequency + v1.attack*v1.attack) * 
-			sqrt(v2.tempo1*v2.tempo1 + v2.tempo2*v2.tempo2 +
-				v2.tempo3*v2.tempo3 + v2.amplitude*v2.amplitude +
+			sqrt(v2.tempo*v2.tempo + v2.amplitude*v2.amplitude +
 				v2.frequency*v2.frequency + v2.attack*v2.attack));
 
 	return similarity;
@@ -134,14 +120,11 @@ float bl_cosine_similarity_file(char const * const filename1,
 		v1 = song1->force_vector;
 		v2 = song2->force_vector;
 
-		similarity = (v1.tempo1*v2.tempo1 +v1.tempo2*v2.tempo2 +
-			v1.tempo3*v2.tempo3 + v1.amplitude*v2.amplitude +
+		similarity = (v1.tempo*v2.tempo + v1.amplitude*v2.amplitude +
 			v1.frequency*v2.frequency + v1.attack*v2.attack) / (
-			sqrt(v1.tempo1*v1.tempo1 + v1.tempo2*v1.tempo2 +
-				v1.tempo3*v1.tempo3 + v1.amplitude*v1.amplitude +
+			sqrt(v1.tempo*v1.tempo + v1.amplitude*v1.amplitude +
 				v1.frequency*v1.frequency + v1.attack*v1.attack) * 
-			sqrt(v2.tempo1*v2.tempo1 + v2.tempo2*v2.tempo2 +
-				v2.tempo3*v2.tempo3 + v2.amplitude*v2.amplitude +
+			sqrt(v2.tempo*v2.tempo + v2.amplitude*v2.amplitude +
 				v2.frequency*v2.frequency + v2.attack*v2.attack));
 	
 		return similarity;

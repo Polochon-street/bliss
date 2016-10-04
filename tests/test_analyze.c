@@ -27,13 +27,11 @@ void assert_streq(char const * const str1, char const * const str2) {
 
 void test_loud(void) {
     struct bl_song song;
-    bl_analyze("../audio/loud.mp3", &song);
+    bl_analyze("../audio/song.mp3", &song);
 
     assert_floateq(song.force, -1.324836);
 
-    assert_floateq(song.force_vector.tempo1, -0.096114);
-    assert_floateq(song.force_vector.tempo2, 0.0);
-    assert_floateq(song.force_vector.tempo3, 0.0);
+    assert_floateq(song.force_vector.tempo, -0.096114);
     assert_floateq(song.force_vector.amplitude, 0.107364);
     assert_floateq(song.force_vector.frequency, -1.432200);
     assert_floateq(song.force_vector.attack, -1.425629);

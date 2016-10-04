@@ -1,5 +1,5 @@
 # Bliss music analyzer v1.0.0
-Bliss music library is a C library used to compute distance between songs in [leleleplayer](https://github.com/Polochon-street/leleleplayer).
+Bliss music library is a C library used to compute distance between songs. It is especially used in [leleleplayer](https://github.com/Polochon-street/leleleplayer).
 It is can be useful for creating « intelligent » playlists, for instance.
 See below for a technical description of the project.
 

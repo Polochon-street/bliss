@@ -99,7 +99,7 @@ class bl_song(Mapping):
         # Ease manipulation of force_vector_s fields
         elif self._types[key] == ffi.typeof("struct force_vector_s"):
             return {
-                "tempo": (value.tempo1, value.tempo2, value.tempo3),
+                "tempo": (value.tempo),
                 "amplitude": value.amplitude,
                 "frequency": value.frequency,
                 "attack": value.attack
@@ -178,7 +178,7 @@ class bl_song(Mapping):
         result = ffi.new("struct envelope_result_s *")
         lib.bl_envelope_sort(self._c_struct, result)
         return {
-            "tempo": (result.tempo1, result.tempo2, result.tempo3),
+            "tempo": (result.tempo),
             "attack": result.attack
         }
 

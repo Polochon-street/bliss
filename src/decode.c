@@ -57,12 +57,13 @@ int bl_audio_decode(
 		fprintf(stderr, "Couldn't find a suitable audio stream\n");
 		return BL_UNEXPECTED;
 	}
-	
+
 	// Find codec parameters
 	codecpar = context->streams[audio_stream]->codecpar;
 
 	// Find and allocate codec context
 	codec_context = avcodec_alloc_context3(codec);
+
 	if (avcodec_open2(codec_context, codec, NULL) < 0) {
 		fprintf(stderr, "Could not open codec\n");
 		return BL_UNEXPECTED;

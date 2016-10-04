@@ -30,10 +30,8 @@ int main (int argc, char **argv) {
 		// Debug output
 		printf("Analysis for music %s:\n", filename);
 		printf("Force: %f\n", song.force);
-		printf("Force vector: (%f, %f, %f, %f, %f, %f)\n",
-			song.force_vector.tempo1,
-			song.force_vector.tempo2,
-			song.force_vector.tempo3,
+		printf("Force vector: (%f, %f, %f, %f)\n",
+			song.force_vector.tempo,
 			song.force_vector.amplitude,
 			song.force_vector.frequency,
 			song.force_vector.attack);

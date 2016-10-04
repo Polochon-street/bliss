@@ -23,9 +23,7 @@ static const int BL_UNEXPECTED = -2;
 static const int BL_OK = 0;
 
 struct force_vector_s {
-	float tempo1;
-	float tempo2;
-	float tempo3;
+	float tempo;
 	float amplitude;
 	float frequency;
 	float attack;
@@ -33,9 +31,7 @@ struct force_vector_s {
 
 
 struct envelope_result_s {
-	float tempo1;
-	float tempo2;
-	float tempo3;
+	float tempo;
 	float attack;
 };
 
