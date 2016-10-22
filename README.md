@@ -81,8 +81,9 @@ in the `build/` folder. Unittests source files can be found in the `tests/` fold
 For every song analyzed, libbliss returns a struct song which contains, among other things,
 four floats, each rating an aspect of the song:
 
-* The [tempo](https://en.wikipedia.org/wiki/Tempo "link to wikipedia") rating draws the envelope of the whole song, and then computes its DFT, obtaining peaks at the frequency of each dominant beat.
-The period of each dominant beat can then be deduced from the frequencies, hinting at the song's tempo.<br />
+
+* The [tempo](https://en.wikipedia.org/wiki/Tempo "link to wikipedia") rating follows [this paper](http://www.cs.tut.fi/sgn/arg/klap/sapmeter.pdf "link to the paper") until part II. A), in order to obtain a downsampled envelope of the whole song. The song's [BPM](https://en.wikipedia.org/wiki/Tempo#Beats_per_minute "link to wikipedia BPM's article") are then estimated by counting the number of peaks and dividing by the length of the song.<br />
+The period of each dominant beat can then be deduced from the frequencies, hinting at the song's tempo.
 Warning: the tempo is not equal to the force of the song. As an example , a heavy metal track can have no steady beat at all, giving a very low tempo score while being very loud.
 
 * The amplitude rating reprents the physical « force » of the song, that is, how much the speaker's membrane will move in order to create the sound.<br />
@@ -92,8 +93,7 @@ It is obtained by applying a magic formula with magic coefficients to a histogra
 This rating is obtained by performing a DFT over the sample array, and splitting the resulting array in 4 frequency bands: low, mid-low, mid, mid-high, and high.
 Using the value in dB for each band, the final formula corresponds to freq\_result = high + mid-high + mid - (low + mid-low)
 
-* The [attack](https://en.wikipedia.org/wiki/Synthesizer#ADSR_envelope "link to wikipedia") rating computes the difference between each value in the envelope and the next (its derivative).<br />
-The final value is obtained by dividing the sum of the positive derivates by the number of samples, in order to avoid different results just because of the songs' length.<br />
+* The attack rating is just a sum of the intensity of all the attacks divided by the song's length.<br />
 As you have already guessed, a song with a lot of attacks also tends to wake humans up very quickly.
 
 
