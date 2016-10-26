@@ -271,11 +271,7 @@ int bl_audio_decode(
 					NULL,
 					song->channels,
 					decoded_frame->nb_samples,
-<<<<<<< HEAD
 					codec_context->sample_fmt,
-=======
-					codec_context->format,
->>>>>>> aa92578a9a83db1ab30a68f215ce5decd1d287c8
 				1);
 				#else
 				size_t data_size = av_samples_get_buffer_size(
