@@ -12,7 +12,9 @@ int bl_audio_decode(
 	AVFormatContext* context;
 	int audio_stream;
 	AVCodecContext *codec_context = NULL;
+	#if LIBSWRESAMPLE_VERSION_MAJOR >= 2
 	AVCodecParameters *codecpar = NULL;
+	#endif
 	AVCodec *codec = NULL;
 	AVFrame *decoded_frame = NULL;
 	struct SwrContext *swr_ctx;
@@ -58,11 +60,19 @@ int bl_audio_decode(
 		return BL_UNEXPECTED;
 	}
 
+	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	codec_context = context->streams[audio_stream]->codec;
+	if (!codec_context) {
+		fprintf(stderr, "Codec not found!\n");
+		return BL_UNEXPECTED;
+	}
+	#else
 	// Find codec parameters
 	codecpar = context->streams[audio_stream]->codecpar;
 
 	// Find and allocate codec context
 	codec_context = avcodec_alloc_context3(codec);
+	#endif
 
 	if (avcodec_open2(codec_context, codec, NULL) < 0) {
 		fprintf(stderr, "Could not open codec\n");
@@ -73,12 +83,21 @@ int bl_audio_decode(
 	song->filename = malloc(strlen(filename) + 1);
 	strcpy(song->filename, filename);
 
+	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	song->sample_rate = codec_context->sample_rate;
+	#else
 	song->sample_rate = codecpar->sample_rate;
+	#endif
 	song->duration = (uint64_t)(context->duration) / ((uint64_t)AV_TIME_BASE);
 	song->bitrate = context->bit_rate;
 	song->not_s16 = 0;
+	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
+	song->channels = codec_context->channels;
+	#else
 	song->nb_bytes_per_sample = av_get_bytes_per_sample(codecpar->format);
 	song->channels = codecpar->channels;
+	#endif
 
 	// Get number of samples
 	size = (
@@ -107,18 +126,32 @@ int bl_audio_decode(
 	index = 0;
 
 	// If the song is in a floating-point format or int32, prepare the conversion to int16
+	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	if(codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
+		codec_context->sample_fmt != AV_SAMPLE_FMT_S16P) {
+	#else
 	if(codecpar->format != AV_SAMPLE_FMT_S16 &&
 		codecpar->format != AV_SAMPLE_FMT_S16P) {
+	#endif
 		song->not_s16 = 1;
 		song->nb_bytes_per_sample = 2;
 	
 		swr_ctx = swr_alloc();
+
+		#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+		av_opt_set_int(swr_ctx, "in_channel_layout", codec_context->channel_layout, 0);
+		av_opt_set_int(swr_ctx, "in_sample_rate", codec_context->sample_rate, 0);
+		av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt", codec_context->sample_fmt, 0);
+		av_opt_set_int(swr_ctx, "out_channel_layout", codec_context->channel_layout, 0);
+		av_opt_set_int(swr_ctx, "out_sample_rate", codec_context->sample_rate, 0);
+		#else
 		av_opt_set_int(swr_ctx, "in_channel_layout", codecpar->channel_layout, 0);
 		av_opt_set_int(swr_ctx, "in_sample_rate", song->sample_rate, 0);
 		av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt", codecpar->format, 0);
 
 		av_opt_set_int(swr_ctx, "out_channel_layout", codecpar->channel_layout, 0);
 		av_opt_set_int(swr_ctx, "out_sample_rate", song->sample_rate, 0);
+		#endif
 		av_opt_set_sample_fmt(swr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
 		if((ret = swr_init(swr_ctx)) < 0) {
 			fprintf(stderr, "Could not allocate resampler context\n");
@@ -189,9 +222,11 @@ int bl_audio_decode(
 	}
 
 	// Planar means channels are not interleaved
+	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	is_planar = av_sample_fmt_is_planar(codec_context->sample_fmt);
+	#else
 	is_planar = av_sample_fmt_is_planar(codecpar->format);
-
-	int coucou = 0;
+	#endif
 
 	// Read the whole data and copy them into a huge buffer
 	av_init_packet(&avpkt);
@@ -213,9 +248,17 @@ int bl_audio_decode(
 				av_frame_unref(decoded_frame);
 			}
 
+			#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+			int length = avcodec_decode_audio4(codec_context,
+			decoded_frame,
+			&got_frame,
+			&avpkt);
+			if(length < 0) {
+			#else
 			ret = avcodec_send_packet(codec_context, &avpkt);
 			got_frame = !avcodec_receive_frame(codec_context, decoded_frame);
 			if(ret < 0) {
+			#endif
 				avpkt.size = 0;
 			}
 
@@ -223,12 +266,21 @@ int bl_audio_decode(
 
 			// Copy decoded data into a huge array
 			if(got_frame) {
+				#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+				size_t data_size = av_samples_get_buffer_size(
+					NULL,
+					song->channels,
+					decoded_frame->nb_samples,
+					codec_context->sample_fmt,
+				1);
+				#else
 				size_t data_size = av_samples_get_buffer_size(
 					NULL,
 					song->channels,
 					decoded_frame->nb_samples,
 					codecpar->format,
 				1);
+				#endif
 
 				if((index * song->nb_bytes_per_sample + data_size) > size) {
 					int8_t *ptr;
@@ -287,7 +339,6 @@ int bl_audio_decode(
 			// (such as album cover)
 			av_packet_unref(&avpkt);
 		}
-		coucou++;
 	}
 	song->sample_array = beginning;
 
@@ -300,14 +351,23 @@ int bl_audio_decode(
 	
 	// Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
 	do {
+		#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+		avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
+	} while(got_frame);
+		#else
 		ret = avcodec_send_packet(codec_context, &avpkt);
 		avcodec_receive_frame(codec_context, decoded_frame);
 	} while(ret != AVERROR_EOF);
+		#endif
 
 	// Free memory
 	if(song->not_s16)
 		swr_free(&swr_ctx);
+	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	avcodec_close(codec_context);
+	#else
 	avcodec_free_context(&codec_context);
+	#endif
 	av_frame_unref(decoded_frame);
 	# if LIBAVUTIL_VERSION_MAJOR > 51
 	av_frame_free(&decoded_frame);
