@@ -230,7 +230,7 @@ int bl_audio_decode(
 
 	// Read the whole data and copy them into a huge buffer
 	av_init_packet(&avpkt);
-	while(av_read_frame(context, &avpkt) >= 0) {
+	while(av_read_frame(context, &avpkt) == 0) {
 		if(avpkt.stream_index == audio_stream) {
 			got_frame = 0;
 
@@ -347,7 +347,10 @@ int bl_audio_decode(
 	avpkt.size = 0;
 
 	// Use correct number of samples after decoding
-	song->nSamples = index; 
+	if((song->nSamples = index) <= 0) {
+		fprintf(stderr, "Couldn't find any valid samples while decoding\n");
+		return BL_UNEXPECTED;
+	}
 	
 	// Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
 	do {
