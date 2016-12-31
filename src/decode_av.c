@@ -3,6 +3,9 @@
 
 #include "bliss.h"
 
+#define NB_BYTES_PER_SAMPLE 2
+#define SAMPLE_RATE 44100
+
 int bl_audio_decode(
 		char const * const filename,
 		struct bl_song * const song) {
@@ -74,22 +77,22 @@ int bl_audio_decode(
 	song->sample_rate = codec_context->sample_rate;
 	song->duration = (uint64_t)(context->duration) / ((uint64_t)AV_TIME_BASE);
 	song->bitrate = context->bit_rate;
-	song->not_s16 = 0;
+	song->resampled = 0;
 	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
 	song->channels = codec_context->channels;
 
 	// Get number of samples
 	size = (
-		((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
+		((uint64_t)(context->duration) * (uint64_t)SAMPLE_RATE) /
 		((uint64_t)AV_TIME_BASE)
 		) *
 		song->channels *
-		song->nb_bytes_per_sample;
+		NB_BYTES_PER_SAMPLE;
 
 	// Estimated number of samples
 	song->nSamples = (
 		(
-		((uint64_t)(context->duration) * (uint64_t)song->sample_rate) /
+		((uint64_t)(context->duration) * (uint64_t)SAMPLE_RATE) /
 		((uint64_t)AV_TIME_BASE)
 		) *
 		song->channels
@@ -104,15 +107,16 @@ int bl_audio_decode(
 	beginning = song->sample_array;
 	index = 0;
 
-	song->not_s16 = 0;
+	song->resampled = 0;
 	song->nb_bytes_per_sample = av_get_bytes_per_sample(codec_context->sample_fmt);
 	song->channels = codec_context->channels;
 
 	// If the song is in a floating-point format, prepare the conversion to int16
-	if(codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
-		codec_context->sample_fmt != AV_SAMPLE_FMT_S16P) {
-		song->not_s16 = 1;
+	if( (codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
+		codec_context->sample_fmt != AV_SAMPLE_FMT_S16P) || (codec_context->sample_rate != SAMPLE_RATE) ) {
+		song->resampled = 1;
 		song->nb_bytes_per_sample = 2;
+		song->sample_rate = SAMPLE_RATE;
 	
 		avr_ctx = avresample_alloc_context();
 		av_opt_set_int(avr_ctx, "in_channel_layout", codec_context->channel_layout, 0);
@@ -120,7 +124,7 @@ int bl_audio_decode(
 		av_opt_set_int(avr_ctx, "in_sample_fmt", codec_context->sample_fmt, 0);
 
 		av_opt_set_int(avr_ctx, "out_channel_layout", codec_context->channel_layout, 0);
-		av_opt_set_int(avr_ctx, "out_sample_rate", codec_context->sample_rate, 0);
+		av_opt_set_int(avr_ctx, "out_sample_rate", song->sample_rate, 0);
 		av_opt_set_int(avr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
 		if((ret = avresample_open(avr_ctx)) < 0) {
 			fprintf(stderr, "Could not allocate resampler context\n");
@@ -247,28 +251,29 @@ int bl_audio_decode(
 				int8_t *p = beginning + (index * song->nb_bytes_per_sample);
 
 				// If the song is in a floating-point format, convert it to int16
-				if(song->not_s16 == 1) {
-					int nb_planes = is_planar ? song->channels : 1;
+				if(song->resampled == 1) {
 					uint8_t **out_buffer;
-					out_buffer = calloc(nb_planes, sizeof(*out_buffer));
-					int buff_size;
-					buff_size = av_samples_get_buffer_size(decoded_frame->linesize,
-						song->channels, decoded_frame->nb_samples,
-						AV_SAMPLE_FMT_S16, 0);
-					av_samples_alloc(out_buffer, decoded_frame->linesize,
-						song->channels, decoded_frame->nb_samples, AV_SAMPLE_FMT_S16, 0);
-					ret = avresample_convert(avr_ctx, out_buffer, 0, buff_size,
-						decoded_frame->extended_data, is_planar, decoded_frame->nb_samples);
+					size_t dst_bufsize;
+					// Approximate the resampled buffer size 
+					int dst_nb_samples = av_rescale_rnd(decoded_frame->nb_samples, SAMPLE_RATE, codecpar->sample_rate, AV_ROUND_UP);
+					dst_bufsize = av_samples_alloc_array_and_samples(&out_buffer, decoded_frame->linesize,
+						song->channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
+
+					ret = avr_convert(avr_ctx, out_buffer, dst_bufsize,
+						(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
 					if(ret < 0) {
 						fprintf(stderr, "Error while converting from floating-point to int\n");
 						return BL_UNEXPECTED;
 					}
+					// Get the real resampled buffer size
+					dst_bufsize = av_samples_get_buffer_size(decoded_frame->linesize, song->channels,
+						ret, AV_SAMPLE_FMT_S16, 1);
 					memcpy((index * song->nb_bytes_per_sample) + beginning,
-						out_buffer[0],	
-						buff_size);
+						out_buffer[0], dst_bufsize);
 					av_freep(&out_buffer[0]);
 					free(out_buffer);
-                   	index += buff_size / song->nb_bytes_per_sample;
+					index += dst_bufsize / (float)song->nb_bytes_per_sample;
+
 				}
 				else if(1 == is_planar) {
 					for (int i = 0;
@@ -312,7 +317,7 @@ int bl_audio_decode(
 	} while(got_frame);
 
 	// Free memory
-	if(song->not_s16)
+	if(song->resampled)
 		avresample_free(&avr_ctx);
 	avcodec_close(codec_context);
 	av_frame_unref(decoded_frame);

@@ -47,7 +47,7 @@ struct bl_song {
 	int bitrate;
 	int nb_bytes_per_sample;
 	int calm_or_loud;
-	int not_s16;
+	int resampled;
 	uint64_t duration;
 	char* filename;
 	char* artist;
