@@ -7,11 +7,15 @@
 // Length of the samples used in FFT
 static const int WINDOW_SIZE = (1 << WIN_BITS);
 
-// Arbitrary frequency band limits
-#define LOW_INF 5 
-#define LOW_SUP 30
-#define HIGH_INF 59
-#define HIGH_SUP 117
+// Arbitrary frequency band limits: 
+
+// Sampling rate of fs = 22.05 kHz
+// After Fourier transform, interval of dF = fs/WINDOW_SIZE
+// dF = 22050/512 = 43 Hz
+#define LOW_INF 10 // 10*43 Hz = 430 Hz
+#define LOW_SUP 60 // ~2.0 kHz
+#define HIGH_INF 118 // ~5.1 kHz
+#define HIGH_SUP 234 // ~10.1 kHz
 
 float bl_frequency_sort(struct bl_song const * const song) {
 	// FFT transform context
@@ -95,10 +99,10 @@ float bl_frequency_sort(struct bl_song const * const song) {
 		power_spectrum[d] = 20 * log10(power_spectrum[d] / peak) - 3;
 	}
 	// Sum power in frequency bands
-	// Arbitrary separation in frequency bands
-	bands[0] = (power_spectrum[1] + power_spectrum[2]) / 2;
+	// Arbitrary separation in frequency bands (explanation below)
+	bands[0] = (power_spectrum[2] + power_spectrum[4]) / 2;
 
-	bands[1] = (power_spectrum[3] + power_spectrum[4]) / 2;
+	bands[1] = (power_spectrum[6] + power_spectrum[8]) / 2;
 
 	for(int i = LOW_INF; i <= LOW_SUP; ++i) {
 		bands[2] += power_spectrum[i];

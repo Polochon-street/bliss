@@ -4,7 +4,7 @@
 #include "bliss.h"
 
 #define NB_BYTES_PER_SAMPLE 2
-#define SAMPLE_RATE 44100
+#define SAMPLE_RATE 22050
 
 int bl_audio_decode(
 		char const * const filename,
@@ -130,11 +130,11 @@ int bl_audio_decode(
 
 	// If the song is in a floating-point format or int32, prepare the conversion to int16
 	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
-	if( (codec_context->sample_fmt != AV_SAMPLE_FMT_S16 &&
-		codec_context->sample_fmt != AV_SAMPLE_FMT_S16P) || (codec_context->sample_rate != SAMPLE_RATE) ) {
+	if( (codec_context->sample_fmt != AV_SAMPLE_FMT_S16) ||
+		(codec_context->sample_rate != SAMPLE_RATE) ) {
 	#else
-	if( (codecpar->format != AV_SAMPLE_FMT_S16 &&
-		codecpar->format != AV_SAMPLE_FMT_S16P) || (codecpar->sample_rate != SAMPLE_RATE)) {
+	if( (codecpar->format != AV_SAMPLE_FMT_S16) ||
+		(codecpar->sample_rate != SAMPLE_RATE)) {
 	#endif
 		song->resampled = 1;
 		song->nb_bytes_per_sample = 2;
@@ -305,39 +305,28 @@ int bl_audio_decode(
 					uint8_t **out_buffer;
 					size_t dst_bufsize;
 					// Approximate the resampled buffer size 
-					int dst_nb_samples = av_rescale_rnd(decoded_frame->nb_samples, SAMPLE_RATE, codecpar->sample_rate, AV_ROUND_UP);
+        			int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, codecpar->sample_rate) +
+						decoded_frame->nb_samples, SAMPLE_RATE, codecpar->sample_rate, AV_ROUND_UP);
 					dst_bufsize = av_samples_alloc_array_and_samples(&out_buffer, decoded_frame->linesize,
 						song->channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
-
 					ret = swr_convert(swr_ctx, out_buffer, dst_bufsize,
 						(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
 					if(ret < 0) {
 						fprintf(stderr, "Error while converting from floating-point to int\n");
 						return BL_UNEXPECTED;
 					}
+					if(ret != 0) {
 					// Get the real resampled buffer size
-					dst_bufsize = av_samples_get_buffer_size(decoded_frame->linesize, song->channels,
-						ret, AV_SAMPLE_FMT_S16, 1);
-					memcpy((index * song->nb_bytes_per_sample) + beginning,
-						out_buffer[0], dst_bufsize);
+						dst_bufsize = av_samples_get_buffer_size(NULL, song->channels,
+							ret, AV_SAMPLE_FMT_S16, 1);
+						memcpy((index * song->nb_bytes_per_sample) + beginning,
+							out_buffer[0], dst_bufsize);
+						index += dst_bufsize / (float)song->nb_bytes_per_sample;
+					}
 					av_freep(&out_buffer[0]);
 					free(out_buffer);
-					index += dst_bufsize / (float)song->nb_bytes_per_sample;
 				}
-				else if(1 == is_planar) {
-					for (int i = 0;
-						i < (decoded_frame->nb_samples * song->nb_bytes_per_sample);
-						i += song->nb_bytes_per_sample) {
-						for (int j = 0; j < song->channels; ++j) {
-							for (int k = 0; k < song->nb_bytes_per_sample; ++k) {
-								*p = ((int8_t*)(decoded_frame->extended_data[j]))[i + k];
-								++p;
-							}
-						}
-					}
-					index += data_size / song->nb_bytes_per_sample;
-				}
-				else if (0 == is_planar) {
+				else {
 					memcpy((index * song->nb_bytes_per_sample) + beginning,
 						decoded_frame->extended_data[0],
 						data_size);
@@ -373,6 +362,9 @@ int bl_audio_decode(
 		avcodec_receive_frame(codec_context, decoded_frame);
 	} while(ret != AVERROR_EOF);
 		#endif
+
+//	FILE *coucou = fopen("pls", "w");
+//	fwrite(song->sample_array, size, 1, coucou);
 
 	// Free memory
 	if(song->resampled)
