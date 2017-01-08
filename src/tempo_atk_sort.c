@@ -99,11 +99,9 @@ void bl_envelope_sort(struct bl_song const * const song,
 	signal_variance_d = (double)signal_variance / MAX_INT16;
 	signal_variance_d /= MAX_INT16;
 
-	for(int i = 0; i < song->nSamples; ++i)
-		normalized_song[i] = (double)((int16_t*)song->sample_array)[i] / MAX_INT16; 
-
 	for(int i = 0; i < song->nSamples; ++i) {
-		normalized_song[i] = (normalized_song[i] - signal_mean_d) / signal_variance_d;
+		normalized_song[i] = ( (double)((int16_t*)song->sample_array)[i] / MAX_INT16 - signal_mean_d) / 
+			signal_variance_d; 
 	}
 
 	/* Apply and store NB_BANDS bandpassed and RDFT'd signals */

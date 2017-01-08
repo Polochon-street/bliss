@@ -4,7 +4,7 @@
 #include "bliss.h"
 
 #define NB_BYTES_PER_SAMPLE 2
-#define SAMPLE_RATE 22050
+#define SAMPLE_RATE 22025 
 
 int bl_audio_decode(
 		char const * const filename,
@@ -27,10 +27,6 @@ int bl_audio_decode(
 
 	// Dictionary to fetch tags
 	AVDictionaryEntry *tags_dictionary;
-
-	// Planar means channels are interleaved in data section
-	// See MP3 vs FLAC for instance.
-	int is_planar;
 
 	// Pointer to beginning of music data
 	int8_t *beginning;
@@ -225,13 +221,6 @@ int bl_audio_decode(
 		strcpy(song->genre, "<no genre>");
 	}
 
-	// Planar means channels are not interleaved
-	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
-	is_planar = av_sample_fmt_is_planar(codec_context->sample_fmt);
-	#else
-	is_planar = av_sample_fmt_is_planar(codecpar->format);
-	#endif
-
 	// Read the whole data and copy them into a huge buffer
 	av_init_packet(&avpkt);
 	while(av_read_frame(context, &avpkt) == 0) {
@@ -298,7 +287,6 @@ int bl_audio_decode(
 						break;
 				
 				}
-				int8_t *p = beginning + (index * song->nb_bytes_per_sample);
 
 				// If the song isn't in a 16-bit format, convert it to
 				if(song->resampled == 1) {
@@ -316,7 +304,7 @@ int bl_audio_decode(
 						return BL_UNEXPECTED;
 					}
 					if(ret != 0) {
-					// Get the real resampled buffer size
+						// Get the real resampled buffer size
 						dst_bufsize = av_samples_get_buffer_size(NULL, song->channels,
 							ret, AV_SAMPLE_FMT_S16, 1);
 						memcpy((index * song->nb_bytes_per_sample) + beginning,
