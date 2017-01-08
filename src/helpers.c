@@ -46,29 +46,23 @@ float bl_version(void) {
 	return (float)BL_VERSION;
 }
 
-float bl_mean(double *sample_array, int nSamples) {
-	double mean = 0;
-	int i;
+int bl_mean(int16_t *sample_array, int nSamples) {
+	int mean = 0;
 
-	for(i = 0; i < nSamples; ++i)
+	for(int i = 0; i < nSamples; ++i)
 		mean += sample_array[i];
 
 	return mean / nSamples;
 }
 
-float bl_variance(double *sample_array, int nSamples) {
-	double mean = 0;
-	double variance = 0;
-	int i;
+int bl_variance(int16_t *sample_array, int nSamples, int mean) {
+	int64_t variance = 0;
 
-	for(i = 0; i < nSamples; ++i)
-		mean += sample_array[i];
-
-	mean /= nSamples;
-
-	for(i = 0; i < nSamples; ++i) {
-		variance += (sample_array[i] - mean)*((double)(sample_array[i]) - mean);
+	for(int i = 0; i < nSamples; i++) {
+		int32_t v;
+		v = sample_array[i] - mean;
+		variance += v*v;
 	}
 
 	return variance / nSamples;
-}
+} 

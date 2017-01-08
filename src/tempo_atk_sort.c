@@ -37,12 +37,10 @@ void bl_rectangular_filter(double *sample_array_out, double *sample_array_in, in
 
 void bl_envelope_sort(struct bl_song const * const song,
 		struct envelope_result_s * result) {
-	// TODO Make sure the sampling freq is 44.1 kHz
-	//float fs = 44100;
-	// Signal mean
-	float signal_mean = 0;
-	// Signal variance
-	float signal_variance = 0;
+	int signal_mean = 0;
+	int signal_variance = 0;
+	double signal_mean_d = 0.0;
+	double signal_variance_d = 0.0;
 	// First RDFT window size (1014 = 23ms * 44.1kHz)
 	int fft_winsize = 1014;
 	// First RDFT window size (double version, to avoid a useless cast)
@@ -91,14 +89,19 @@ void bl_envelope_sort(struct bl_song const * const song,
 	
 	/* Part 1: Bandpass filtering over 5 frequency bands */
 
+	// Achieve zero mean and unity variance
+	signal_mean = bl_mean(((int16_t*)song->sample_array), song->nSamples);
+	signal_variance = bl_variance(((int16_t*)song->sample_array), song->nSamples, signal_mean);
+
+	signal_mean_d = (double)signal_mean / MAX_INT16;
+	signal_variance_d = (double)signal_variance / MAX_INT16;
+	signal_variance_d /= MAX_INT16;
+
 	for(int i = 0; i < song->nSamples; ++i)
 		normalized_song[i] = (double)((int16_t*)song->sample_array)[i] / MAX_INT16; 
 
-	// Achieve zero mean and unity variance
-	signal_mean = bl_mean(normalized_song, song->nSamples);
-	signal_variance = bl_variance(normalized_song, song->nSamples);
 	for(int i = 0; i < song->nSamples; ++i) {
-		normalized_song[i] = (normalized_song[i] - signal_mean) / signal_variance;
+		normalized_song[i] = (normalized_song[i] - signal_mean_d) / signal_variance_d;
 	}
 
 	/* Apply and store NB_BANDS bandpassed and RDFT'd signals */
