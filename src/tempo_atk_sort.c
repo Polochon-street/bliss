@@ -37,16 +37,14 @@ void bl_rectangular_filter(double *sample_array_out, double *sample_array_in, in
 
 void bl_envelope_sort(struct bl_song const * const song,
 		struct envelope_result_s * result) {
-	// TODO Make sure the sampling freq is 44.1 kHz
-	//float fs = 44100;
-	// Signal mean
 	float signal_mean = 0;
-	// Signal variance
 	float signal_variance = 0;
 	// First RDFT window size (1014 = 23ms * 44.1kHz)
-	int fft_winsize = 1014;
-	// First RDFT window size (double version, to avoid a useless cast)
-	double double_fft_winsize = 1014.0;
+	//int fft_winsize = 1014;
+	int fft_winsize = 508;
+	// First RDFT window size (double version, to avoid a costly cast)
+	//double double_fft_winsize = 1014.0;
+	double double_fft_winsize = 508.0;
 	// Half fft_winsize;
 	int half_fft_winsize = fft_winsize / 2;
 	// FIR registry
@@ -265,7 +263,7 @@ void bl_envelope_sort(struct bl_song const * const song,
 	
 	// Compute final attack and tempo ratings
 	tempo_score = 4 * (float) beat / (float) song->duration - 30.4;
-	atk_score = -3.33 * atk_sum * 10000 / song->nSamples + 60,
+	atk_score = -1.74 * atk_sum * 10000 / song->nSamples + 58.3;
 
 	result->tempo = tempo_score;
 	result->attack = atk_score;
