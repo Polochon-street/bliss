@@ -4,7 +4,7 @@
 #include "bliss.h"
 
 #define NB_BYTES_PER_SAMPLE 2
-#define SAMPLE_RATE 22025 
+#define SAMPLE_RATE 22050
 
 int bl_audio_decode(
 		char const * const filename,
