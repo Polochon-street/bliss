@@ -6,24 +6,24 @@
 void assert_floateq(double a, double b) {
     const float EPSILON = 0.000001;
     if(fabs(a - b) > EPSILON) {
-		printf("%f %f\n", a, b);
+        printf("%f %f\n", a, b);
         exit(-1);
-	}
+    }
 }
 
 
 void assert_eq(int a, int b) {
     if(a != b) {
-		printf("%d %d\n", a,b);
+        printf("%d %d\n", a,b);
         exit(-1);
-	}
+    }
 }
 
 
 void assert_streq(char const * const str1, char const * const str2) {
     if(strcmp(str1, str2) != 0) {
         exit(-1);
-	}
+    }
 }
 
 
@@ -58,7 +58,7 @@ void test_loud(void) {
     assert_streq(song.tracknumber, "14");
 
     assert_streq(song.genre, "(255)");
-	bl_free_song(&song);
+    bl_free_song(&song);
 }
 
 

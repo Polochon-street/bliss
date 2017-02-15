@@ -11,9 +11,9 @@
 #define BL_VERSION 1.1
 
 #if LIBAVUTIL_VERSION_MAJOR < 54
-	#define av_frame_alloc avcodec_alloc_frame
-	#define av_frame_unref avcodec_get_frame_defaults
-	#define av_frame_free avcodec_free_frame
+    #define av_frame_alloc avcodec_alloc_frame
+    #define av_frame_unref avcodec_get_frame_defaults
+    #define av_frame_free avcodec_free_frame
 #endif
 
 static const int BL_LOUD = 0;
@@ -23,37 +23,37 @@ static const int BL_UNEXPECTED = -2;
 static const int BL_OK = 0;
 
 struct force_vector_s {
-	float tempo;
-	float amplitude;
-	float frequency;
-	float attack;
+    float tempo;
+    float amplitude;
+    float frequency;
+    float attack;
 };
 
 
 struct envelope_result_s {
-	float tempo;
-	float attack;
+    float tempo;
+    float attack;
 };
 
 
 struct bl_song {
-	float force;
-	struct force_vector_s force_vector;
-	int8_t* sample_array;
-	int channels;
-	int nSamples;
-	int sample_rate;
-	int bitrate;
-	int nb_bytes_per_sample;
-	int calm_or_loud;
-	int resampled;
-	uint64_t duration;
-	char* filename;
-	char* artist;
-	char* title;
-	char* album;
-	char* tracknumber;
-	char* genre;
+    float force;
+    struct force_vector_s force_vector;
+    int8_t* sample_array;
+    int channels;
+    int nSamples;
+    int sample_rate;
+    int bitrate;
+    int nb_bytes_per_sample;
+    int calm_or_loud;
+    int resampled;
+    uint64_t duration;
+    char* filename;
+    char* artist;
+    char* title;
+    char* album;
+    char* tracknumber;
+    char* genre;
 };
 
 
@@ -68,7 +68,7 @@ struct bl_song {
  * error-specific.
  */
 int bl_analyze(char const * const filename,
-	struct bl_song * current_song);
+    struct bl_song * current_song);
 
 
 /**
@@ -87,10 +87,10 @@ int bl_analyze(char const * const filename,
  * @return The distance between the two songs stored in audio files.
  */
 float bl_distance_file(
-	char const * const filename1,
-	char const * const filename2,
-	struct bl_song * song1,
-	struct bl_song * song2);
+    char const * const filename1,
+    char const * const filename2,
+    struct bl_song * song1,
+    struct bl_song * song2);
 
 /**
  * Compute the distance between two songs.
@@ -104,8 +104,8 @@ float bl_distance_file(
  * @return The distance between the two songs.
  */
 float bl_distance(
-	struct force_vector_s v_song1,
-	struct force_vector_s v_song2);
+    struct force_vector_s v_song1,
+    struct force_vector_s v_song2);
 
 
 /**
@@ -124,10 +124,10 @@ float bl_distance(
  * @return The cosine similarity between the two songs stored in audio files.
  */
 float bl_cosine_similarity_file(
-	char const * const filename1,
-	char const * const filename2,
-	struct bl_song * song1,
-	struct bl_song * song2);
+    char const * const filename1,
+    char const * const filename2,
+    struct bl_song * song1,
+    struct bl_song * song2);
 
 
 /**
@@ -139,8 +139,8 @@ float bl_cosine_similarity_file(
  * @return The cosine similarity between the two songs.
  */
 float bl_cosine_similarity(
-	struct force_vector_s v_song1,
-	struct force_vector_s v_song2);
+    struct force_vector_s v_song1,
+    struct force_vector_s v_song2);
 
 
 /**********************
@@ -172,7 +172,7 @@ float bl_cosine_similarity(
  * ratings.
  */
 void bl_envelope_sort(struct bl_song const * const song,
-	struct envelope_result_s * result);
+    struct envelope_result_s * result);
 
 
 /**
@@ -222,7 +222,7 @@ float bl_frequency_sort(struct bl_song const * const song);
  * @return `BL_OK` if everything went fine, `BL_UNEXPECTED` otherwise.
  */
 int bl_audio_decode(char const * const filename,
-	struct bl_song * const song);
+    struct bl_song * const song);
 
 
 /***********
@@ -254,28 +254,28 @@ void bl_initialize_song(struct bl_song * const song);
 /**
  * Compute the mean of a double array.
  * 
- * @param[in] sample_array	an array of samples
- * @param[in] nSamples	the array's size (in double)
+ * @param[in] sample_array  an array of samples
+ * @param[in] nSamples  the array's size (in double)
  */
 int bl_mean(int16_t *sample_array, int nSamples);
 
 /**
  * Compute the variance of a double array.
  *
- * @param[in] sample_array	an array of samples
- * @param[in] nSamples	the array's size (in double)
+ * @param[in] sample_array  an array of samples
+ * @param[in] nSamples  the array's size (in double)
  */
 int bl_variance(int16_t *sample_array, int nSamples, int mean);
 
 /**
  * A rectangular filter that smoothes an array of samples
  *
- * @param[in] sample_array_in	an array of samples	
- * @param[in] nSamples	the array's size (in double)
- * @param[in] smooth_width	smooth width, e.g. the m adjacents points to average
- * @param[out] sample_array_out	the filtered sample array
+ * @param[in] sample_array_in   an array of samples 
+ * @param[in] nSamples  the array's size (in double)
+ * @param[in] smooth_width  smooth width, e.g. the m adjacents points to average
+ * @param[out] sample_array_out the filtered sample array
  *
  */
 void bl_rectangular_filter(double *sample_array_out, double * sample_array_in, 
-	int nSamples, int smooth_width);
+    int nSamples, int smooth_width);
 #endif  // BL_BLISS_H_
