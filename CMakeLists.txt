@@ -8,10 +8,11 @@ pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec fftw3)
 pkg_check_modules(RESAMPLE QUIET libswresample)
 
 if(NOT RESAMPLE_FOUND)
-	pkg_check_modules(RESAMPLE REQUIRED libavresample)
-	set(AVRESAMPLE TRUE)
+    pkg_check_modules(RESAMPLE REQUIRED libavresample)
+    set(AVRESAMPLE TRUE)
+    message(DEPRECATION "Warning: libavresample is deprecated. You should use libswresample instead.")
 else()
-	set(AVRESAMPLE FALSE)
+    set(AVRESAMPLE FALSE)
 endif()
 
 include_directories(${MULTIMEDIA_INCLUDE_DIRS} ${RESAMPLE_INCLUDE_DIRS} include/)
@@ -25,26 +26,26 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 #####################################
 
 if(AVRESAMPLE)
-	add_library(bliss SHARED
-	src/amplitude_sort.c
-		src/decode_av.c
-		src/tempo_atk_sort.c
-		src/frequency_sort.c
-		src/helpers.c
-	src/analyze.c)
+    add_library(bliss SHARED
+    src/amplitude_sort.c
+        src/decode_av.c
+        src/tempo_atk_sort.c
+        src/frequency_sort.c
+        src/helpers.c
+    src/analyze.c)
 else()
-	add_library(bliss SHARED
-    	src/amplitude_sort.c
-    	src/decode.c
-    	src/tempo_atk_sort.c
-    	src/frequency_sort.c
-		src/helpers.c
-    	src/analyze.c)
+    add_library(bliss SHARED
+        src/amplitude_sort.c
+        src/decode.c
+        src/tempo_atk_sort.c
+        src/frequency_sort.c
+        src/helpers.c
+        src/analyze.c)
 endif()
 
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}
-	${RESAMPLE_LIBRARIES}
+    ${RESAMPLE_LIBRARIES}
     m)
 
 #############################
@@ -59,7 +60,7 @@ add_executable(distance
 target_link_libraries(distance bliss)
 
 add_executable(detect-gapless
-	examples/detect-gapless.c)
+    examples/detect-gapless.c)
 target_link_libraries(detect-gapless bliss)
 
 add_custom_target(examples

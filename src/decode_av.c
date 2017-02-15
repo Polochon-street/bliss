@@ -6,6 +6,72 @@
 #define NB_BYTES_PER_SAMPLE 2
 #define SAMPLE_RATE 22050 
 
+
+void *av_calloc(size_t nmemb, size_t size)
+{
+     if (size <= 0 || nmemb >= INT_MAX / size)
+         return NULL;
+     return av_mallocz(nmemb * size);
+}
+
+int av_samples_fill_arrays_fixed(uint8_t **audio_data, int *linesize,
+	const uint8_t *buf, int nb_channels, int nb_samples,
+	enum AVSampleFormat sample_fmt, int align) {
+	int ch, planar, buf_size, line_size;
+
+	planar   = av_sample_fmt_is_planar(sample_fmt);
+	buf_size = av_samples_get_buffer_size(&line_size, nb_channels, nb_samples,
+	sample_fmt, align);
+	if (buf_size < 0)
+		return buf_size;
+
+	audio_data[0] = (uint8_t *)buf;
+	for (ch = 1; planar && ch < nb_channels; ch++)
+		audio_data[ch] = audio_data[ch-1] + line_size;
+
+	if (linesize)
+		*linesize = line_size;
+
+	return buf_size;
+}
+
+int av_samples_alloc_fixed(uint8_t **audio_data, int *linesize, int nb_channels,
+	int nb_samples, enum AVSampleFormat sample_fmt, int align) {
+	uint8_t *buf;
+	int size = av_samples_get_buffer_size(NULL, nb_channels, nb_samples,
+	sample_fmt, align);
+	if (size < 0)
+		return size;
+
+	buf = av_malloc(size);
+	if (!buf)
+		return AVERROR(ENOMEM);
+
+	size = av_samples_fill_arrays_fixed(audio_data, linesize, buf, nb_channels,
+	nb_samples, sample_fmt, align);
+	if (size < 0) {
+		av_free(buf);
+		return size;
+	}
+
+	av_samples_set_silence(audio_data, 0, nb_samples, nb_channels, sample_fmt);
+
+	return size;
+}
+
+int av_samples_alloc_array_and_samples_fixed(uint8_t ***audio_data, int *linesize, int nb_channels, int nb_samples, enum AVSampleFormat sample_fmt, int align) {
+	int ret, nb_planes = av_sample_fmt_is_planar(sample_fmt) ? nb_channels : 1;
+
+	*audio_data = av_calloc(nb_planes, sizeof(**audio_data));
+	if (!*audio_data)
+		return AVERROR(ENOMEM);
+	ret = av_samples_alloc_fixed(*audio_data, linesize, nb_channels,
+                          nb_samples, sample_fmt, align);
+  if (ret < 0)
+       av_freep(audio_data);
+   return ret;
+}
+
 int bl_audio_decode(
 		char const * const filename,
 		struct bl_song * const song) {
@@ -24,10 +90,6 @@ int bl_audio_decode(
 
 	// Dictionary to fetch tags
 	AVDictionaryEntry *tags_dictionary;
-
-	// Planar means channels are interleaved in data section
-	// See MP3 vs FLAC for instance.
-	int is_planar;
 
 	// Pointer to beginning of music data
 	int8_t *beginning;
@@ -59,7 +121,8 @@ int bl_audio_decode(
 		fprintf(stderr, "Couldn't find a suitable audio stream\n");
 		return BL_UNEXPECTED;
 	}
-    // Find associated codec
+
+	// Find associated codec
 	codec_context = context->streams[audio_stream]->codec;
 	if (!codec_context) {
 		fprintf(stderr, "Codec not found!\n");
@@ -69,7 +132,6 @@ int bl_audio_decode(
 		fprintf(stderr, "Could not open codec\n");
 		return BL_UNEXPECTED;
 	}
-
 	// Fill song properties
 	song->filename = malloc(strlen(filename) + 1);
 	strcpy(song->filename, filename);
@@ -119,11 +181,18 @@ int bl_audio_decode(
 		song->sample_rate = SAMPLE_RATE;
 	
 		avr_ctx = avresample_alloc_context();
-		av_opt_set_int(avr_ctx, "in_channel_layout", codec_context->channel_layout, 0);
+		if(codec_context->channel_layout <= 0) {
+			fprintf(stderr, "Impossible to find channel layout; assuming stereo...\n");
+			av_opt_set_int(avr_ctx, "in_channel_layout", AV_CH_LAYOUT_STEREO, 0);
+			av_opt_set_int(avr_ctx, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
+		}
+		else {
+			av_opt_set_int(avr_ctx, "in_channel_layout", codec_context->channel_layout, 0);
+			av_opt_set_int(avr_ctx, "out_channel_layout", codec_context->channel_layout, 0);
+		}
 		av_opt_set_int(avr_ctx, "in_sample_rate", codec_context->sample_rate, 0);
 		av_opt_set_int(avr_ctx, "in_sample_fmt", codec_context->sample_fmt, 0);
 
-		av_opt_set_int(avr_ctx, "out_channel_layout", codec_context->channel_layout, 0);
 		av_opt_set_int(avr_ctx, "out_sample_rate", song->sample_rate, 0);
 		av_opt_set_int(avr_ctx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
 		if((ret = avresample_open(avr_ctx)) < 0) {
@@ -194,9 +263,6 @@ int bl_audio_decode(
 		strcpy(song->genre, "<no genre>");
 	}
 
-	// Planar means channels are not interleaved
-	is_planar = av_sample_fmt_is_planar(codec_context->sample_fmt);
-
 	// Read the whole data and copy them into a huge buffer
 	av_init_packet(&avpkt);
 	while(av_read_frame(context, &avpkt) >= 0) {
@@ -248,20 +314,20 @@ int bl_audio_decode(
 						break;
 				}
 
-				int8_t *p = beginning + (index * song->nb_bytes_per_sample);
-
 				// If the song is in a floating-point format, convert it to int16
 				if(song->resampled == 1) {
 					uint8_t **out_buffer;
 					size_t dst_bufsize;
 					// Approximate the resampled buffer size	
-					int dst_nb_samples = av_rescale_rnd(swr_get_delay(avr_ctx, codec_context->sample_rate) +
+					int dst_nb_samples = av_rescale_rnd(avresample_get_delay(avr_ctx) +
 						decoded_frame->nb_samples, SAMPLE_RATE, codec_context->sample_rate, AV_ROUND_UP);
-					dst_bufsize = av_samples_alloc_array_and_samples(&out_buffer, decoded_frame->linesize,
-						song->channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
 
-					ret = avr_convert(avr_ctx, out_buffer, dst_bufsize,
-						(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
+					dst_bufsize = av_samples_alloc_array_and_samples_fixed(&out_buffer, decoded_frame->linesize,
+						song->channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 0);
+
+					ret = avresample_convert(avr_ctx, out_buffer, 0, dst_bufsize,
+						(uint8_t **)decoded_frame->extended_data, 0, decoded_frame->nb_samples);
+
 					if(ret < 0) {
 						fprintf(stderr, "Error while converting from floating-point to int\n");
 						return BL_UNEXPECTED;
@@ -319,3 +385,4 @@ int bl_audio_decode(
 
 	return BL_OK;
 }
+

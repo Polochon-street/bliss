@@ -135,7 +135,7 @@ int bl_audio_decode(
 		song->resampled = 1;
 		song->nb_bytes_per_sample = 2;
 		song->sample_rate = SAMPLE_RATE;
-	
+
 		swr_ctx = swr_alloc();
 
 		#if LIBSWRESAMPLE_VERSION_MAJOR < 2
