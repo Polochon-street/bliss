@@ -19,4 +19,4 @@ As you have already guessed, a song with a lot of attacks also tends to wake hum
 
 These ratings are supposed to be as disjoint as possible, to avoid any redundant feature.
 However, there still seem to be some correlation between the amplitude / attack rating, as can be seen in this 2D-plot for ~4000 songs: <br />
-![Scatter plot of every feature against each other](https://lelele.io/bliss.html/correlation_graph.png)
+![Scatter plot of every feature against each other](https://lelele.io/correlation_graph.png)
