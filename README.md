@@ -1,15 +1,21 @@
 # Bliss music analyzer v1.0.0
 Bliss music library is a C library used to compute distance between songs. It is especially used in [leleleplayer](https://github.com/Polochon-street/leleleplayer).
-It is can be useful for creating « intelligent » playlists, for instance.
-See below for a technical description of the project.
+It is can be useful for creating « intelligent » playlists and/or continuous play, à la Spotify/Grooveshark Radio. <br />
+Bliss is really useful when used as a plug-in for audio players, so feel free to use the python bindings to develop one for your favorite player! <br />
+See ANALYSIS.md for a technical description of the project.
+
+## Current projects using Bliss 
+* MPD thanks to [Blissify](https://github.com/Phyks/Blissify)
+* [leleleplayer](https://github.com/Polochon-street/leleleplayer)
 
 ## Usage
+* The main purpose of the library is to extract features from songs in the form of coordinates (tempo, amplitude, frequency, attack).
+* Use `bl_analyze()` to compute these coordinates for a given song.
+* Use `bl_distance_file()` to compute the euclidian distance between two songs. The closer the songs are, the more similar they are. Two same songs have a distance that tends towards 0. (This function is merely a wrapper for calling `bl_analyze()` for each song and computing their euclidian distance)
 * Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
 ![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png)
-* Use `bl_distance_file()` to compute the euclidian distance between two songs. If the distance is < 5, the songs are really similar; between 5 and 10, they are quite similar, between 10 and 15 means quite opposite, and > 15 « total opposites ».
-* Combine both functions to obtain a better result - for example, a good condition to find similar songs would be « if cosine_distance >= 0.90 AND distance <= 5 then... » .
-* Python bindings are also available. See [the wiki](https://github.com/Polochon-street/bliss/wiki/Python-Bindings) to use learn how to use them.
-
+* Python bindings are also available for these functions. See [the wiki](https://github.com/Polochon-street/bliss/wiki/Python-Bindings) to learn how to use them. <br /> <br />
+These two functions are just examples of what can be done with coordinates in an euclidian space; machine-learning/big data algorithms could also be used to make cool things, such as clustering. See this (article)[https://linuxfr.org/news/sortie-de-la-bibliotheque-d-analyse-musicale-bliss-1-0#performances) [in French]
 ## Dependencies
 
 * libavformat
@@ -59,14 +65,13 @@ $ make
 (root) cd python && python setup.py install
 ```
 
-
 ## Usage examples
 * See examples/analyze.c and examples/distance.c
 * Compile any project using bliss with
 ```bash
 $ gcc -o example example.c -lbliss $(pkg-config --cflags libavutil libavformat libavcodec)
 ```
-* Examples for python bindings are in python/test
+* Examples for python bindings are in python/examples
 
 ## Unittests
 This library comes with some unittests. To build them, just run
@@ -74,29 +79,3 @@ This library comes with some unittests. To build them, just run
 $ make test
 ```
 in the `build/` folder. Unittests source files can be found in the `tests/` folder.
-
-
-## How does the analysis process work?
-
-For every song analyzed, libbliss returns a struct song which contains, among other things,
-four floats, each rating an aspect of the song:
-
-
-* The [tempo](https://en.wikipedia.org/wiki/Tempo "link to wikipedia") rating follows [this paper](http://www.cs.tut.fi/sgn/arg/klap/sapmeter.pdf "link to the paper") until part II. A), in order to obtain a downsampled envelope of the whole song. The song's [BPM](https://en.wikipedia.org/wiki/Tempo#Beats_per_minute "link to wikipedia BPM's article") are then estimated by counting the number of peaks and dividing by the length of the song.<br />
-The period of each dominant beat can then be deduced from the frequencies, hinting at the song's tempo.
-Warning: the tempo is not equal to the force of the song. As an example , a heavy metal track can have no steady beat at all, giving a very low tempo score while being very loud.
-
-* The amplitude rating reprents the physical « force » of the song, that is, how much the speaker's membrane will move in order to create the sound.<br />
-It is obtained by applying a magic formula with magic coefficients to a histogram of the values of all the song's samples
-
-* The frequency rating is a ratio between high and low frequencies: a song with a lot of high-pitched sounds tends to wake humans up far more easily.<br />
-This rating is obtained by performing a DFT over the sample array, and splitting the resulting array in 4 frequency bands: low, mid-low, mid, mid-high, and high.
-Using the value in dB for each band, the final formula corresponds to freq\_result = high + mid-high + mid - (low + mid-low)
-
-* The attack rating is just a sum of the intensity of all the attacks divided by the song's length.<br />
-As you have already guessed, a song with a lot of attacks also tends to wake humans up very quickly.
-
-
-## Python bindings
-
-Please refer to the `README.md` file in `python/` folder.
