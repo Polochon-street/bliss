@@ -29,6 +29,7 @@ def analyze(url_lib, url_csv, self):
         return
        
 
+    self.label_done.hide()
     self.progressBar.show()
     self.progressBar.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
     self.progressBar.set_show_text(True)
@@ -50,6 +51,9 @@ def analyze(url_lib, url_csv, self):
                     print("Couldn't decode file '%s', skipping..." % file_n)
             self.progressBar.set_fraction(i/(len(audio_files) - 1))
 
+    self.progressBar.hide()
+    self.label_done.set_label("Done!")
+    self.label_done.show()
     self.goBtn.set_label("Go")
     print("Scan completed, data is availabe at '%s'" % url_csv)
 
@@ -81,6 +85,7 @@ class MyWindow(Gtk.Window):
         self.label_open.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         self.label_save = Gtk.Label(self.url_csv)
         self.label_save.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.label_done = Gtk.Label()
        
         sizer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         sizer_open = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
@@ -90,6 +95,7 @@ class MyWindow(Gtk.Window):
         sizer.pack_start(sizer_open, True, True, 5)
         sizer.pack_start(sizer_save, True, True, 5)
         sizer.pack_start(self.progressBar, True, True, 5)
+        sizer.pack_start(self.label_done, True, True, 5)
         sizer.pack_start(recursiveBtn, True, True, 5)
         sizer.pack_start(sizer_set, True, True, 5)
 
@@ -153,5 +159,6 @@ win = MyWindow()
 win.connect("delete-event", Gtk.main_quit)
 win.show_all()
 win.progressBar.hide()
+win.label_done.hide()
 
 Gtk.main()
