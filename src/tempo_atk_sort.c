@@ -42,11 +42,11 @@ void bl_envelope_sort(struct bl_song const * const song,
     double signal_mean_d = 0.0;
     double signal_variance_d = 0.0;
     // First RDFT window size (1014 = 23ms * 44.1kHz)
-    //int fft_winsize = 1014;
-    int fft_winsize = 508;
+    // int fft_winsize = 1014;
+    int fft_winsize = 512;
     // First RDFT window size (double version, to avoid a costly cast)
     //double double_fft_winsize = 1014.0;
-    double double_fft_winsize = 508.0;
+    double double_fft_winsize = 512.0;
     // Half fft_winsize;
     int half_fft_winsize = fft_winsize / 2;
     // FIR registry
