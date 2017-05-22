@@ -8,7 +8,7 @@ The period of each dominant beat can then be deduced from the frequencies, hinti
 Warning: the tempo is not equal to the force of the song. As an example , a heavy metal track can have no steady beat at all, giving a very low tempo score while being very loud.
 
 * The amplitude rating reprents the physical « force » of the song, that is, how much the speaker's membrane will move in order to create the sound.<br />
-It is obtained by applying a magic formula with magic coefficients to a histogram of the values of all the song's samples
+It is obtained by finding the right curvature pattern of distribution of raw amplitudes.
 
 * The frequency rating is a ratio between high and low frequencies: a song with a lot of high-pitched sounds tends to wake humans up far more easily.<br />
 This rating is obtained by performing a DFT over the sample array, and splitting the resulting array in 4 frequency bands: low, mid-low, mid, mid-high, and high.
