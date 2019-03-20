@@ -1,3 +1,4 @@
+dist: xenial
 language: c
 addons:
     apt:
@@ -5,7 +6,8 @@ addons:
             - libavutil-dev
             - libavcodec-dev
             - libavformat-dev
-            - libavresample-dev
+            - libswresample-dev
+            - libfftw3-dev
 script:
     - cmake . && cmake --build .
     - make test

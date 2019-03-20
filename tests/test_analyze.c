@@ -27,16 +27,16 @@ void assert_streq(char const * const str1, char const * const str2) {
 }
 
 
-void test_loud(void) {
+void test_analyze(void) {
     struct bl_song song;
     bl_analyze("../audio/song.mp3", &song);
 
-    assert_floateq(song.force, -1.349859);
+    assert_floateq(song.force, -1.284405);
 
-    assert_floateq(song.force_vector.tempo, -0.110247);
-    assert_floateq(song.force_vector.amplitude, 0.197553);
-    assert_floateq(song.force_vector.frequency, -1.547412);
-    assert_floateq(song.force_vector.attack, -1.621171);
+    assert_floateq(song.force_vector.tempo, -0.378798);
+    assert_floateq(song.force_vector.amplitude, 0.262785);
+    assert_floateq(song.force_vector.frequency, -1.547190);
+    assert_floateq(song.force_vector.attack, -1.207954);
     assert_eq(song.channels, 2);
 
     assert_eq(song.nSamples, 12508554);
@@ -46,7 +46,6 @@ void test_loud(void) {
     assert_eq(song.bitrate, 198332);
     assert_eq(song.nb_bytes_per_sample, 2);
 
-    assert_eq(song.calm_or_loud, BL_CALM);
     assert_eq(song.duration, 283);
 
     assert_streq(song.artist, "David TMX");
@@ -63,5 +62,5 @@ void test_loud(void) {
 
 
 int main(void) {
-    test_loud();
+    test_analyze();
 }
