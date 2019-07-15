@@ -28,7 +28,7 @@ int main (int argc, char **argv) {
         }
 
         // Debug output
-        printf("Analysis for music %s:\n", filename);
+        printf("Analysis for music: %s\n", filename);
         printf("Force: %f\n", song.force);
         printf("Force vector: (%f, %f, %f, %f)\n",
             song.force_vector.tempo,
@@ -46,7 +46,7 @@ int main (int argc, char **argv) {
         printf("Title: %s\n", song.title);
         printf("Album: %s\n", song.album);
         printf("Track number: %s\n", song.tracknumber);
-        printf("genre: %s\n", song.genre);
+        printf("Genre: %s\n", song.genre);
 
         bl_free_song(&song);
         return EXIT_SUCCESS;
