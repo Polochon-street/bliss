@@ -16,11 +16,11 @@
     #define av_frame_free avcodec_free_frame
 #endif
 
-static const int BL_LOUD = 0;
-static const int BL_CALM = 1;
-static const int BL_UNKNOWN = 2;
-static const int BL_UNEXPECTED = -2;
-static const int BL_OK = 0;
+#define BL_LOUD 0
+#define BL_CALM 1
+#define BL_UNKNOWN 2
+#define BL_UNEXPECTED -2
+#define BL_OK 0
 
 struct force_vector_s {
     float tempo;
