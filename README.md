@@ -23,8 +23,9 @@ The most immediate thing one that can be done to test this library could be to i
 * libavutil
 * libavcodec
 * libswresample (or libavresample, if libswresample isn't present)
+* libfftw3
 
-If you are running Ubuntu (e.g. 14.04), you should `apt-get install libavutil-dev libavformat-dev libavcodec-dev libavresample-dev`.
+If you are running Ubuntu (e.g. 14.04), you should `apt-get install libavutil-dev libavformat-dev libavcodec-dev libavresample-dev libfftw3-dev`.
 
 If you are running Arch Linux, `pacman -S ffmpeg` should be enough.
 
