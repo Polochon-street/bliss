@@ -9,8 +9,8 @@ addons:
             - libswresample-dev
             - libfftw3-dev
 script:
-    - cmake . && cmake --build .
-    - make test
+    - mkdir build && cd build && cmake .. && cmake --build .
+    - make CTEST_OUTPUT_ON_FAILURE=1 test
 compiler:
     - gcc
     - clang
