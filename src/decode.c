@@ -292,9 +292,14 @@ int bl_audio_decode(
 				if(song->resampled == 1) {
 					uint8_t **out_buffer;
 					size_t dst_bufsize;
-					// Approximate the resampled buffer size 
-        			int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, codecpar->sample_rate) +
+					// Approximate the resampled buffer size
+					#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+					int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, codec_context->sample_rate) +
+						decoded_frame->nb_samples, SAMPLE_RATE, codec_context->sample_rate, AV_ROUND_UP);
+					#else
+					int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, codecpar->sample_rate) +
 						decoded_frame->nb_samples, SAMPLE_RATE, codecpar->sample_rate, AV_ROUND_UP);
+					#endif
 					dst_bufsize = av_samples_alloc_array_and_samples(&out_buffer, decoded_frame->linesize,
 						song->channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 1);
 					ret = swr_convert(swr_ctx, out_buffer, dst_bufsize,
