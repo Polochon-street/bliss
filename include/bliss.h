@@ -35,6 +35,15 @@ struct envelope_result_s {
     float attack;
 };
 
+struct thread_result_s {
+    struct bl_song const * const song;
+    float result;
+};
+
+struct thread_envelope_result_s {
+    struct bl_song const * const song;
+    struct envelope_result_s * results;
+};
 
 struct bl_song {
     float force;

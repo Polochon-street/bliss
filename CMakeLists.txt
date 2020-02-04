@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 project(bliss C)
 
 find_package(PkgConfig REQUIRED)
+find_package(Threads)
 
 pkg_check_modules(MULTIMEDIA REQUIRED libavformat libavutil libavcodec fftw3)
 pkg_check_modules(RESAMPLE QUIET libswresample)
@@ -46,6 +47,7 @@ endif()
 target_link_libraries(bliss
     ${MULTIMEDIA_LIBRARIES}
     ${RESAMPLE_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
     m)
 
 #############################
