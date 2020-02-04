@@ -71,6 +71,8 @@ int bl_audio_decode(
 
 	// Find and allocate codec context
 	codec_context = avcodec_alloc_context3(codec);
+    codec_context->thread_count = 0;
+    codec_context->thread_type = FF_THREAD_FRAME;
 	#endif
 
 	if (avcodec_open2(codec_context, codec, NULL) < 0) {
@@ -294,8 +296,13 @@ int bl_audio_decode(
 					size_t dst_bufsize;
 					// Approximate the resampled buffer size
 					#if LIBSWRESAMPLE_VERSION_MAJOR < 2
-					int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, codec_context->sample_rate) +
-						decoded_frame->nb_samples, SAMPLE_RATE, codec_context->sample_rate, AV_ROUND_UP);
+					int dst_nb_samples = av_rescale_rnd(
+                        swr_get_delay(swr_ctx, codec_context->sample_rate)
+						+ decoded_frame->nb_samples,
+                        SAMPLE_RATE,
+                        codec_context->sample_rate,
+                        AV_ROUND_UP,
+                    );
 					#else
 					int dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, codecpar->sample_rate) +
 						decoded_frame->nb_samples, SAMPLE_RATE, codecpar->sample_rate, AV_ROUND_UP);
@@ -333,31 +340,60 @@ int bl_audio_decode(
 			av_packet_unref(&avpkt);
 		}
 	}
-	song->sample_array = beginning;
 
 	// Free memory
 	avpkt.data = NULL;
 	avpkt.size = 0;
+	
+	// Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
+	//do {
+	//	#if LIBSWRESAMPLE_VERSION_MAJOR < 2
+	//	avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
+	//} while(got_frame);
+	//	#else
+	//	ret = avcodec_send_packet(codec_context, &avpkt);
+	//	avcodec_receive_frame(codec_context, decoded_frame);
+	//} while(ret != AVERROR_EOF);
+	//	#endif
 
-	// Use correct number of samples after decoding
+    // TODO append the frames to the decoded frames
+    avcodec_send_packet(codec_context, &avpkt);
+    do {
+        got_frame = !avcodec_receive_frame(codec_context, decoded_frame);
+        if (got_frame) {
+            size_t data_size = av_samples_get_buffer_size(
+		    			decoded_frame->linesize,
+		    			song->channels,
+		    			decoded_frame->nb_samples,
+		    			AV_SAMPLE_FMT_S16,
+		    1);
+		    if((index * song->nb_bytes_per_sample + data_size) > size) {
+		    	int8_t *ptr;
+		    	ptr = realloc(beginning, size + data_size);
+		    	if(ptr != NULL) {
+		    		beginning = ptr;
+		    		size += data_size;
+		    		song->nSamples += data_size / song->nb_bytes_per_sample;
+		    	}
+		    	else
+		    		break;
+		    }
+
+            memcpy((index * song->nb_bytes_per_sample) + beginning,
+		    	decoded_frame->extended_data[0],
+		    	data_size);
+		    index += data_size / song->nb_bytes_per_sample;
+
+            printf("coucou");
+        }
+    } while(got_frame);
+
+	song->sample_array = beginning;
+    // Use correct number of samples after decoding
 	if((song->nSamples = index) <= 0) {
 		fprintf(stderr, "Couldn't find any valid samples while decoding\n");
 		return BL_UNEXPECTED;
 	}
-	
-	// Read the end of audio, as precognized in http://ffmpeg.org/pipermail/libav-user/2015-August/008433.html
-	do {
-		#if LIBSWRESAMPLE_VERSION_MAJOR < 2
-		avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
-	} while(got_frame);
-		#else
-		ret = avcodec_send_packet(codec_context, &avpkt);
-		avcodec_receive_frame(codec_context, decoded_frame);
-	} while(ret != AVERROR_EOF);
-		#endif
-
-//	FILE *coucou = fopen("pls", "w");
-//	fwrite(song->sample_array, size, 1, coucou);
 
 	// Free memory
 	if(song->resampled)
