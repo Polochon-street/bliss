@@ -50,6 +50,8 @@ target_link_libraries(bliss
     ${CMAKE_THREAD_LIBS_INIT}
     m)
 
+target_compile_options(bliss PRIVATE -Wall -Wextra -pedantic)
+
 #############################
 # Examples building targets #
 #############################
