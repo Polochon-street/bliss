@@ -34,8 +34,6 @@ int bl_audio_decode(
 	int got_frame;
 	// Position in the data buffer
 	int index;
-	// Initialize AV lib
-	av_register_all();
 	context = avformat_alloc_context();
 
 	av_log_set_level(AV_LOG_QUIET);

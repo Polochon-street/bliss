@@ -8,16 +8,22 @@
 void * wrapper_amplitude(void * thread_result) {
     struct bl_song const * const song = ((struct thread_result_s *) thread_result)->song;
     ((struct thread_result_s *) thread_result)->result = bl_amplitude_sort(song);
+
+    return 0;
 }
 
 void * wrapper_frequency(void * thread_result) {
     struct bl_song const * const song = ((struct thread_result_s *) thread_result)->song;
     ((struct thread_result_s *) thread_result)->result = bl_frequency_sort(song);
+
+    return 0;
 }
 
 void * wrapper_tempo(void * thread_result) {
     struct bl_song const * const song = ((struct thread_envelope_result_s *) thread_result)->song;
     bl_envelope_sort(song, (((struct thread_envelope_result_s *) thread_result)->results));
+
+    return 0;
 }
 
 int bl_analyze(char const * const filename,
