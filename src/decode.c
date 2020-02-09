@@ -53,6 +53,7 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   // Search for a valid stream
   if (avformat_find_stream_info(context, NULL) < 0) {
     fprintf(stderr, "Couldn't find stream information\n");
+    avformat_close_input(&context);
     return BL_UNEXPECTED;
   }
 
@@ -61,6 +62,7 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
       av_find_best_stream(context, AVMEDIA_TYPE_AUDIO, -1, -1, &codec, 0);
   if (audio_stream < 0) {
     fprintf(stderr, "Couldn't find a suitable audio stream\n");
+    avformat_close_input(&context);
     return BL_UNEXPECTED;
   }
 
@@ -68,6 +70,7 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   codec_context = context->streams[audio_stream]->codec;
   if (!codec_context) {
     fprintf(stderr, "Codec not found!\n");
+    avformat_close_input(&context);
     return BL_UNEXPECTED;
   }
 #else
@@ -83,12 +86,13 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   if (avcodec_open2(codec_context, codec, NULL) < 0) {
     fprintf(stderr, "Could not open codec\n");
     return BL_UNEXPECTED;
+    avformat_close_input(&context);
   }
 
   // Fill song properties
-  if (fill_song_properties(song, filename, codecpar, context, &swr_ctx) ==
-      BL_UNEXPECTED) {
-    return BL_UNEXPECTED;
+  if ((ret = fill_song_properties(song, filename, codecpar, context,
+                                  &swr_ctx)) == BL_UNEXPECTED) {
+    goto cleanup;
   }
   beginning = song->sample_array;
   index = 0;
@@ -105,7 +109,8 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
         decoded_frame = av_frame_alloc();
         if (!decoded_frame) {
           fprintf(stderr, "Could not allocate audio frame\n");
-          return BL_UNEXPECTED;
+          ret = BL_UNEXPECTED;
+          goto cleanup;
         }
       } else {
         // Else, unreference it and reset fields
@@ -128,9 +133,9 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
 
       // Copy decoded data into a huge array
       if (got_frame) {
-        if (process_frame(song, &beginning, decoded_frame, &index, &size,
-                          swr_ctx, codecpar) == BL_UNEXPECTED) {
-          return BL_UNEXPECTED;
+        if ((ret = process_frame(song, &beginning, decoded_frame, &index, &size,
+                                 swr_ctx, codecpar)) == BL_UNEXPECTED) {
+          goto cleanup;
         }
       }
     } else {
@@ -150,9 +155,9 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   do {
     avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
     if (got_frame) {
-      if (process_frame(song, &beginning, decoded_frame, &index, &size, swr_ctx,
-                        codecpar) == BL_UNEXPECTED) {
-        return BL_UNEXPECTED;
+      if ((ret = process_frame(song, &beginning, decoded_frame, &index, &size,
+                               swr_ctx, codecpar)) == BL_UNEXPECTED) {
+        goto cleanup;
       }
     }
   } while (got_frame);
@@ -163,7 +168,8 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
     if (got_frame) {
       if (process_frame(song, &beginning, decoded_frame, &index, &size, swr_ctx,
                         codecpar) == BL_UNEXPECTED) {
-        return BL_UNEXPECTED;
+        ret = BL_UNEXPECTED;
+        goto cleanup;
       }
     }
   } while (got_frame);
@@ -175,6 +181,8 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   }
   song->sample_array = beginning;
 
+  ret = BL_OK;
+cleanup:
   // Free memory
   if (song->resampled)
     swr_free(&swr_ctx);
@@ -190,7 +198,7 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   av_packet_unref(&avpkt);
   avformat_close_input(&context);
 
-  return BL_OK;
+  return ret;
 }
 
 int fill_song_properties(struct bl_song *const song, char const *const filename,
@@ -391,14 +399,14 @@ int process_frame(struct bl_song *const song, int8_t **beginning_ptr,
       // Get the real resampled buffer size
       dst_bufsize = av_samples_get_buffer_size(NULL, song->channels, ret,
                                                AV_SAMPLE_FMT_S16, 1);
-      memcpy((*index_ptr * song->nb_bytes_per_sample) + *beginning_ptr,
+      memcpy(&(*beginning_ptr)[*index_ptr * song->nb_bytes_per_sample],
              out_buffer[0], dst_bufsize);
-      *index_ptr += dst_bufsize / (float)song->nb_bytes_per_sample;
+      *index_ptr += dst_bufsize / song->nb_bytes_per_sample;
     }
     av_freep(&out_buffer[0]);
     free(out_buffer);
   } else {
-    memcpy((*index_ptr * song->nb_bytes_per_sample) + *beginning_ptr,
+    memcpy(&(*beginning_ptr)[*index_ptr * song->nb_bytes_per_sample],
            decoded_frame->extended_data[0], data_size);
     *index_ptr += data_size / song->nb_bytes_per_sample;
   }
