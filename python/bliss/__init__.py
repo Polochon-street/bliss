@@ -4,10 +4,11 @@ import bliss.distance as distance
 import bliss.version as version
 from bliss._bliss import lib
 
-BL_LOUD = lib.BL_LOUD
-BL_CALM = lib.BL_CALM
-BL_UNKNOWN = lib.BL_UNKNOWN
-BL_UNEXPECTED = lib.BL_UNEXPECTED
-BL_OK = lib.BL_OK
+#FIXME cffi doesn't seem to support C define, so hotfix for now
+BL_LOUD = 0;
+BL_CALM = 1;
+BL_UNKNOWN = 2;
+BL_UNEXPECTED = -2;
+BL_OK = 0;
 
 __all__ = ["bl_song", "distance", "version"]
