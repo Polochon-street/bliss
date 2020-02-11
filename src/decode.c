@@ -12,7 +12,7 @@ int fill_song_properties(struct bl_song *const song, char const *const filename,
 
 int process_frame(struct bl_song *const song, int8_t **beginning_ptr,
                   AVFrame *decoded_frame, int *index_ptr, uint64_t *size_ptr,
-                  struct SwrContext *swr_ctx, AVCodecParameters *codecpar);
+                  struct SwrContext *swr_ctx);
 
 int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   int ret;
@@ -118,23 +118,19 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
       }
 
 #if LIBSWRESAMPLE_VERSION_MAJOR < 2
-      int length = avcodec_decode_audio4(codec_context, decoded_frame,
+      avcodec_decode_audio4(codec_context, decoded_frame,
                                          &got_frame, &avpkt);
-      if (length < 0) {
 #else
-      ret = avcodec_send_packet(codec_context, &avpkt);
+      avcodec_send_packet(codec_context, &avpkt);
       got_frame = !avcodec_receive_frame(codec_context, decoded_frame);
-      if (ret < 0) {
 #endif
-        avpkt.size = 0;
-      }
 
       av_packet_unref(&avpkt);
 
       // Copy decoded data into a huge array
       if (got_frame) {
         if ((ret = process_frame(song, &beginning, decoded_frame, &index, &size,
-                                 swr_ctx, codecpar)) == BL_UNEXPECTED) {
+                                 swr_ctx)) == BL_UNEXPECTED) {
           goto cleanup;
         }
       }
@@ -156,7 +152,7 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
     avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &avpkt);
     if (got_frame) {
       if ((ret = process_frame(song, &beginning, decoded_frame, &index, &size,
-                               swr_ctx, codecpar)) == BL_UNEXPECTED) {
+                               swr_ctx)) == BL_UNEXPECTED) {
         goto cleanup;
       }
     }
@@ -166,8 +162,8 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   do {
     got_frame = !avcodec_receive_frame(codec_context, decoded_frame);
     if (got_frame) {
-      if (process_frame(song, &beginning, decoded_frame, &index, &size, swr_ctx,
-                        codecpar) == BL_UNEXPECTED) {
+      if (process_frame(song, &beginning, decoded_frame, &index, &size,
+                        swr_ctx) == BL_UNEXPECTED) {
         ret = BL_UNEXPECTED;
         goto cleanup;
       }
@@ -344,7 +340,7 @@ int fill_song_properties(struct bl_song *const song, char const *const filename,
 
 int process_frame(struct bl_song *const song, int8_t **beginning_ptr,
                   AVFrame *decoded_frame, int *index_ptr, uint64_t *size_ptr,
-                  struct SwrContext *swr_ctx, AVCodecParameters *codecpar) {
+                  struct SwrContext *swr_ctx) {
   int ret;
 
 #if LIBSWRESAMPLE_VERSION_MAJOR < 2
@@ -373,18 +369,10 @@ int process_frame(struct bl_song *const song, int8_t **beginning_ptr,
   if (song->resampled == 1) {
     uint8_t **out_buffer;
     size_t dst_bufsize;
-// Approximate the resampled buffer size
-#if LIBSWRESAMPLE_VERSION_MAJOR < 2
-    int dst_nb_samples =
-        av_rescale_rnd(swr_get_delay(swr_ctx, codec_context->sample_rate) +
-                           decoded_frame->nb_samples,
-                       SAMPLE_RATE, codec_context->sample_rate, AV_ROUND_UP);
-#else
-    int dst_nb_samples =
-        av_rescale_rnd(swr_get_delay(swr_ctx, codecpar->sample_rate) +
-                           decoded_frame->nb_samples,
-                       SAMPLE_RATE, codecpar->sample_rate, AV_ROUND_UP);
-#endif
+    // Approximate the resampled buffer size
+    int dst_nb_samples = av_rescale_rnd(
+        swr_get_delay(swr_ctx, song->sample_rate) + decoded_frame->nb_samples,
+        SAMPLE_RATE, song->sample_rate, AV_ROUND_UP);
     dst_bufsize = av_samples_alloc_array_and_samples(
         &out_buffer, decoded_frame->linesize, song->channels, dst_nb_samples,
         AV_SAMPLE_FMT_S16, 1);
