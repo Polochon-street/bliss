@@ -77,11 +77,17 @@ add_custom_target(examples
 enable_testing()
 add_executable(test_analyze
     tests/test_analyze.c)
+add_executable(test_decode
+    tests/test_decode.c)
 target_link_libraries(test_analyze bliss)
+target_link_libraries(test_decode bliss)
 
 add_test(ctest_build_test_analyze "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target test_analyze)
 add_test(ctest_run_test_analyze test_analyze)
+add_test(ctest_build_test_decode "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target test_decode)
+add_test(ctest_run_test_decode test_decode)
 set_tests_properties(ctest_run_test_analyze PROPERTIES DEPENDS ctest_build_test_analyze)
+set_tests_properties(ctest_run_test_decode PROPERTIES DEPENDS ctest_build_test_decode)
 
 
 ###################
