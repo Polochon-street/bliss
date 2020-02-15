@@ -5,6 +5,7 @@
 
 #define NB_BYTES_PER_SAMPLE 2
 #define SAMPLE_RATE 22050
+#define CHANNELS 2
 
 int fill_song_properties(struct bl_song *const song, char const *const filename,
                          AVCodecParameters *codecpar, AVFormatContext *context,
@@ -179,8 +180,9 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
         return BL_UNEXPECTED;
       }
     }
-    av_freep(&out_buffer[0]);
-    free(out_buffer);
+    if (out_buffer)
+      av_freep(&out_buffer[0]);
+    av_freep(&out_buffer);
   }
 
   // Use correct number of samples after decoding
@@ -190,6 +192,7 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   }
   song->sample_array = beginning;
   song->sample_rate = SAMPLE_RATE;
+  song->channels = CHANNELS;
 
   ret = BL_OK;
 cleanup:
@@ -347,12 +350,12 @@ int fill_song_properties(struct bl_song *const song, char const *const filename,
   return BL_OK;
 }
 
-// If needed, realloc sample array and put stuff in beginning_ptr 
+// If needed, realloc sample array and put stuff in beginning_ptr
 int append_buffer_to_song(struct bl_song *const song, int *index_ptr,
                           int nb_samples, int8_t **beginning_ptr,
                           uint64_t *size_ptr, uint8_t *decoded_samples) {
   size_t data_size = av_samples_get_buffer_size(
-      NULL, song->channels, nb_samples, AV_SAMPLE_FMT_S16, 1);
+      NULL, CHANNELS, nb_samples, AV_SAMPLE_FMT_S16, 1);
 
   if ((*index_ptr * song->nb_bytes_per_sample + data_size) > *size_ptr) {
     int8_t *ptr;
@@ -383,7 +386,7 @@ int resample_decoded_frames(struct SwrContext *swr_ctx,
       swr_get_delay(swr_ctx, song->sample_rate) + decoded_frame->nb_samples,
       SAMPLE_RATE, song->sample_rate, AV_ROUND_UP);
   dst_bufsize = av_samples_alloc_array_and_samples(
-      out_buffer, NULL, song->channels, dst_nb_samples, AV_SAMPLE_FMT_S16, 0);
+      out_buffer, NULL, CHANNELS, dst_nb_samples, AV_SAMPLE_FMT_S16, 0);
   if (!flush) {
     nb_samples = swr_convert(swr_ctx, *out_buffer, dst_bufsize,
                              (const uint8_t **)decoded_frame->data,
@@ -413,15 +416,15 @@ int process_frame(struct bl_song *const song, int8_t **beginning_ptr,
     }
     decoded_samples = out_buffer[0];
   }
-
-  if (append_buffer_to_song(song, index_ptr, nb_samples, beginning_ptr,
-                            size_ptr, decoded_samples) == BL_UNEXPECTED) {
-    return BL_UNEXPECTED;
-  }
+  if (nb_samples > 0)
+    if (append_buffer_to_song(song, index_ptr, nb_samples, beginning_ptr,
+                             size_ptr, decoded_samples) == BL_UNEXPECTED)
+      return BL_UNEXPECTED;
 
   if (song->resampled == 1) {
-    av_freep(&out_buffer[0]);
-    free(out_buffer);
+    if (out_buffer)
+      av_freep(&out_buffer[0]);
+    av_freep(&out_buffer);
   }
   return BL_OK;
 }

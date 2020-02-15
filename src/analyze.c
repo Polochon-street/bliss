@@ -77,8 +77,8 @@ int bl_analyze(char const *const filename, struct bl_song *const current_song) {
     } else {
       current_song->calm_or_loud = BL_UNKNOWN;
     }
-
     return current_song->calm_or_loud;
+
   } else {
     fprintf(stderr, "Couldn't decode song\n");
     return BL_UNEXPECTED;
