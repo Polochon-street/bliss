@@ -36,7 +36,7 @@ int bl_analyze(char const *const filename, struct bl_song *const current_song) {
   struct envelope_result_s envelope_result = {0.0f, 0.0f};
 
   // Decode audio track
-  if (0 == bl_audio_decode(filename, current_song)) {
+  if (bl_audio_decode(filename, current_song) == BL_OK) {
     current_song->force_vector.tempo = 0;
     // Analyze amplitude
     // current_song->force_vector.amplitude = bl_amplitude_sort(current_song);
@@ -77,6 +77,7 @@ int bl_analyze(char const *const filename, struct bl_song *const current_song) {
     } else {
       current_song->calm_or_loud = BL_UNKNOWN;
     }
+
     return current_song->calm_or_loud;
   } else {
     fprintf(stderr, "Couldn't decode song\n");
