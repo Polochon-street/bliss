@@ -1,0 +1,12 @@
+[package]
+name = "bliss-rust"
+version = "0.1.0"
+authors = ["Polochon-street <polochonstreet@gmx.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ffmpeg4-sys = "*"
+ffmpeg4 = { path = "/home/polochon/Documents/Programming/Rust/rust-ffmpeg4" }
+ripemd160 = "*"
