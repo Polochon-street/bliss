@@ -138,7 +138,6 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
       av_packet_unref(&avpkt);
     }
   }
-
   // Free memory
   avpkt.data = NULL;
   avpkt.size = 0;
@@ -356,7 +355,6 @@ int append_buffer_to_song(struct bl_song *const song, int *index_ptr,
                           uint64_t *size_ptr, uint8_t *decoded_samples) {
   size_t data_size = av_samples_get_buffer_size(
       NULL, CHANNELS, nb_samples, AV_SAMPLE_FMT_S16, 1);
-
   if ((*index_ptr * song->nb_bytes_per_sample + data_size) > *size_ptr) {
     int8_t *ptr;
     ptr = realloc(*beginning_ptr, *size_ptr + data_size);

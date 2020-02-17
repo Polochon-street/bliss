@@ -1,12 +1,15 @@
 [package]
-name = "bliss-rust"
+name = "bliss-rs"
 version = "0.1.0"
 authors = ["Polochon-street <polochonstreet@gmx.fr>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+
 [dependencies]
-ffmpeg4-sys = "*"
-ffmpeg4 = { path = "/home/polochon/Documents/Programming/Rust/rust-ffmpeg4" }
+ffmpeg4-sys = "4.2.2"
+# Like this until https://github.com/bacek/rust-ffmpeg4/pull/5 is merged
+ffmpeg4 = { path = '/home/polochon/Documents/Programming/Rust/rust-ffmpeg4' }
 ripemd160 = "*"
