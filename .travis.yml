@@ -1,16 +1,33 @@
-dist: bionic
-language: c
 addons:
-    apt:
-        packages:
-            - libavutil-dev
-            - libavcodec-dev
-            - libavformat-dev
-            - libswresample-dev
-            - libfftw3-dev
-script:
-    - mkdir build && cd build && cmake .. && cmake --build .
-    - make CTEST_OUTPUT_ON_FAILURE=1 test
-compiler:
-    - gcc
-    - clang
+  apt:
+    packages:
+      - build-essential
+      - yasm
+      - libavutil-dev
+      - libavcodec-dev
+      - libavformat-dev
+      - libavfilter-dev
+      - libavdevice-dev
+      - libswresample-dev
+      - libfftw3-dev
+
+dist: bionic
+cache: cargo
+
+matrix:
+  include:
+    - language: c
+      script:
+        - mkdir build && cd build && cmake .. && cmake --build .
+        - make CTEST_OUTPUT_ON_FAILURE=1 test
+      compiler:
+        - gcc
+        - clang
+    - language: rust
+      before_install:
+        - rm -rf "$TRAVIS_HOME/.cargo/registry/src"
+        - rustup component add rustfmt
+      script:
+        - cd $TRAVIS_BUILD_DIR/bliss-rs
+        - cargo build --verbose --features "build"
+        - cargo test --verbose --features "build"
