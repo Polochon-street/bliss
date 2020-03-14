@@ -5,17 +5,35 @@ use ffmpeg::util::format::sample::{Sample, Type};
 
 const CHANNELS: u16 = 1;
 
+#[derive(Default)]
 pub struct Song {
     pub sample_array: Vec<u8>,
+    pub file_path: String,
+    pub artist: String,
+    pub title: String,
+    pub album: String,
+    pub track_number: String,
+    pub genre: String,
 }
 
-// TODO put stuff here in functions
-// TODO decode tags to complete the struct Song
-pub fn decode_song(path: &str) -> Song {
-    ffmpeg::init().unwrap();
+fn push_to_sample_array(frame: ffmpeg::frame::Audio, sample_array: &mut Vec<u8>) {
+    // Account for the padding
+    let actual_size = util::format::sample::Buffer::size(
+        Sample::I16(Type::Packed),
+        CHANNELS,
+        frame.samples(),
+        false,
+    );
+    sample_array.extend_from_slice(&frame.data(0)[..actual_size]);
+}
 
+pub fn decode_song(path: &str) -> Result<Song, String> {
+    ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}", e))?;
+
+    let mut song = Song::default();
     let mut sample_array: Vec<u8> = Vec::new();
-    let mut format = ffmpeg::format::input(&path).unwrap();
+    let mut format = ffmpeg::format::input(&path)
+        .map_err(|e| format!("FFmpeg error while opening format: {:?}", e))?;
     let (mut codec, stream) = {
         let stream = format
             .streams()
@@ -27,6 +45,22 @@ pub fn decode_song(path: &str) -> Song {
         (codec, stream.index())
     };
 
+    if let Some(title) = format.metadata().get("title") {
+        song.title = title.to_string();
+    };
+    if let Some(artist) = format.metadata().get("artist") {
+        song.artist = artist.to_string();
+    };
+    if let Some(album) = format.metadata().get("album") {
+        song.album = album.to_string();
+    };
+    if let Some(genre) = format.metadata().get("genre") {
+        song.genre = genre.to_string();
+    };
+    if let Some(track_number) = format.metadata().get("track") {
+        song.track_number = track_number.to_string();
+    };
+
     let mut resample_context = ffmpeg::software::resampling::context::Context::get(
         codec.format(),
         codec.channel_layout(),
@@ -35,7 +69,12 @@ pub fn decode_song(path: &str) -> Song {
         ffmpeg::util::channel_layout::ChannelLayout::MONO,
         22050,
     )
-    .unwrap();
+    .map_err(|e| {
+        format!(
+            "FFmpeg error trying to allocate resampling context: {:?}",
+            e
+        )
+    })?;
 
     let mut decoded = ffmpeg::frame::Audio::empty();
     for (s, packet) in format.packets() {
@@ -46,31 +85,27 @@ pub fn decode_song(path: &str) -> Song {
         match codec.decode(&packet, &mut decoded) {
             Ok(true) => {
                 let mut resampled = ffmpeg::frame::Audio::empty();
-                resample_context.run(&decoded, &mut resampled).unwrap();
-                // Account for the padding
-                let actual_size = util::format::sample::Buffer::size(
-                    Sample::I16(Type::Packed),
-                    CHANNELS,
-                    resampled.samples(),
-                    false,
-                );
-                sample_array.extend(
-                    resampled
-                        .data(0)
-                        .iter()
-                        .take(actual_size)
-                        .collect::<Vec<&u8>>(),
-                );
+                resample_context
+                    .run(&decoded, &mut resampled)
+                    .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?;
+                push_to_sample_array(resampled, &mut sample_array);
             }
             Ok(false) => (),
             Err(error) => println!("Could not decode packet: {}", error),
         }
     }
 
+    // Flush the stream
     let packet = ffmpeg::codec::packet::Packet::empty();
     loop {
         match codec.decode(&packet, &mut decoded) {
-            Ok(true) => (), // TODO do something here
+            Ok(true) => {
+                let mut resampled = ffmpeg::frame::Audio::empty();
+                resample_context
+                    .run(&decoded, &mut resampled)
+                    .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?;
+                push_to_sample_array(resampled, &mut sample_array);
+            }
             Ok(false) => break,
             Err(error) => println!("Could not decode packet: {}", error),
         };
@@ -78,43 +113,23 @@ pub fn decode_song(path: &str) -> Song {
 
     loop {
         let mut resampled = ffmpeg::frame::Audio::empty();
-        match resample_context.flush(&mut resampled).unwrap() {
-            Some(delay) => {
-                let actual_size = util::format::sample::Buffer::size(
-                    Sample::I16(Type::Packed),
-                    CHANNELS,
-                    resampled.samples(),
-                    false,
-                );
-                sample_array.extend(
-                    resampled
-                        .data(0)
-                        .iter()
-                        .take(actual_size)
-                        .collect::<Vec<&u8>>(),
-                );
+        match resample_context
+            .flush(&mut resampled)
+            .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?
+        {
+            Some(_) => {
+                push_to_sample_array(resampled, &mut sample_array);
             }
             None => {
                 if resampled.samples() > 0 {
-                    let actual_size = util::format::sample::Buffer::size(
-                        Sample::I16(Type::Packed),
-                        CHANNELS,
-                        resampled.samples(),
-                        false,
-                    );
-                    sample_array.extend(
-                        resampled
-                            .data(0)
-                            .iter()
-                            .take(actual_size)
-                            .collect::<Vec<&u8>>(),
-                    );
+                    push_to_sample_array(resampled, &mut sample_array);
                 }
                 break;
             }
         };
     }
-    Song { sample_array }
+    song.sample_array = sample_array;
+    Ok(song)
 }
 
 #[cfg(test)]
@@ -123,11 +138,21 @@ mod tests {
     use ripemd160::{Digest, Ripemd160};
 
     fn _test_decode_song(path: &str, expected_hash: &[u8]) {
-        let song = decode_song(path);
+        let song = decode_song(path).unwrap();
         let mut hasher = Ripemd160::new();
         hasher.input(song.sample_array);
 
         assert_eq!(expected_hash, hasher.result().as_slice());
+    }
+
+    #[test]
+    fn tags() {
+        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        assert_eq!(song.artist, "David TMX");
+        assert_eq!(song.title, "Renaissance");
+        assert_eq!(song.album, "Renaissance");
+        assert_eq!(song.track_number, "02");
+        assert_eq!(song.genre, "Pop");
     }
 
     #[test]
