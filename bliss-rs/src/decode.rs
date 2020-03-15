@@ -5,30 +5,30 @@ use ffmpeg::util::format::sample::{Sample, Type};
 
 use super::{Song, CHANNELS, SAMPLE_RATE};
 
-fn push_to_sample_array(frame: ffmpeg::frame::Audio, sample_array: &mut Vec<i16>) {
+fn push_to_sample_array(frame: ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
     // Account for the padding
     let actual_size = util::format::sample::Buffer::size(
-        Sample::I16(Type::Packed),
+        Sample::F32(Type::Packed),
         CHANNELS,
         frame.samples(),
         false,
     );
-    let i16_frame: Vec<i16> = frame.data(0)[..actual_size]
-        .chunks_exact(2)
+    let f32_frame: Vec<f32> = frame.data(0)[..actual_size]
+        .chunks_exact(4)
         .map(|x| {
-            let mut a: [u8; 2] = [0; 2];
+            let mut a: [u8; 4] = [0; 4];
             a.copy_from_slice(x);
-            i16::from_le_bytes(a)
+            f32::from_le_bytes(a)
         })
         .collect();
-    sample_array.extend_from_slice(&i16_frame);
+    sample_array.extend_from_slice(&f32_frame);
 }
 
 pub fn decode_song(path: &str) -> Result<Song, String> {
     ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}", e))?;
 
     let mut song = Song::default();
-    let mut sample_array: Vec<i16> = Vec::new();
+    let mut sample_array: Vec<f32> = Vec::new();
     let mut format = ffmpeg::format::input(&path)
         .map_err(|e| format!("FFmpeg error while opening format: {:?}", e))?;
     let (mut codec, stream) = {
@@ -62,7 +62,7 @@ pub fn decode_song(path: &str) -> Result<Song, String> {
         codec.format(),
         codec.channel_layout(),
         codec.rate(),
-        Sample::I16(Type::Packed),
+        Sample::F32(Type::Packed),
         ffmpeg::util::channel_layout::ChannelLayout::MONO,
         SAMPLE_RATE,
     )
@@ -126,6 +126,7 @@ pub fn decode_song(path: &str) -> Result<Song, String> {
         };
     }
     song.sample_array = sample_array;
+    song.sample_rate = SAMPLE_RATE;
     Ok(song)
 }
 
@@ -158,8 +159,8 @@ mod tests {
     fn resample_multi() {
         let path = String::from("data/s32_stereo_44_1_kHz.flac");
         let expected_hash = [
-            0x5c, 0x54, 0x77, 0x41, 0x4a, 0x52, 0xae, 0x68, 0xbb, 0xf7, 0x24, 0xff, 0x57, 0x75,
-            0x93, 0xd2, 0xad, 0x67, 0xf1, 0x48,
+            0xc5, 0xf8, 0x23, 0xce, 0x63, 0x2c, 0xf4, 0xa0, 0x72, 0x66, 0xbb, 0x49, 0xad, 0x84,
+            0xb6, 0xea, 0x48, 0x48, 0x9c, 0x50,
         ];
         _test_decode_song(&path, &expected_hash);
     }
@@ -168,8 +169,8 @@ mod tests {
     fn resample_stereo() {
         let path = String::from("data/s16_stereo_22_5kHz.flac");
         let expected_hash = [
-            0x7c, 0x24, 0x25, 0x21, 0x5f, 0x5b, 0xb9, 0x0c, 0xd3, 0xab, 0x0f, 0xed, 0x01, 0xe1,
-            0xcd, 0x3a, 0x8b, 0xf7, 0x93, 0xf2,
+            0x24, 0xed, 0x45, 0x58, 0x06, 0xbf, 0xfb, 0x05, 0x57, 0x5f, 0xdc, 0x4d, 0xb4, 0x9b,
+            0xa5, 0x2b, 0x05, 0x56, 0x10, 0x4f,
         ];
         _test_decode_song(&path, &expected_hash);
     }
@@ -177,9 +178,12 @@ mod tests {
     #[test]
     fn decode_mono() {
         let path = String::from("data/s16_mono_22_5kHz.flac");
+        // Obtained through
+        // ffmpeg -i data/s16_mono_22_5kHz.flac -ar 22050 -ac 1 -c:a pcm_f32le
+        // -f hash -hash ripemd160 -
         let expected_hash = [
-            0x87, 0x8f, 0xfd, 0x28, 0x75, 0xad, 0x8a, 0x4f, 0x26, 0x1e, 0x09, 0xad, 0x6f, 0x27,
-            0x3b, 0x6f, 0xd1, 0x08, 0x73, 0x0c,
+            0x9d, 0x95, 0xa5, 0xf2, 0xd2, 0x9c, 0x68, 0xe8, 0x8a, 0x70, 0xcd, 0xf3, 0x54, 0x2c,
+            0x5b, 0x45, 0x98, 0xb4, 0xf3, 0xb4,
         ];
         _test_decode_song(&path, &expected_hash);
     }

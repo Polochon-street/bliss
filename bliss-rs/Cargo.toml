@@ -12,6 +12,11 @@ build = ["ffmpeg4/build"]
 [dependencies]
 ripemd160 = "*"
 
+
+[dependencies.aubio-rs]
+git = "https://github.com/Polochon-street/aubio-rs"
+branch = "add-some-utils"
+
 [dependencies.ffmpeg4]
 # Like this until https://github.com/bacek/rust-ffmpeg4/pull/5 is merged
 git = "https://github.com/Polochon-street/rust-ffmpeg4"
