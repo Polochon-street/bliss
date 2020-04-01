@@ -29,5 +29,6 @@ matrix:
         - rustup component add rustfmt
       script:
         - cd $TRAVIS_BUILD_DIR/bliss-rs
-        - cargo build --verbose --features "build"
-        - cargo test --verbose --features "build"
+        # "aubio-lib" until we can upgrade to a newer ubuntu
+        - cargo build --verbose --features "build-ffmpeg aubio-lib"
+        - cargo test --verbose --features "build-ffmpeg aubio-lib"
