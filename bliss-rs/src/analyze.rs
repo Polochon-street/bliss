@@ -50,7 +50,7 @@ fn get_centroid(song: &Song) -> f32 {
     for chunk in song.sample_array.chunks(hop_size) {
         let mut fftgrain: Vec<f32> = vec![0.0; WINDOW_SIZE + 2];
         // If silence, centroid will be off, so skip instead
-        if silence_detection(chunk, silence_threshold) {
+        if !silence_detection(chunk, silence_threshold) {
             continue;
         }
         phase_vocoder.do_(chunk, fftgrain.as_mut_slice()).unwrap();
@@ -77,6 +77,6 @@ mod tests {
     #[test]
     fn centroid() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
-        assert!(0.01 > (1236.39 - get_centroid(&song).abs()));
+        assert!(0.01 > (1236.39 - get_centroid(&song)).abs());
     }
 }
