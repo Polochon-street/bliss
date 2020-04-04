@@ -16,8 +16,9 @@
 /* Beat detection achieved thanks to Anssi Klapuri
  * http://www.cs.tut.fi/sgn/arg/klap/sapmeter.pdf */
 
-void bl_rectangular_filter(double *sample_array_out, double *sample_array_in,
-                           int nSamples, int smooth_width) {
+void bl_rectangular_filter(double *sample_array_out,
+                                  double *sample_array_in, int nSamples,
+                                  int smooth_width) {
   int half_smooth_w = (int)round(smooth_width / 2.);
   double tempsum = 0;
 

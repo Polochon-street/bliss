@@ -1,31 +1,25 @@
 #include "bliss.h"
+#include <stdint.h>
 
 // We map 16-bits values onto the histogram
-static const int HISTOGRAM_SIZE = 32769;
+static const int32_t HISTOGRAM_SIZE = UINT16_MAX + 1;
 // Number of passes in histogram smoothing
 static const int N_PASSES = 300;
 // Limits of the integral on the histogram
-static const int INTEGRAL_INF = 0;
-static const int INTEGRAL_SUP = 2000;
+static const int32_t INTEGRAL_INF = INT16_MAX - 1000;
+static const int32_t INTEGRAL_SUP = INT16_MAX + 1000;
 
 float bl_amplitude_sort(struct bl_song const *const song) {
   // Start and end offsets of the data in the sample_array
   int start;
   int end;
-
   // Histogram array
-  float histogram[HISTOGRAM_SIZE];
+  float *histogram = (float *)calloc(HISTOGRAM_SIZE, sizeof(float));
   // Smoothed histogram array
-  float histogram_smooth[HISTOGRAM_SIZE];
+  float *histogram_smooth = (float *)calloc(HISTOGRAM_SIZE, sizeof(float));
 
   // Integral of the histogram
   float histogram_integral = 0;
-
-  // Zero initialize histograms
-  for (int i = 0; i < HISTOGRAM_SIZE; ++i) {
-    histogram[i] = 0.;
-    histogram_smooth[i] = 0.;
-  }
 
   // Fill-in histograms
   // Find beginning of data
@@ -38,7 +32,9 @@ float bl_amplitude_sort(struct bl_song const *const song) {
   // Add values to the histogram
   int16_t *p16 = (int16_t *)song->sample_array + start;
   for (int i = start; i <= end; ++i) {
-    histogram[abs(*p16)] += 1;
+    int32_t histogram_value = *p16;
+    histogram_value = histogram_value + INT16_MAX + 1;
+    histogram[histogram_value] += 1;
     ++p16;
   }
   // Compute smoothed histogram with a FIR filter
@@ -74,8 +70,11 @@ float bl_amplitude_sort(struct bl_song const *const song) {
     histogram_integral += histogram_smooth[i];
   }
 
+  free(histogram);
+  free(histogram_smooth);
+
   // Return final score, weighted by coefficients in order to have -4 for a
   // panel of calm songs, and 4 for a panel of loud songs. (only useful if you
   // want an absolute « Loud » and « Calm » result
-  return (-0.2f * histogram_integral + 6.0f);
+  return -0.2f * histogram_integral + 6.0f;
 }

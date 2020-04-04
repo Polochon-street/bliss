@@ -136,5 +136,5 @@ float bl_frequency_sort(struct bl_song const *const song) {
   // Return final score, weighted by coefficients in order to have -4 for a
   // panel of calm songs, and 4 for a panel of loud songs. (only useful if you
   // want an absolute « Loud » and « Calm » result
-  return ((1. / 3.) * bands_sum + 68. / 3.);
+  return (1. / 3.) * bands_sum + 68. / 3.;
 }

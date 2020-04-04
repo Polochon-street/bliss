@@ -1,34 +1,15 @@
 #include "bliss.h"
 
 void bl_free_song(struct bl_song *const song) {
-  if (song->artist) {
-    free(song->artist);
-    song->artist = NULL;
-  }
-  if (song->title) {
-    free(song->title);
-    song->title = NULL;
-  }
-  if (song->album) {
-    free(song->album);
-    song->album = NULL;
-  }
-  if (song->tracknumber) {
-    free(song->tracknumber);
-    song->tracknumber = NULL;
-  }
-  if (song->sample_array) {
-    free(song->sample_array);
-    song->sample_array = NULL;
-  }
-  if (song->filename) {
-    free(song->filename);
-    song->filename = NULL;
-  }
-  if (song->genre) {
-    free(song->genre);
-    song->genre = NULL;
-  }
+  free(song->artist);
+  free(song->title);
+  free(song->album);
+  free(song->tracknumber);
+  free(song->sample_array);
+  free(song->filename);
+  free(song->genre);
+
+  bl_initialize_song(song);
 }
 
 void bl_initialize_song(struct bl_song *song) {

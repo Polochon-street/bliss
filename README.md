@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/Polochon-street/bliss.svg?branch=master)](https://travis-ci.org/Polochon-street/bliss)
 
-# Bliss music analyzer v1.0.0
-Bliss music library is a C library used to compute distance between songs. It is especially usable through MPD with [Blissify](https://github.com/Phyks/Blissify).
+# Bliss music analyzer v1.2.0
+Bliss music library is a multithreaded C library used to compute distance between songs. It is especially usable through MPD with [Blissify](https://github.com/Phyks/Blissify).
 It is can be useful for creating « intelligent » playlists and/or continuous play, à la Spotify/Grooveshark Radio. <br />
 Bliss is really useful when used as a plug-in for audio players, so feel free to use the python bindings to develop one for your favorite player! <br />
 See ANALYSIS.md for a technical description of the project.
