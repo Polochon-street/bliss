@@ -27,10 +27,10 @@ void test_analyze_s16(void) {
   struct bl_song song;
   bl_analyze("../audio/song.flac", &song);
 
-  assert_floateq(song.force, -25.165920);
+  assert_floateq(song.force, -20.777929);
 
   assert_floateq(song.force_vector.tempo, -8.945454);
-  assert_floateq(song.force_vector.amplitude, -15.029835);
+  assert_floateq(song.force_vector.amplitude, -10.641844);
   assert_floateq(song.force_vector.frequency, -10.136086);
   assert_floateq(song.force_vector.attack, -15.560563);
   assert_eq(song.channels, 2);
@@ -60,10 +60,10 @@ void test_analyze_s32(void) {
   struct bl_song song;
   bl_analyze("../audio/song_s32.flac", &song);
 
-  assert_floateq(song.force, -25.244183);
+  assert_floateq(song.force, -20.821571);
 
   assert_floateq(song.force_vector.tempo, -8.218182);
-  assert_floateq(song.force_vector.amplitude, -15.064306);
+  assert_floateq(song.force_vector.amplitude, -10.641695);
   assert_floateq(song.force_vector.frequency, -10.179875);
   assert_floateq(song.force_vector.attack, -15.561186);
   assert_eq(song.channels, 2);

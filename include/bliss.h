@@ -9,7 +9,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define BL_VERSION 1.1
+#define BL_VERSION 1.2
 
 #if LIBAVUTIL_VERSION_MAJOR < 54
     #define av_frame_alloc avcodec_alloc_frame
@@ -190,8 +190,8 @@ void bl_envelope_sort(struct bl_song const * const song,
  *
  * The amplitude rating reprents the physical « force » of the song, that is,
  * how much the speaker's membrane will move in order to create the sound.
- * It is obtained by applying a magic formula with magic coefficients to a
- * histogram of the values of all the song's samples
+ * It is obtained by checking the shape of the histogram of the values of all
+ * the song's samples. The narrower the peak, the louder the song.
  *
  * @param[in]  song  the song to analyze.
  *
