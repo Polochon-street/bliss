@@ -5,62 +5,102 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
-use aubio_rs::{bin_to_freq, silence_detection, OnsetMode, PVoc, SpecDesc, SpecShape, Tempo};
+use aubio_rs::{
+    bin_to_freq, silence_detection, OnsetMode, PVoc, SpecDesc, SpecShape, Tempo,
+};
 
-use super::{Analysis, Song};
+use super::utils::{mean, number_crossings};
 
-pub fn analyze_song(song: Song) -> Analysis {
-    Analysis {
-        tempo: get_tempo(&song),
-        spectral_centroid: get_centroid(&song),
-    }
+// TODO write proper doc
+struct TempoDesc {
+    aubio_obj: Tempo,
 }
 
-/**
- * Compute score related to tempo.
- * Right now, basically returns the song's BPM.
- *
- * - `song` Song to compute score from
- */
-fn get_tempo(song: &Song) -> f32 {
+impl TempoDesc {
     const WINDOW_SIZE: usize = 1024;
-    const HOP_SIZE: usize = 256;
-    let mut tempo =
-        Tempo::new(OnsetMode::SpecDiff, WINDOW_SIZE, HOP_SIZE, song.sample_rate).unwrap();
-    for chunk in song.sample_array.chunks(HOP_SIZE) {
-        tempo.do_result(chunk).unwrap();
+    const HOP_SIZE: usize = TempoDesc::WINDOW_SIZE / 4;
+
+    pub fn new(sample_rate: u32) -> Self {
+        TempoDesc {
+            aubio_obj: Tempo::new(
+                OnsetMode::SpecDiff,
+                TempoDesc::WINDOW_SIZE,
+                TempoDesc::HOP_SIZE,
+                sample_rate,
+            )
+            .unwrap(),
+        }
     }
-    tempo.get_bpm()
+
+    pub fn do_(&mut self, chunk: &[f32]) {
+        self.aubio_obj.do_result(chunk).unwrap();
+    }
+
+    /**
+     * Compute score related to tempo.
+     * Right now, basically returns the song's BPM.
+     *
+     * - `song` Song to compute score from
+     */
+    pub fn get_value(&mut self) -> f32 {
+        self.aubio_obj.get_bpm()
+    }
 }
 
-/**
- * Compute score related to spectral centroid.
- * Returns the mean of computed spectral centroids over the song.
- *
- * - `song` Song to compute score from
- */
-fn get_centroid(song: &Song) -> f32 {
-    const WINDOW_SIZE: usize = 512;
-    let hop_size = WINDOW_SIZE / 4;
-    let silence_threshold = -60.;
-    let mut centroid = SpecDesc::new(SpecShape::Centroid, WINDOW_SIZE).unwrap();
-    let mut phase_vocoder = PVoc::new(WINDOW_SIZE, hop_size).unwrap();
+struct SpectralCentroidDesc {
+    aubio_obj: SpecDesc,
+    phase_vocoder: PVoc,
+    // Values before being summarized through f.ex. a mean
+    values: Vec<f32>,
+    sample_rate: u32,
+}
 
-    let mut freqs: Vec<f32> = Vec::with_capacity(song.sample_array.chunks(hop_size).len());
-    for chunk in song.sample_array.chunks(hop_size) {
-        let mut fftgrain: Vec<f32> = vec![0.0; WINDOW_SIZE + 2];
-        // If silence, centroid will be off, so skip instead
-        if !silence_detection(chunk, silence_threshold) {
-            continue;
+impl SpectralCentroidDesc {
+    const WINDOW_SIZE: usize = 512;
+    const HOP_SIZE: usize = SpectralCentroidDesc::WINDOW_SIZE / 4;
+
+    pub fn new(sample_rate: u32) -> Self {
+        SpectralCentroidDesc {
+            aubio_obj: SpecDesc::new(SpecShape::Centroid, SpectralCentroidDesc::WINDOW_SIZE)
+                .unwrap(),
+            phase_vocoder: PVoc::new(
+                SpectralCentroidDesc::WINDOW_SIZE,
+                SpectralCentroidDesc::HOP_SIZE,
+            )
+            .unwrap(),
+            values: Vec::new(),
+            sample_rate,
         }
-        phase_vocoder.do_(chunk, fftgrain.as_mut_slice()).unwrap();
-        let bin = centroid.do_result(fftgrain.as_slice()).unwrap();
-        let freq = bin_to_freq(bin, song.sample_rate as f32, WINDOW_SIZE as f32);
-        freqs.push(freq);
     }
 
-    // return mean
-    freqs.iter().sum::<f32>() / freqs.len() as f32
+    pub fn do_(&mut self, chunk: &[f32]) {
+        let mut fftgrain: Vec<f32> = vec![0.0; SpectralCentroidDesc::WINDOW_SIZE + 2];
+        // If silence, centroid will be off, so skip instead
+        if silence_detection(chunk, -60.0) {
+            return;
+        }
+
+        self.phase_vocoder
+            .do_(chunk, fftgrain.as_mut_slice())
+            .unwrap();
+        let bin = self.aubio_obj.do_result(fftgrain.as_slice()).unwrap();
+        let freq = bin_to_freq(
+            bin,
+            self.sample_rate as f32,
+            SpectralCentroidDesc::WINDOW_SIZE as f32,
+        );
+        self.values.push(freq);
+    }
+
+    /**
+     * Compute score related to spectral centroid.
+     * Returns the mean of computed spectral centroids over the song.
+     *
+     * - `song` Song to compute score from
+     */
+    pub fn get_value(&mut self) -> f32 {
+        mean(&self.values)
+    }
 }
 
 #[cfg(test)]
@@ -69,14 +109,22 @@ mod tests {
     use crate::decode::decode_song;
 
     #[test]
-    fn tempo() {
+    fn test_tempo() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
-        assert!(0.01 > (142.38 - get_tempo(&song)).abs());
+        let mut tempo_desc = TempoDesc::new(song.sample_rate);
+        for chunk in song.sample_array.chunks(TempoDesc::HOP_SIZE) {
+            tempo_desc.do_(&chunk);
+        }
+        assert!(0.01 > (142.38 - tempo_desc.get_value()).abs());
     }
 
     #[test]
-    fn centroid() {
+    fn test_centroid() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
-        assert!(0.01 > (1236.39 - get_centroid(&song)).abs());
+        let mut centroid_desc = SpectralCentroidDesc::new(song.sample_rate);
+        for chunk in song.sample_array.chunks(SpectralCentroidDesc::HOP_SIZE) {
+            centroid_desc.do_(&chunk);
+        }
+        assert!(0.01 > (1236.39 - centroid_desc.get_value()).abs());
     }
 }

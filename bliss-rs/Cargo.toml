@@ -13,12 +13,10 @@ build-ffmpeg = ["ffmpeg4/build"]
 ripemd160 = "*"
 
 [dependencies.aubio-rs]
-git = "https://github.com/Polochon-street/aubio-rs"
-branch = "add-some-utils"
+git = "https://github.com/katyo/aubio-rs"
 
 [dependencies.aubio-lib]
-git = "https://github.com/Polochon-street/aubio-rs"
-branch = "add-some-utils"
+git = "https://github.com/katyo/aubio-rs"
 optional = true
 
 [dependencies.ffmpeg4]

@@ -1,6 +1,7 @@
 // temporarily pub
 pub mod analyze;
 pub mod decode;
+pub mod utils;
 
 pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;
