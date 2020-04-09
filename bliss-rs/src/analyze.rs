@@ -5,11 +5,34 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
-use aubio_rs::{
-    bin_to_freq, silence_detection, OnsetMode, PVoc, SpecDesc, SpecShape, Tempo,
-};
+use aubio_rs::{bin_to_freq, silence_detection, OnsetMode, PVoc, SpecDesc, SpecShape, Tempo};
 
 use super::utils::{mean, number_crossings};
+
+struct ZeroCrossingRateDesc {
+    values: Vec<u32>,
+    number_samples: usize,
+}
+
+impl ZeroCrossingRateDesc {
+    const HOP_SIZE: usize = 1024;
+
+    pub fn new() -> Self {
+        ZeroCrossingRateDesc {
+            values: Vec::new(),
+            number_samples: 0,
+        }
+    }
+
+    pub fn do_(&mut self, chunk: &[f32]) {
+        self.values.push(number_crossings(chunk));
+        self.number_samples += chunk.len();
+    }
+
+    pub fn get_value(&mut self) -> f32 {
+        (self.values.iter().sum::<u32>()) as f32 / self.number_samples as f32
+    }
+}
 
 // TODO write proper doc
 struct TempoDesc {
@@ -68,6 +91,7 @@ impl SpectralCentroidDesc {
                 SpectralCentroidDesc::HOP_SIZE,
             )
             .unwrap(),
+            // TODO vec with capacity?
             values: Vec::new(),
             sample_rate,
         }
@@ -107,6 +131,16 @@ impl SpectralCentroidDesc {
 mod tests {
     use super::*;
     use crate::decode::decode_song;
+
+    #[test]
+    fn test_zcr() {
+        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let mut zcr_desc = ZeroCrossingRateDesc::new();
+        for chunk in song.sample_array.chunks(ZeroCrossingRateDesc::HOP_SIZE) {
+            zcr_desc.do_(&chunk);
+        }
+        assert!(0.001 > (0.075 - zcr_desc.get_value()).abs());
+    }
 
     #[test]
     fn test_tempo() {
