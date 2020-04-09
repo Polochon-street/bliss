@@ -70,12 +70,64 @@ impl TempoDesc {
     }
 }
 
+struct SpectralRollOffDesc {
+    aubio_obj: SpecDesc,
+    phase_vocoder: PVoc,
+    // Values before being summarized through f.ex. a mean
+    values: Vec<f32>,
+    sample_rate: u32,
+}
+
 struct SpectralCentroidDesc {
     aubio_obj: SpecDesc,
     phase_vocoder: PVoc,
     // Values before being summarized through f.ex. a mean
     values: Vec<f32>,
     sample_rate: u32,
+}
+
+impl SpectralRollOffDesc {
+    const WINDOW_SIZE: usize = 512;
+    const HOP_SIZE: usize = SpectralRollOffDesc::WINDOW_SIZE / 4;
+
+    pub fn new(sample_rate: u32) -> Self {
+        SpectralRollOffDesc {
+            aubio_obj: SpecDesc::new(SpecShape::Rolloff, SpectralRollOffDesc::WINDOW_SIZE)
+                .unwrap(),
+            phase_vocoder: PVoc::new(
+                SpectralRollOffDesc::WINDOW_SIZE,
+                SpectralRollOffDesc::HOP_SIZE,
+            )
+            .unwrap(),
+            values: Vec::new(),
+            sample_rate,
+        }
+    }
+
+    pub fn do_(&mut self, chunk: &[f32]) {
+        let mut fftgrain: Vec<f32> = vec![0.0; SpectralRollOffDesc::WINDOW_SIZE + 2];
+
+        self.phase_vocoder
+            .do_(chunk, fftgrain.as_mut_slice())
+            .unwrap();
+        let bin = self.aubio_obj.do_result(fftgrain.as_slice()).unwrap();
+        let freq = bin_to_freq(
+            bin,
+            self.sample_rate as f32,
+            SpectralRollOffDesc::WINDOW_SIZE as f32,
+        );
+        self.values.push(freq);
+    }
+
+    /**
+     * Compute score related to spectral centroid.
+     * Returns the mean of computed spectral centroids over the song.
+     *
+     * - `song` Song to compute score from
+     */
+    pub fn get_value(&mut self) -> f32 {
+        mean(&self.values)
+    }
 }
 
 impl SpectralCentroidDesc {
@@ -150,6 +202,16 @@ mod tests {
             tempo_desc.do_(&chunk);
         }
         assert!(0.01 > (142.38 - tempo_desc.get_value()).abs());
+    }
+
+    #[test]
+    fn test_roll_off() {
+        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let mut roll_off_desc = SpectralRollOffDesc::new(song.sample_rate);
+        for chunk in song.sample_array.chunks(SpectralRollOffDesc::HOP_SIZE) {
+            roll_off_desc.do_(&chunk);
+        }
+        assert!(0.01 > (2026.69 - roll_off_desc.get_value()).abs());
     }
 
     #[test]
