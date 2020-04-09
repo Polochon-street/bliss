@@ -70,6 +70,54 @@ impl TempoDesc {
     }
 }
 
+struct SpectralFlatnessDesc {
+    aubio_obj: SpecDesc,
+    phase_vocoder: PVoc,
+    // Values before being summarized through f.ex. a mean
+    values: Vec<f32>,
+    sample_rate: u32,
+}
+
+impl SpectralFlatnessDesc{
+    const WINDOW_SIZE: usize = 512;
+    const HOP_SIZE: usize = SpectralFlatnessDesc::WINDOW_SIZE / 4;
+
+    pub fn new(sample_rate: u32) -> Self {
+        SpectralFlatnessDesc {
+            aubio_obj: SpecDesc::new(SpecShape::Kurtosis, SpectralFlatnessDesc::WINDOW_SIZE)
+                .unwrap(),
+            phase_vocoder: PVoc::new(
+                SpectralFlatnessDesc::WINDOW_SIZE,
+                SpectralFlatnessDesc::HOP_SIZE,
+            )
+            .unwrap(),
+            values: Vec::new(),
+            sample_rate,
+        }
+    }
+
+    pub fn do_(&mut self, chunk: &[f32]) {
+        let mut fftgrain: Vec<f32> = vec![0.0; SpectralFlatnessDesc::WINDOW_SIZE + 2];
+
+        self.phase_vocoder
+            .do_(chunk, fftgrain.as_mut_slice())
+            .unwrap();
+        let flatness = self.aubio_obj.do_result(fftgrain.as_slice()).unwrap();
+        self.values.push(flatness);
+    }
+
+    /**
+     * Compute score related to spectral centroid.
+     * Returns the mean of computed spectral centroids over the song.
+     *
+     * - `song` Song to compute score from
+     */
+    // TODO do we really want the mean there?
+    pub fn get_value(&mut self) -> f32 {
+        mean(&self.values)
+    }
+}
+
 struct SpectralRollOffDesc {
     aubio_obj: SpecDesc,
     phase_vocoder: PVoc,
@@ -202,6 +250,16 @@ mod tests {
             tempo_desc.do_(&chunk);
         }
         assert!(0.01 > (142.38 - tempo_desc.get_value()).abs());
+    }
+
+    #[test]
+    fn test_flatness() {
+        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let mut flatness_desc = SpectralFlatnessDesc::new(song.sample_rate);
+        for chunk in song.sample_array.chunks(SpectralFlatnessDesc::HOP_SIZE) {
+            flatness_desc.do_(&chunk);
+        }
+        assert!(0.01 > (12.74 - flatness_desc.get_value()).abs());
     }
 
     #[test]
