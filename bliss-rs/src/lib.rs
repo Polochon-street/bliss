@@ -1,6 +1,8 @@
 // temporarily pub
 pub mod analyze;
 pub mod decode;
+pub mod spectral;
+pub mod tempo;
 pub mod utils;
 
 pub const CHANNELS: u16 = 1;
@@ -18,8 +20,22 @@ pub struct Song {
     pub genre: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq)]
 pub struct Analysis {
     pub tempo: f32,
     pub spectral_centroid: f32,
+    pub zero_crossing_rate: f32,
+    pub spectral_rolloff: f32,
+    pub spectral_flatness: f32,
+}
+
+impl Analysis {
+    #[allow(dead_code)]
+    fn approx_eq(&self, other: &Self) -> bool {
+        0.01 > (self.tempo - other.tempo).abs() &&
+        0.01 > (self.spectral_centroid - other.spectral_centroid).abs() &&
+        0.01 > (self.zero_crossing_rate - other.zero_crossing_rate).abs() &&
+        0.01 > (self.spectral_rolloff - other.spectral_rolloff).abs() &&
+        0.01 > (self.spectral_flatness - other.spectral_flatness).abs()
+    }
 }
