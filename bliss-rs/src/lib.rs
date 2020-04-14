@@ -8,16 +8,17 @@ pub mod utils;
 pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Song {
     pub sample_array: Vec<f32>,
     pub sample_rate: u32,
-    pub file_path: String,
+    pub path: String,
     pub artist: String,
     pub title: String,
     pub album: String,
     pub track_number: String,
     pub genre: String,
+    pub analysis: Analysis,
 }
 
 #[derive(Default, Debug, PartialEq)]

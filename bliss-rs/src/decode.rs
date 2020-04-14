@@ -24,20 +24,26 @@ fn push_to_sample_array(frame: ffmpeg::frame::Audio, sample_array: &mut Vec<f32>
     sample_array.extend_from_slice(&f32_frame);
 }
 
+// TODO maybe an impl on Song?
 pub fn decode_song(path: &str) -> Result<Song, String> {
-    ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}", e))?;
+    ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
 
     let mut song = Song::default();
+    song.path = path.to_string();
     let mut sample_array: Vec<f32> = Vec::new();
     let mut format = ffmpeg::format::input(&path)
-        .map_err(|e| format!("FFmpeg error while opening format: {:?}", e))?;
+        .map_err(|e| format!("FFmpeg error while opening format: {:?}.", e))?;
     let (mut codec, stream) = {
         let stream = format
             .streams()
             .find(|s| s.codec().medium() == ffmpeg::media::Type::Audio)
-            .expect("no audio stream in the file");
+            .ok_or("No audio stream found.")?;
 
-        let codec = stream.codec().decoder().audio().expect("no audio stream");
+        let codec = stream
+            .codec()
+            .decoder()
+            .audio()
+            .map_err(|e| format!("FFmpeg error when finding codec: {:?}.", e))?;
 
         (codec, stream.index())
     };
