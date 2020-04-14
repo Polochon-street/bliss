@@ -10,6 +10,16 @@ use aubio_rs::{bin_to_freq, silence_detection, PVoc, SpecDesc, SpecShape};
 
 use super::utils::{mean, number_crossings};
 
+/**
+ * [Zero-crossing rate](https://en.wikipedia.org/wiki/Zero-crossing_rate)
+ * detection object.
+ *
+ * Zero-crossing rate is mostly used to detect percussive sounds in an audio
+ * signal, as well as whether an audio signal contains speech or not.
+ * 
+ * It is a good metric to differentiate between songs with people speaking clearly,
+ * (e.g. slam) and instrumental songs.
+ */
 #[derive(Default)]
 pub struct ZeroCrossingRateDesc {
     values: Vec<u32>,
@@ -19,11 +29,14 @@ pub struct ZeroCrossingRateDesc {
 impl ZeroCrossingRateDesc {
     pub const HOP_SIZE: usize = 1024;
 
+    /// Count the number of zero-crossings for the current `chunk`.
     pub fn do_(&mut self, chunk: &[f32]) {
         self.values.push(number_crossings(chunk));
         self.number_samples += chunk.len();
     }
 
+    /// Sum the number of zero-crossings witnessed and divide by
+    /// the total number of samples.
     pub fn get_value(&mut self) -> f32 {
         (self.values.iter().sum::<u32>()) as f32 / self.number_samples as f32
     }
