@@ -10,8 +10,17 @@ use crate::spectral::{
     SpectralCentroidDesc, SpectralDesc, SpectralDescriptor, SpectralFlatnessDesc,
     SpectralRollOffDesc, ZeroCrossingRateDesc,
 };
+use crate::decode::decode_song;
 use crate::tempo::TempoDesc;
 use crate::{Analysis, Song};
+
+pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
+    // TODO error handling here
+    let mut song = decode_song(&path)?;
+
+    song.analysis = analyze(&song);
+    Ok(song)
+}
 
 pub fn analyze(song: &Song) -> Analysis {
     let mut centroid_desc = SpectralCentroidDesc::new(song.sample_rate);
