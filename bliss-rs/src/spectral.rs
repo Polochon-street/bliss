@@ -20,7 +20,6 @@ pub struct SpectralDesc {
     sample_rate: u32,
 }
 
-// TODO change naming
 impl SpectralDesc {
     pub const WINDOW_SIZE: usize = 512;
     pub const HOP_SIZE: usize = SpectralDesc::WINDOW_SIZE / 4;
@@ -80,11 +79,24 @@ pub struct SpectralCentroidDesc {
     spectral_desc: SpectralDesc,
 }
 
-pub struct SpectralFlatnessDesc {
+/**
+ * Spectral roll-off detection object.
+ *
+ * Spectral roll-off is the bin frequency number below which a certain
+ * percentage of the spectral energy is found, here, 95%.
+ *
+ * It can be used to distinguish voiced speech (low roll-off) and unvoiced
+ * speech (high roll-off). It is also a good indication of the energy
+ * repartition of a song.
+ *
+ * The value range is between 0 and `sample_rate / 2`
+ */
+// TODO is it really relevant to use?
+pub struct SpectralRollOffDesc {
     spectral_desc: SpectralDesc,
 }
 
-pub struct SpectralRollOffDesc {
+pub struct SpectralFlatnessDesc {
     spectral_desc: SpectralDesc,
 }
 
@@ -144,6 +156,39 @@ impl Descriptor for SpectralCentroidDesc {
     }
 }
 
+impl Descriptor for SpectralRollOffDesc {
+    fn new(sample_rate: u32) -> Self {
+        SpectralRollOffDesc {
+            spectral_desc: SpectralDesc::new(SpecShape::Rolloff, sample_rate),
+        }
+    }
+
+    /// Compute FFT and associated spectral roll-off for the current chunk.
+    fn do_(&mut self, chunk: &[f32]) {
+        let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
+
+        self.spectral_desc
+            .phase_vocoder
+            .do_(chunk, fftgrain.as_mut_slice())
+            .unwrap();
+        let bin = self
+            .spectral_desc
+            .aubio_obj
+            .do_result(fftgrain.as_slice())
+            .unwrap();
+        let freq = bin_to_freq(
+            bin,
+            self.spectral_desc.sample_rate as f32,
+            SpectralDesc::WINDOW_SIZE as f32,
+        );
+        self.spectral_desc.values.push(freq);
+    }
+
+    fn get_value(&mut self) -> f32 {
+        self.spectral_desc.get_value()
+    }
+}
+
 impl Descriptor for SpectralFlatnessDesc {
     fn new(sample_rate: u32) -> Self {
         SpectralFlatnessDesc {
@@ -178,38 +223,6 @@ impl Descriptor for SpectralFlatnessDesc {
     }
 }
 
-impl Descriptor for SpectralRollOffDesc {
-    fn new(sample_rate: u32) -> Self {
-        SpectralRollOffDesc {
-            spectral_desc: SpectralDesc::new(SpecShape::Rolloff, sample_rate),
-        }
-    }
-
-    fn do_(&mut self, chunk: &[f32]) {
-        let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
-
-        self.spectral_desc
-            .phase_vocoder
-            .do_(chunk, fftgrain.as_mut_slice())
-            .unwrap();
-        let bin = self
-            .spectral_desc
-            .aubio_obj
-            .do_result(fftgrain.as_slice())
-            .unwrap();
-        let freq = bin_to_freq(
-            bin,
-            self.spectral_desc.sample_rate as f32,
-            SpectralDesc::WINDOW_SIZE as f32,
-        );
-        self.spectral_desc.values.push(freq);
-    }
-
-    fn get_value(&mut self) -> f32 {
-        self.spectral_desc.get_value()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,12 +251,12 @@ mod tests {
     #[test]
     fn test_roll_off() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
-        let mut rolloff_desc = SpectralRollOffDesc::new(song.sample_rate);
+        let mut roll_off_desc = SpectralRollOffDesc::new(song.sample_rate);
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
-            rolloff_desc.do_(&chunk);
+            roll_off_desc.do_(&chunk);
         }
-        println!("{}", rolloff_desc.get_value());
-        assert!(0.01 > (2026.76 - rolloff_desc.get_value()).abs());
+        println!("{}", roll_off_desc.get_value());
+        assert!(0.01 > (2026.76 - roll_off_desc.get_value()).abs());
     }
 
     #[test]
