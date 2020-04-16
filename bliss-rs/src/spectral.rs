@@ -9,38 +9,8 @@ extern crate aubio_lib;
 use aubio_rs::{bin_to_freq, silence_detection, PVoc, SpecDesc, SpecShape};
 
 use super::utils::{mean, number_crossings};
+use super::Descriptor;
 
-/**
- * [Zero-crossing rate](https://en.wikipedia.org/wiki/Zero-crossing_rate)
- * detection object.
- *
- * Zero-crossing rate is mostly used to detect percussive sounds in an audio
- * signal, as well as whether an audio signal contains speech or not.
- * 
- * It is a good metric to differentiate between songs with people speaking clearly,
- * (e.g. slam) and instrumental songs.
- */
-#[derive(Default)]
-pub struct ZeroCrossingRateDesc {
-    values: Vec<u32>,
-    number_samples: usize,
-}
-
-impl ZeroCrossingRateDesc {
-    pub const HOP_SIZE: usize = 1024;
-
-    /// Count the number of zero-crossings for the current `chunk`.
-    pub fn do_(&mut self, chunk: &[f32]) {
-        self.values.push(number_crossings(chunk));
-        self.number_samples += chunk.len();
-    }
-
-    /// Sum the number of zero-crossings witnessed and divide by
-    /// the total number of samples.
-    pub fn get_value(&mut self) -> f32 {
-        (self.values.iter().sum::<u32>()) as f32 / self.number_samples as f32
-    }
-}
 
 pub struct SpectralDesc {
     aubio_obj: SpecDesc,
@@ -56,10 +26,9 @@ impl SpectralDesc {
     pub const HOP_SIZE: usize = SpectralDesc::WINDOW_SIZE / 4;
 
     /**
-     * Compute score related to spectral centroid.
-     * Returns the mean of computed spectral centroids over the song.
+     * Compute score related to the spectral descriptor.
      *
-     * - `song` Song to compute score from
+     * Currently returns the mean of all the chunks' values.
      */
     pub fn get_value(&mut self) -> f32 {
         mean(&self.values)
@@ -76,10 +45,39 @@ impl SpectralDesc {
     }
 }
 
-pub trait SpectralDescriptor {
-    fn new(sample_rate: u32) -> Self;
-    fn do_(&mut self, chunk: &[f32]);
-    fn get_value(&mut self) -> f32;
+/**
+ * [Zero-crossing rate](https://en.wikipedia.org/wiki/Zero-crossing_rate)
+ * detection object.
+ *
+ * Zero-crossing rate is mostly used to detect percussive sounds in an audio
+ * signal, as well as whether an audio signal contains speech or not.
+ * 
+ * It is a good metric to differentiate between songs with people speaking clearly,
+ * (e.g. slam) and instrumental songs.
+ *
+ * The value range is between 0 and 1.
+ */
+#[derive(Default)]
+pub struct ZeroCrossingRateDesc {
+    values: Vec<u32>,
+    number_samples: usize,
+}
+
+/**
+ * [Spectral centroid](https://en.wikipedia.org/wiki/Spectral_centroid)
+ * detection object.
+ *
+ * Spectral centroid is used to determine the "brightness" of a sound, i.e.
+ * how much high frequency there is in an audio signal.
+ *
+ * It of course depends of the instrument used: a piano-only track that makes
+ * use of high frequencies will still score less than a song using a lot of
+ * percussive sound, because the piano frequency range is lower.
+ *
+ * The value range is between 0 and `sample_rate / 2`.
+ */
+pub struct SpectralCentroidDesc {
+    spectral_desc: SpectralDesc,
 }
 
 pub struct SpectralFlatnessDesc {
@@ -90,11 +88,63 @@ pub struct SpectralRollOffDesc {
     spectral_desc: SpectralDesc,
 }
 
-pub struct SpectralCentroidDesc {
-    spectral_desc: SpectralDesc,
+impl Descriptor for ZeroCrossingRateDesc {
+    fn new(_sample_rate: u32) -> Self {
+        ZeroCrossingRateDesc::default()
+    }
+
+    /// Count the number of zero-crossings for the current `chunk`.
+    fn do_(&mut self, chunk: &[f32]) {
+        self.values.push(number_crossings(chunk));
+        self.number_samples += chunk.len();
+    }
+
+    /// Sum the number of zero-crossings witnessed and divide by
+    /// the total number of samples.
+    fn get_value(&mut self) -> f32 {
+        (self.values.iter().sum::<u32>()) as f32 / self.number_samples as f32
+    }
 }
 
-impl SpectralDescriptor for SpectralFlatnessDesc {
+impl Descriptor for SpectralCentroidDesc {
+    fn new(sample_rate: u32) -> Self {
+        SpectralCentroidDesc {
+            spectral_desc: SpectralDesc::new(SpecShape::Centroid, sample_rate),
+        }
+    }
+
+    // TODO make FFT computation common for all spectral descs
+    /// Compute FFT and associated spectral centroid for the current chunk.
+    fn do_(&mut self, chunk: &[f32]) {
+        let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
+        // If silence, centroid will be off, so skip instead
+        if silence_detection(chunk, -60.0) {
+            return;
+        }
+
+        self.spectral_desc
+            .phase_vocoder
+            .do_(chunk, fftgrain.as_mut_slice())
+            .unwrap();
+        let bin = self
+            .spectral_desc
+            .aubio_obj
+            .do_result(fftgrain.as_slice())
+            .unwrap();
+        let freq = bin_to_freq(
+            bin,
+            self.spectral_desc.sample_rate as f32,
+            SpectralDesc::WINDOW_SIZE as f32,
+        );
+        self.spectral_desc.values.push(freq);
+    }
+
+    fn get_value(&mut self) -> f32 {
+        self.spectral_desc.get_value()
+    }
+}
+
+impl Descriptor for SpectralFlatnessDesc {
     fn new(sample_rate: u32) -> Self {
         SpectralFlatnessDesc {
             spectral_desc: SpectralDesc::new(SpecShape::Kurtosis, sample_rate),
@@ -128,7 +178,7 @@ impl SpectralDescriptor for SpectralFlatnessDesc {
     }
 }
 
-impl SpectralDescriptor for SpectralRollOffDesc {
+impl Descriptor for SpectralRollOffDesc {
     fn new(sample_rate: u32) -> Self {
         SpectralRollOffDesc {
             spectral_desc: SpectralDesc::new(SpecShape::Rolloff, sample_rate),
@@ -137,42 +187,6 @@ impl SpectralDescriptor for SpectralRollOffDesc {
 
     fn do_(&mut self, chunk: &[f32]) {
         let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
-
-        self.spectral_desc
-            .phase_vocoder
-            .do_(chunk, fftgrain.as_mut_slice())
-            .unwrap();
-        let bin = self
-            .spectral_desc
-            .aubio_obj
-            .do_result(fftgrain.as_slice())
-            .unwrap();
-        let freq = bin_to_freq(
-            bin,
-            self.spectral_desc.sample_rate as f32,
-            SpectralDesc::WINDOW_SIZE as f32,
-        );
-        self.spectral_desc.values.push(freq);
-    }
-
-    fn get_value(&mut self) -> f32 {
-        self.spectral_desc.get_value()
-    }
-}
-
-impl SpectralDescriptor for SpectralCentroidDesc {
-    fn new(sample_rate: u32) -> Self {
-        SpectralCentroidDesc {
-            spectral_desc: SpectralDesc::new(SpecShape::Centroid, sample_rate),
-        }
-    }
-
-    fn do_(&mut self, chunk: &[f32]) {
-        let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
-        // If silence, centroid will be off, so skip instead
-        if silence_detection(chunk, -60.0) {
-            return;
-        }
 
         self.spectral_desc
             .phase_vocoder
@@ -205,7 +219,7 @@ mod tests {
     fn test_zcr() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut zcr_desc = ZeroCrossingRateDesc::default();
-        for chunk in song.sample_array.chunks_exact(ZeroCrossingRateDesc::HOP_SIZE) {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             zcr_desc.do_(&chunk);
         }
         assert!(0.001 > (0.075 - zcr_desc.get_value()).abs());

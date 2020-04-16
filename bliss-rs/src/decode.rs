@@ -6,6 +6,9 @@ use ffmpeg::util::format::sample::{Sample, Type};
 use super::{Song, CHANNELS, SAMPLE_RATE};
 
 fn push_to_sample_array(frame: ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
+    if frame.samples() == 0 {
+        return
+    }
     // Account for the padding
     let actual_size = util::format::sample::Buffer::size(
         Sample::F32(Type::Packed),
@@ -124,9 +127,7 @@ pub fn decode_song(path: &str) -> Result<Song, String> {
                 push_to_sample_array(resampled, &mut sample_array);
             }
             None => {
-                if resampled.samples() > 0 {
-                    push_to_sample_array(resampled, &mut sample_array);
-                }
+                push_to_sample_array(resampled, &mut sample_array);
                 break;
             }
         };
