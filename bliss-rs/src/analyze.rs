@@ -7,12 +7,12 @@
 extern crate aubio_lib;
 
 use crate::spectral::{
-    SpectralCentroidDesc, SpectralDesc, SpectralDescriptor, SpectralFlatnessDesc,
+    SpectralCentroidDesc, SpectralDesc, SpectralFlatnessDesc,
     SpectralRollOffDesc, ZeroCrossingRateDesc,
 };
 use crate::decode::decode_song;
 use crate::tempo::TempoDesc;
-use crate::{Analysis, Song};
+use crate::{Analysis, Descriptor, Song};
 
 pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
     // TODO error handling here
@@ -36,11 +36,6 @@ pub fn analyze(song: &Song) -> Analysis {
             centroid_desc.do_(&song.sample_array[beginning..end]);
             flatness_desc.do_(&song.sample_array[beginning..end]);
             rolloff_desc.do_(&song.sample_array[beginning..end]);
-        }
-
-        if (i % ZeroCrossingRateDesc::HOP_SIZE) == 0 {
-            let beginning = (i / ZeroCrossingRateDesc::HOP_SIZE - 1) * ZeroCrossingRateDesc::HOP_SIZE;
-            let end = i;
             zcr_desc.do_(&song.sample_array[beginning..end]);
         }
 
