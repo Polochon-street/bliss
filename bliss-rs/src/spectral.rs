@@ -6,7 +6,7 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
-use aubio_rs::{bin_to_freq, silence_detection, PVoc, SpecDesc, SpecShape};
+use aubio_rs::{bin_to_freq, FFT, silence_detection, SpecDesc, SpecShape};
 
 use super::utils::{mean, number_crossings};
 use super::Descriptor;
@@ -14,7 +14,7 @@ use super::Descriptor;
 
 pub struct SpectralDesc {
     aubio_obj: SpecDesc,
-    phase_vocoder: PVoc,
+    fft: FFT,
     // Values before being summarized through f.ex. a mean
     values: Vec<f32>,
     sample_rate: u32,
@@ -36,7 +36,7 @@ impl SpectralDesc {
     pub fn new(shape: SpecShape, sample_rate: u32) -> Self {
         SpectralDesc {
             aubio_obj: SpecDesc::new(shape, SpectralDesc::WINDOW_SIZE).unwrap(),
-            phase_vocoder: PVoc::new(SpectralDesc::WINDOW_SIZE, SpectralDesc::HOP_SIZE).unwrap(),
+            fft: FFT::new(SpectralDesc::WINDOW_SIZE).unwrap(),
             // TODO vec with capacity?
             values: Vec::new(),
             sample_rate,
@@ -135,7 +135,7 @@ impl Descriptor for SpectralCentroidDesc {
         }
 
         self.spectral_desc
-            .phase_vocoder
+            .fft
             .do_(chunk, fftgrain.as_mut_slice())
             .unwrap();
         let bin = self
@@ -168,7 +168,7 @@ impl Descriptor for SpectralRollOffDesc {
         let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
 
         self.spectral_desc
-            .phase_vocoder
+            .fft
             .do_(chunk, fftgrain.as_mut_slice())
             .unwrap();
         let bin = self
@@ -200,7 +200,7 @@ impl Descriptor for SpectralFlatnessDesc {
         let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
 
         self.spectral_desc
-            .phase_vocoder
+            .fft
             .do_(chunk, fftgrain.as_mut_slice())
             .unwrap();
         let flatness = self
@@ -245,7 +245,7 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             flatness_desc.do_(&chunk);
         }
-        assert!(0.01 > (12.74 - flatness_desc.get_value()).abs());
+        assert!(0.01 > (8.36 - flatness_desc.get_value()).abs());
     }
 
     #[test]
@@ -255,8 +255,8 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             roll_off_desc.do_(&chunk);
         }
-        println!("{}", roll_off_desc.get_value());
-        assert!(0.01 > (2026.76 - roll_off_desc.get_value()).abs());
+        // Essentia value: 2065
+        assert!(1.0 > (2111. - roll_off_desc.get_value()).abs());
     }
 
     #[test]
@@ -266,6 +266,7 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             centroid_desc.do_(&chunk);
         }
-        assert!(0.01 > (1236.37 - centroid_desc.get_value()).abs());
+        // Essentia with different parameters says 1452, so, close enough.
+        assert!(1.0 > (1572. - centroid_desc.get_value()).abs());
     }
 }
