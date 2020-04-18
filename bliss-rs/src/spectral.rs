@@ -7,8 +7,9 @@
 extern crate aubio_lib;
 
 use aubio_rs::{bin_to_freq, silence_detection, PVoc, SpecDesc, SpecShape};
+use aubio_rs::vec::{CVec};
 
-use super::utils::{mean, number_crossings};
+use super::utils::{geometric_mean, mean, number_crossings};
 use super::Descriptor;
 
 
@@ -203,11 +204,8 @@ impl Descriptor for SpectralFlatnessDesc {
             .phase_vocoder
             .do_(chunk, fftgrain.as_mut_slice())
             .unwrap();
-        let flatness = self
-            .spectral_desc
-            .aubio_obj
-            .do_result(fftgrain.as_slice())
-            .unwrap();
+        let cvec: CVec = fftgrain.as_slice().into();
+        let flatness =  geometric_mean(&cvec.norm()) / mean(&cvec.norm());
         self.spectral_desc.values.push(flatness);
     }
 
@@ -245,7 +243,7 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             flatness_desc.do_(&chunk);
         }
-        assert!(0.01 > (12.74 - flatness_desc.get_value()).abs());
+        assert!(0.01 > (0.11 - flatness_desc.get_value()).abs());
     }
 
     #[test]
@@ -255,7 +253,6 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             roll_off_desc.do_(&chunk);
         }
-        println!("{}", roll_off_desc.get_value());
         assert!(0.01 > (2026.76 - roll_off_desc.get_value()).abs());
     }
 

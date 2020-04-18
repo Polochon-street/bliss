@@ -68,7 +68,7 @@ mod tests {
             spectral_centroid: 1236.37,
             zero_crossing_rate: 0.075,
             spectral_rolloff: 2026.76,
-            spectral_flatness: 12.74,
+            spectral_flatness: 0.11,
         };
         assert!(expected_analysis.approx_eq(&analyze(&song)));
     }
