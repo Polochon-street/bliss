@@ -65,7 +65,7 @@ mod tests {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let expected_analysis = Analysis {
             tempo: 142.38,
-            spectral_centroid: 1236.37,
+            spectral_centroid: 1354.22,
             zero_crossing_rate: 0.075,
             spectral_rolloff: 2026.76,
             spectral_flatness: 0.11,

@@ -6,7 +6,7 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
-use aubio_rs::{bin_to_freq, silence_detection, PVoc, SpecDesc, SpecShape};
+use aubio_rs::{bin_to_freq, PVoc, SpecDesc, SpecShape};
 use aubio_rs::vec::{CVec};
 
 use super::utils::{geometric_mean, mean, number_crossings};
@@ -130,11 +130,6 @@ impl Descriptor for SpectralCentroidDesc {
     /// Compute FFT and associated spectral centroid for the current chunk.
     fn do_(&mut self, chunk: &[f32]) {
         let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
-        // If silence, centroid will be off, so skip instead
-        if silence_detection(chunk, -60.0) {
-            return;
-        }
-
         self.spectral_desc
             .phase_vocoder
             .do_(chunk, fftgrain.as_mut_slice())
@@ -237,32 +232,38 @@ mod tests {
     }
 
     #[test]
-    fn test_flatness() {
+    fn test_spectral_flatness() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut flatness_desc = SpectralFlatnessDesc::new(song.sample_rate);
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             flatness_desc.do_(&chunk);
         }
+        // Spectral flatness value computed here with phase vocoder: 0.111949615
+        // Essentia value with spectrum / hann window: 0.11197535695207445
         assert!(0.01 > (0.11 - flatness_desc.get_value()).abs());
     }
 
     #[test]
-    fn test_roll_off() {
+    fn test_spectral_roll_off() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut roll_off_desc = SpectralRollOffDesc::new(song.sample_rate);
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             roll_off_desc.do_(&chunk);
         }
+        // Roll-off value computed here with phase vocoder: 2026.7644
+        // Essentia value with spectrum / hann window: 1979.632683520047
         assert!(0.01 > (2026.76 - roll_off_desc.get_value()).abs());
     }
 
     #[test]
-    fn test_centroid() {
+    fn test_spectral_centroid() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut centroid_desc = SpectralCentroidDesc::new(song.sample_rate);
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             centroid_desc.do_(&chunk);
         }
-        assert!(0.01 > (1236.37 - centroid_desc.get_value()).abs());
+        // Spectral centroid value computed here with phase vocoder: 1354.2273
+        // Essentia value with spectrum / hann window: 1351
+        assert!(0.01 > (1354.2273 - centroid_desc.get_value()).abs());
     }
 }
