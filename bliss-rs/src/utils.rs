@@ -28,3 +28,38 @@ pub fn number_crossings(input: &[f32]) -> u32 {
 
     crossings
 }
+
+pub fn geometric_mean(input: &[f32]) -> f32 {
+    let mut mean = 0.0;
+
+    for &sample in input {
+        if sample == 0.0 {
+            return 0.0
+        }
+        mean += sample.ln();
+    }
+
+    mean /= input.len() as f32;
+
+    mean.exp()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mean() {
+        let numbers = vec![0.0, 1.0, 2.0, 3.0, 4.0];
+        assert_eq!(2.0, mean(&numbers));
+    }
+
+    #[test]
+    fn test_geometric_mean() {
+        let numbers = vec![0.0, 1.0, 2.0, 3.0, 4.0];
+        assert_eq!(0.0, geometric_mean(&numbers));
+
+        let numbers = vec![4.0, 1.0, 0.03125];
+        assert_eq!(0.5, geometric_mean(&numbers));
+    }
+}
