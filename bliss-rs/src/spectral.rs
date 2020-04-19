@@ -97,6 +97,20 @@ pub struct SpectralRollOffDesc {
     spectral_desc: SpectralDesc,
 }
 
+/**
+ * Spectral flatness detection object.
+ * 
+ * Spectral flatness is the ratio between the geometric mean of the spectrum 
+ * and its arithmetic mean.
+ *
+ * It is used to distinguish between tone-like and noise-like signals.
+ * Tone-like audio is f.ex. a piano key, something that has one or more
+ * specific frequencies, while (white) noise has an equal distribution
+ * of intensity among all frequencies.
+ *
+ * The value range is between 0 and 1, since the geometric mean is always less
+ * than the arithmetic mean.
+ */
 pub struct SpectralFlatnessDesc {
     spectral_desc: SpectralDesc,
 }
@@ -127,6 +141,7 @@ impl Descriptor for SpectralCentroidDesc {
     }
 
     // TODO make FFT computation common for all spectral descs
+    // maybe make a big spectral desc with the 3 spectral desc
     /// Compute FFT and associated spectral centroid for the current chunk.
     fn do_(&mut self, chunk: &[f32]) {
         let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
@@ -186,6 +201,8 @@ impl Descriptor for SpectralRollOffDesc {
 }
 
 impl Descriptor for SpectralFlatnessDesc {
+    // TODO not using the spectral desc here
+    // remove this when done with the merging of the 3 spectral descriptors
     fn new(sample_rate: u32) -> Self {
         SpectralFlatnessDesc {
             spectral_desc: SpectralDesc::new(SpecShape::Kurtosis, sample_rate),
@@ -200,17 +217,15 @@ impl Descriptor for SpectralFlatnessDesc {
             .do_(chunk, fftgrain.as_mut_slice())
             .unwrap();
         let cvec: CVec = fftgrain.as_slice().into();
-        let flatness =  geometric_mean(&cvec.norm()) / mean(&cvec.norm());
+        let geo_mean = geometric_mean(&cvec.norm());
+        if geo_mean == 0.0 {
+            self.spectral_desc.values.push(0.0);
+            return;
+        }
+        let flatness = geo_mean / mean(&cvec.norm());
         self.spectral_desc.values.push(flatness);
     }
 
-    /**
-     * Compute score related to spectral centroid.
-     * Returns the mean of computed spectral centroids over the song.
-     *
-     * - `song` Song to compute score from
-     */
-    // TODO do we really want the mean there?
     fn get_value(&mut self) -> f32 {
         self.spectral_desc.get_value()
     }
