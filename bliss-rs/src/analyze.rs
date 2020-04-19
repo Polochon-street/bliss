@@ -6,13 +6,13 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
-use crate::spectral::{
-    SpectralCentroidDesc, SpectralDesc, SpectralFlatnessDesc,
-    SpectralRollOffDesc, ZeroCrossingRateDesc,
+use crate::timbral::{
+    SpectralDesc,
+    ZeroCrossingRateDesc,
 };
 use crate::decode::decode_song;
 use crate::tempo::TempoDesc;
-use crate::{Analysis, Descriptor, Song};
+use crate::{Analysis, Song};
 
 pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
     // TODO error handling here
@@ -23,9 +23,7 @@ pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
 }
 
 pub fn analyze(song: &Song) -> Analysis {
-    let mut centroid_desc = SpectralCentroidDesc::new(song.sample_rate);
-    let mut rolloff_desc = SpectralRollOffDesc::new(song.sample_rate);
-    let mut flatness_desc = SpectralFlatnessDesc::new(song.sample_rate);
+    let mut spectral_desc = SpectralDesc::new(song.sample_rate);
     let mut zcr_desc = ZeroCrossingRateDesc::default();
     let mut tempo_desc = TempoDesc::new(song.sample_rate);
 
@@ -33,9 +31,7 @@ pub fn analyze(song: &Song) -> Analysis {
         if (i % SpectralDesc::HOP_SIZE) == 0 {
             let beginning = (i / SpectralDesc::HOP_SIZE - 1) * SpectralDesc::HOP_SIZE;
             let end = i;
-            centroid_desc.do_(&song.sample_array[beginning..end]);
-            flatness_desc.do_(&song.sample_array[beginning..end]);
-            rolloff_desc.do_(&song.sample_array[beginning..end]);
+            spectral_desc.do_(&song.sample_array[beginning..end]);
             zcr_desc.do_(&song.sample_array[beginning..end]);
         }
 
@@ -48,10 +44,10 @@ pub fn analyze(song: &Song) -> Analysis {
 
     Analysis {
         tempo: tempo_desc.get_value(),
-        spectral_centroid: centroid_desc.get_value(),
+        spectral_centroid: spectral_desc.get_centroid(),
         zero_crossing_rate: zcr_desc.get_value(),
-        spectral_rolloff: rolloff_desc.get_value(),
-        spectral_flatness: flatness_desc.get_value(),
+        spectral_rolloff: spectral_desc.get_rolloff(),
+        spectral_flatness: spectral_desc.get_flatness(),
     }
 }
 
