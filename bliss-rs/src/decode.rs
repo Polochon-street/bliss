@@ -67,6 +67,7 @@ pub fn decode_song(path: &str) -> Result<Song, String> {
         song.track_number = track_number.to_string();
     };
 
+    // TODO handle WAV without a channel layout set (cf bruiblan.wav)
     let mut resample_context = ffmpeg::software::resampling::context::Context::get(
         codec.format(),
         codec.channel_layout(),
