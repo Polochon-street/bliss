@@ -6,6 +6,8 @@ It is can be useful for creating « intelligent » playlists and/or continuous p
 Bliss is really useful when used as a plug-in for audio players, so feel free to use the python bindings to develop one for your favorite player! <br />
 See ANALYSIS.md for a technical description of the project.
 
+NOTE: Currently rewriting and enhancing it in Rust, after prototyping something better than the current Bliss for my Msc thesis. Stay tuned!
+
 ## Current projects using Bliss 
 * MPD thanks to [Blissify](https://github.com/Phyks/Blissify)
 * [leleleplayer](https://github.com/Polochon-street/leleleplayer)
