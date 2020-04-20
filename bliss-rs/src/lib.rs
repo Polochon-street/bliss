@@ -1,7 +1,7 @@
 // temporarily pub
 pub mod analyze;
 pub mod decode;
-pub mod spectral;
+pub mod timbral;
 pub mod tempo;
 pub mod utils;
 
@@ -39,10 +39,4 @@ impl Analysis {
         0.01 > (self.spectral_rolloff - other.spectral_rolloff).abs() &&
         0.01 > (self.spectral_flatness - other.spectral_flatness).abs()
     }
-}
-
-pub trait Descriptor {
-    fn new(sample_rate: u32) -> Self;
-    fn do_(&mut self, chunk: &[f32]);
-    fn get_value(&mut self) -> f32;
 }
