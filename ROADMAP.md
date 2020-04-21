@@ -13,7 +13,8 @@ Features are freely inspired from the corresponding discussion in my
 * Spectral centroid
 * Spectral rolloff
 * Spectral flatness
-* MFCC (maybe?)
+* MFCC (when a satisfying way has been found to make each feature contribute
+  equally to the rating)
 
 ### Temporal features
 
