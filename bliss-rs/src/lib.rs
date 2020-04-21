@@ -2,7 +2,7 @@
 pub mod analyze;
 pub mod decode;
 pub mod timbral;
-pub mod tempo;
+pub mod temporal;
 pub mod utils;
 
 pub const CHANNELS: u16 = 1;
