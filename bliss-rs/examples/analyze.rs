@@ -11,7 +11,7 @@ fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     for path in &args {
         match decode_and_analyze(&path) {
-            Ok(song) => println!("{:?}: {}", song.analysis.tempo, path),
+            Ok(song) => println!("{:?}: {}", song.analysis.loudness, path),
             Err(e) => println!("{}: {}", path, e),
         }
     }

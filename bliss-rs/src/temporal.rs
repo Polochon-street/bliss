@@ -19,6 +19,8 @@ use aubio_rs::{OnsetMode, Tempo};
  * onset detection; it proved to be the best for finding out the BPM of a panel
  * of songs I had, but it could very well be replaced by something better in the
  * future.
+ *
+ * Ranges from 0 (theoretically...) to 200 BPM.
  * 
  * (Also, if someone knows a way in aubio to get the correct value of 200 BPM
  * for "Through the Fire and Flames", please chip in)
