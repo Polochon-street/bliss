@@ -1,8 +1,9 @@
 // temporarily pub
 pub mod analyze;
 pub mod decode;
-pub mod timbral;
+pub mod misc;
 pub mod temporal;
+pub mod timbral;
 pub mod utils;
 
 pub const CHANNELS: u16 = 1;
@@ -28,6 +29,7 @@ pub struct Analysis {
     pub zero_crossing_rate: f32,
     pub spectral_rolloff: f32,
     pub spectral_flatness: f32,
+    pub loudness: f32,
 }
 
 impl Analysis {

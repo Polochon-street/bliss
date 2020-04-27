@@ -11,6 +11,7 @@ use crate::timbral::{
     ZeroCrossingRateDesc,
 };
 use crate::decode::decode_song;
+use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::{Analysis, Song};
 
@@ -26,6 +27,7 @@ pub fn analyze(song: &Song) -> Analysis {
     let mut spectral_desc = SpectralDesc::new(song.sample_rate);
     let mut zcr_desc = ZeroCrossingRateDesc::default();
     let mut tempo_desc = BPMDesc::new(song.sample_rate);
+    let mut loudness_desc = LoudnessDesc::default();
 
     for i in 1..song.sample_array.len() {
         if (i % SpectralDesc::HOP_SIZE) == 0 {
@@ -40,6 +42,13 @@ pub fn analyze(song: &Song) -> Analysis {
             let end = i;
             tempo_desc.do_(&song.sample_array[beginning..end]);
         }
+
+        // Contiguous windows, so WINDOW_SIZE here
+        if (i % LoudnessDesc::WINDOW_SIZE) == 0 {
+            let beginning = (i / LoudnessDesc::WINDOW_SIZE - 1) * LoudnessDesc::WINDOW_SIZE;
+            let end = i;
+            loudness_desc.do_(&song.sample_array[beginning..end]);
+        }
     }
 
     Analysis {
@@ -48,6 +57,7 @@ pub fn analyze(song: &Song) -> Analysis {
         zero_crossing_rate: zcr_desc.get_value(),
         spectral_rolloff: spectral_desc.get_rolloff(),
         spectral_flatness: spectral_desc.get_flatness(),
+        loudness: loudness_desc.get_value(),
     }
 }
 
@@ -65,6 +75,7 @@ mod tests {
             zero_crossing_rate: 0.075,
             spectral_rolloff: 2026.76,
             spectral_flatness: 0.11,
+            loudness: -32.79,
         };
         assert!(expected_analysis.approx_eq(&analyze(&song)));
     }
