@@ -147,10 +147,10 @@ mod tests {
         let song = decode_song(path).unwrap();
         let mut hasher = Ripemd160::new();
         for sample in song.sample_array.iter() {
-            hasher.input(sample.to_le_bytes().to_vec());
+            hasher.update(sample.to_le_bytes().to_vec());
         }
 
-        assert_eq!(expected_hash, hasher.result().as_slice());
+        assert_eq!(expected_hash, hasher.finalize().as_slice());
     }
 
     #[test]
