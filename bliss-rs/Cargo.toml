@@ -10,14 +10,15 @@ edition = "2018"
 build-ffmpeg = ["ffmpeg4/build"]
 
 [dependencies]
-ripemd160 = "*"
+ripemd160 = "0.9.0"
 
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
 
 [dependencies.aubio-lib]
-git = "https://github.com/katyo/aubio-rs"
+git = "https://github.com/Polochon-street/aubio-rs"
 optional = true
+branch = "fix-python-version"
 
 [dependencies.ffmpeg4]
 # Like this until https://github.com/bacek/rust-ffmpeg4/pull/5 is merged

@@ -1,5 +1,6 @@
 // temporarily pub
 pub mod analyze;
+pub mod chroma;
 pub mod decode;
 pub mod misc;
 pub mod temporal;
