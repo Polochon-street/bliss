@@ -1,6 +1,14 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
+extern crate ndarray;
+extern crate ndarray_npy;
+
+use ndarray::{array, Array2, Axis};
+use ndarray_npy::{ReadNpyError, ReadNpyExt};
+use std::fs::File;
+use std::io::{self, BufRead};
+
 use crate::utils::hz_to_octs;
 
 // chroma(22050, n_fft=5, n_chroma=12)
@@ -125,8 +133,166 @@ pub fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -
         .collect::<Vec<Vec<f32>>>()
 }
 
+pub fn pip_track(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32) -> (Vec<Vec<f32>>, Vec<Vec<f32>>) {
+    let fmin = 150.0_f64;
+    let fmax = 4000.0_f64.min(sample_rate as f64 / 2.0);
+    let threshold = 0.1;
+
+    let step = sample_rate as f64 / (2.0 * (n_fft / 2) as f64);
+    // [0.0, 10.7666016e, 21.5332031 (...) 1100.34668, 1101.42334, 11025.0000]
+    let fft_freqs = (0..(1 + n_fft / 2))
+        .map(|i| i as f64 * step)
+        .collect::<Vec<f64>>();
+
+    let t_avg = spectrum[2..spectrum.len()]
+        .iter()
+        .zip(spectrum[0..spectrum.len() - 2].iter())
+        .map(|(c1, c2)| {
+            c1.iter()
+                .zip(c2.iter())
+                .map(|(x, y)| (x - y) / 2.0)
+                .collect::<Vec<f32>>()
+        })
+        .collect::<Vec<Vec<f32>>>();
+
+    let t_shift = spectrum[1..spectrum.len()]
+        .iter()
+        .zip(spectrum[2..spectrum.len()].iter())
+        .zip(spectrum[0..spectrum.len() - 2].iter())
+        .map(|((c1, c2), c3)| {
+            c1.iter()
+                .zip(c2.iter())
+                .zip(c3.iter())
+                .map(|((x, y), z)| 2. * x - y - z)
+                .collect::<Vec<f32>>()
+        })
+        .collect::<Vec<Vec<f32>>>();
+
+    let t_shift = t_avg
+        .iter()
+        .zip(t_shift.iter())
+        .map(|(c1, c2)| {
+            c1.iter()
+                .zip(c2.iter())
+                .map(|(&x, &y)| {
+                    if y.abs() < f32::MIN_POSITIVE {
+                        x
+                    } else {
+                        x / y
+                    }
+                })
+                .collect::<Vec<f32>>()
+        })
+        .collect::<Vec<Vec<f32>>>();
+
+    let mut avg = vec![vec![0. as f32; spectrum[0].len()]];
+    avg.extend(t_avg);
+    avg.push(vec![0. as f32; spectrum[0].len()]);
+
+    let mut shift = vec![vec![0. as f32; spectrum[0].len()]];
+    shift.extend(t_shift);
+    shift.push(vec![0. as f32; spectrum[0].len()]);
+
+    let dskew = 
+        &mut avg
+            .iter()
+            .zip(shift.iter())
+            .map(|(c1, c2)| {
+                c1.iter()
+                    .zip(c2.iter())
+                    .map(|(x, y)| 0.5 * x * y)
+                    .collect::<Vec<f32>>()
+            })
+            .collect::<Vec<Vec<f32>>>();
+
+    let freq_mask = fft_freqs
+        .iter()
+        .map(|&f| (fmin <= f) && (f < fmax))
+        .collect::<Vec<bool>>();
+
+    let mut ref_value = Vec::with_capacity(spectrum[0].len());
+    for i in 0..spectrum[0].len() {
+        ref_value.push(
+            threshold
+                * spectrum
+                    .iter()
+                    .map(|c| c[i])
+                    .max_by(|x, y| x.partial_cmp(y).unwrap())
+                    .unwrap(),
+        );
+    }
+    let mut idx = Vec::new();
+    
+    for j in 0..spectrum[0].len() {
+        for i in 0..spectrum.len() {
+            if i == 0 {
+                {}   
+            } else if i + 1 >= spectrum.len() {
+                if spectrum[i-1][j] < spectrum[i][j] && spectrum[i][j] > ref_value[j] && freq_mask[i] {
+                    idx.push((i, j));
+                }
+            } else {
+                if spectrum[i-1][j] < spectrum[i][j]
+                        && spectrum[i+1][j] <= spectrum[i][j]
+                        && spectrum[i][j] > ref_value[j] && freq_mask[i] {
+                    idx.push((i, j));
+                }
+            }
+        }
+    }
+
+    let mut pitches = vec![vec![0.; spectrum[0].len()]; spectrum.len()];
+    let mut mags = vec![vec![0.; spectrum[0].len()]; spectrum.len()];
+
+    for (i, j) in idx {
+        pitches[i][j] = (i as f32 + shift[i][j]) * sample_rate as f32 / n_fft as f32;
+        mags[i][j] = spectrum[i][j] + dskew[i][j];
+    }
+    println!("{}", pitches[14][0]);
+    return (pitches, mags);
+}
+
 mod test {
     use super::*;
+
+    #[test]
+    fn test_pip_track() {
+        let file = File::open("data/spectrum-chroma.npy").unwrap();
+        let arr = Array2::<f32>::read_npy(file).unwrap();
+        let len = arr.len_of(Axis(0));
+        let mut vec = vec![];
+        for i in 0..len {
+            vec.push(arr.row(i).to_vec());
+        }
+
+        let mags_file = File::open("data/spectrum-chroma-mags.npy").unwrap();
+        let arr = Array2::<f32>::read_npy(mags_file).unwrap();
+        let len = arr.len_of(Axis(0));
+        let mut expected_mags = vec![];
+        for i in 0..len {
+            expected_mags.push(arr.row(i).to_vec());
+        }
+
+        let pitches_file = File::open("data/spectrum-chroma-pitches.npy").unwrap();
+        let arr = Array2::<f32>::read_npy(pitches_file).unwrap();
+        let len = arr.len_of(Axis(0));
+        let mut expected_pitches = vec![];
+        for i in 0..len {
+            expected_pitches.push(arr.row(i).to_vec());
+        }
+        let (pitches, mags) = pip_track(22050, vec, 2048);
+
+        for (column1, column2) in expected_mags.iter().zip(mags.iter()) {
+            for (val1, val2) in column1.iter().zip(column2) {
+                assert!(0.0001 > (val1 - val2).abs());
+            }
+        }
+        for (column1, column2) in expected_pitches.iter().zip(pitches.iter()) {
+            for (val1, val2) in column1.iter().zip(column2) {
+                assert!(0.001 > (val1 - val2).abs());
+            }
+        }
+    }
 
     #[test]
     fn test_generate_chroma() {
