@@ -93,8 +93,8 @@ set_tests_properties(ctest_run_test_decode PROPERTIES DEPENDS ctest_build_test_d
 ###################
 # Install targets #
 ###################
-install(TARGETS bliss DESTINATION /usr/lib)
-install(FILES include/bliss.h DESTINATION /usr/include)
+install(TARGETS bliss DESTINATION lib)
+install(FILES include/bliss.h DESTINATION include)
 
 ##############
 # Generators #
