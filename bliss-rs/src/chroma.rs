@@ -133,7 +133,11 @@ pub fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -
         .collect::<Vec<Vec<f32>>>()
 }
 
-pub fn pip_track(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32) -> (Vec<Vec<f32>>, Vec<Vec<f32>>) {
+pub fn pip_track(
+    sample_rate: u32,
+    spectrum: Vec<Vec<f32>>,
+    n_fft: u32,
+) -> (Vec<Vec<f32>>, Vec<Vec<f32>>) {
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(sample_rate as f64 / 2.0);
     let threshold = 0.1;
@@ -193,17 +197,16 @@ pub fn pip_track(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32) -> (Vec<
     shift.extend(t_shift);
     shift.push(vec![0. as f32; spectrum[0].len()]);
 
-    let dskew = 
-        &mut avg
-            .iter()
-            .zip(shift.iter())
-            .map(|(c1, c2)| {
-                c1.iter()
-                    .zip(c2.iter())
-                    .map(|(x, y)| 0.5 * x * y)
-                    .collect::<Vec<f32>>()
-            })
-            .collect::<Vec<Vec<f32>>>();
+    let dskew = &mut avg
+        .iter()
+        .zip(shift.iter())
+        .map(|(c1, c2)| {
+            c1.iter()
+                .zip(c2.iter())
+                .map(|(x, y)| 0.5 * x * y)
+                .collect::<Vec<f32>>()
+        })
+        .collect::<Vec<Vec<f32>>>();
 
     let freq_mask = fft_freqs
         .iter()
@@ -222,19 +225,24 @@ pub fn pip_track(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32) -> (Vec<
         );
     }
     let mut idx = Vec::new();
-    
+
     for j in 0..spectrum[0].len() {
         for i in 0..spectrum.len() {
             if i == 0 {
-                {}   
+                {}
             } else if i + 1 >= spectrum.len() {
-                if spectrum[i-1][j] < spectrum[i][j] && spectrum[i][j] > ref_value[j] && freq_mask[i] {
+                if spectrum[i - 1][j] < spectrum[i][j]
+                    && spectrum[i][j] > ref_value[j]
+                    && freq_mask[i]
+                {
                     idx.push((i, j));
                 }
             } else {
-                if spectrum[i-1][j] < spectrum[i][j]
-                        && spectrum[i+1][j] <= spectrum[i][j]
-                        && spectrum[i][j] > ref_value[j] && freq_mask[i] {
+                if spectrum[i - 1][j] < spectrum[i][j]
+                    && spectrum[i + 1][j] <= spectrum[i][j]
+                    && spectrum[i][j] > ref_value[j]
+                    && freq_mask[i]
+                {
                     idx.push((i, j));
                 }
             }
@@ -248,12 +256,82 @@ pub fn pip_track(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32) -> (Vec<
         pitches[i][j] = (i as f32 + shift[i][j]) * sample_rate as f32 / n_fft as f32;
         mags[i][j] = spectrum[i][j] + dskew[i][j];
     }
-    println!("{}", pitches[14][0]);
     return (pitches, mags);
+}
+
+pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) -> f32 {
+    let frequencies = frequencies
+        .iter()
+        .filter(|x| **x > 0.)
+        .map(|x| *x as f64)
+        .collect::<Vec<f64>>();
+
+    if frequencies.is_empty() {
+        return 0.0;
+    }
+    let frequencies = hz_to_octs(&frequencies, 0.0, 12)
+        .iter()
+        .map(|x| (*x as f32 * bins_per_octave as f32) % 1.0)
+        .collect::<Vec<f32>>();
+
+
+    let residual = frequencies
+        .iter()
+        .map(|x| if *x >= 0.5 { *x - 1.0 } else { *x })
+        .collect::<Vec<f32>>();
+
+    let bins = std::iter::repeat(-50)
+        .zip(0..101)
+        .map(|(a, b)| ((a + b) as f32) / 100.)
+        .collect::<Vec<f32>>();
+
+    let intervals = bins.iter().zip(&bins[1..bins.len()]).collect::<Vec<(&f32, &f32)>>();
+    let mut counts = vec![0; bins.len() - 1];
+    for res in residual {
+        for (i, (a, b)) in intervals.iter().enumerate() {
+            if i == intervals.len() - 1 {
+                if **a <= res && **b >= res {
+                    counts[i] += 1;
+                }
+            }
+            else {
+                if **a <= res && **b > res {
+                    counts[i] += 1;
+                }
+            }
+        }
+    }
+    let max_index = counts.iter().enumerate().rev().max_by_key(|(_, v)| *v).map(|(p, _)| p).unwrap();
+    bins[max_index]
 }
 
 mod test {
     use super::*;
+
+    #[test]
+    fn test_pitch_tuning() {
+        let frequencies = [
+            0.0000000e+00,
+            -1.0000000e+00,
+            1.4867015e+02,
+            0.0000000e+00,
+            1.5185892e+02,
+            1.5036792e+02,
+            1.4787907e+02,
+            3.1000000e+03,
+            0.0000000e+00,
+            1.4916122e+02,
+            1.4862317e+02,
+            3.1000000e+03,
+            1.4717630e+02,
+            1.4680702e+02,
+            0.0000000e+00,
+            -1.0000000e+00,
+            3.9000000e+03,
+            0.0000000e+00,
+        ];
+        assert_eq!(-0.2, pitch_tuning(&frequencies, 0.01, 12));
+    }
 
     #[test]
     fn test_pip_track() {
