@@ -4,12 +4,7 @@ extern crate aubio_lib;
 extern crate ndarray;
 extern crate ndarray_npy;
 
-use ndarray::{array, Array2, Axis};
-use ndarray_npy::{ReadNpyError, ReadNpyExt};
-use std::fs::File;
-use std::io::{self, BufRead};
-
-use crate::utils::hz_to_octs;
+use crate::utils::{hz_to_octs, median};
 
 // chroma(22050, n_fft=5, n_chroma=12)
 pub fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -> Vec<Vec<f32>> {
@@ -237,14 +232,12 @@ pub fn pip_track(
                 {
                     idx.push((i, j));
                 }
-            } else {
-                if spectrum[i - 1][j] < spectrum[i][j]
-                    && spectrum[i + 1][j] <= spectrum[i][j]
-                    && spectrum[i][j] > ref_value[j]
-                    && freq_mask[i]
-                {
-                    idx.push((i, j));
-                }
+            } else if spectrum[i - 1][j] < spectrum[i][j]
+                && spectrum[i + 1][j] <= spectrum[i][j]
+                && spectrum[i][j] > ref_value[j]
+                && freq_mask[i]
+            {
+                idx.push((i, j));
             }
         }
     }
@@ -256,7 +249,7 @@ pub fn pip_track(
         pitches[i][j] = (i as f32 + shift[i][j]) * sample_rate as f32 / n_fft as f32;
         mags[i][j] = spectrum[i][j] + dskew[i][j];
     }
-    return (pitches, mags);
+    (pitches, mags)
 }
 
 pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) -> f32 {
@@ -274,7 +267,6 @@ pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) 
         .map(|x| (*x as f32 * bins_per_octave as f32) % 1.0)
         .collect::<Vec<f32>>();
 
-
     let residual = frequencies
         .iter()
         .map(|x| if *x >= 0.5 { *x - 1.0 } else { *x })
@@ -286,7 +278,10 @@ pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) 
         .map(|(a, b)| ((a + b) as f32) / 100.)
         .collect::<Vec<f32>>();
 
-    let intervals = bins.iter().zip(&bins[1..bins.len()]).collect::<Vec<(&f32, &f32)>>();
+    let intervals = bins
+        .iter()
+        .zip(&bins[1..bins.len()])
+        .collect::<Vec<(&f32, &f32)>>();
     let mut counts = vec![0; bins.len() - 1];
     for res in residual {
         for (i, (a, b)) in intervals.iter().enumerate() {
@@ -294,20 +289,79 @@ pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) 
                 if **a <= res && **b >= res {
                     counts[i] += 1;
                 }
-            }
-            else {
-                if **a <= res && **b > res {
-                    counts[i] += 1;
-                }
+            } else if **a <= res && **b > res {
+                counts[i] += 1;
             }
         }
     }
-    let max_index = counts.iter().enumerate().rev().max_by_key(|(_, v)| *v).map(|(p, _)| p).unwrap();
+    let max_index = counts
+        .iter()
+        .enumerate()
+        .rev()
+        .max_by_key(|(_, v)| *v)
+        .map(|(p, _)| p)
+        .unwrap();
     bins[max_index]
 }
 
+pub fn estimate_tuning(
+    sample_rate: u32,
+    spectrum: Vec<Vec<f32>>,
+    n_fft: u32,
+    resolution: f32,
+    bins_per_octave: u32,
+) -> f32 {
+    let (pitch, mag) = pip_track(sample_rate, spectrum, n_fft);
+
+    let pitch_indexes = pitch
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            s.iter()
+                .enumerate()
+                .filter(|(_, x)| **x > 0.)
+                .map(|(j, _)| (i, j))
+                .collect::<Vec<(usize, usize)>>()
+        })
+        .flatten()
+        .collect::<Vec<(usize, usize)>>();
+
+    let mut threshold = 0.0;
+    if !pitch_indexes.is_empty() {
+        let mags = pitch_indexes
+            .iter()
+            .map(|(i, j)| mag[*i][*j])
+            .collect::<Vec<f32>>();
+        threshold = median(&mags);
+    }
+    let pitch = pitch_indexes
+        .iter()
+        .filter(|(i, j)| mag[*i][*j] >= threshold)
+        .map(|(i, j)| pitch[*i][*j])
+        .collect::<Vec<f32>>();
+    pitch_tuning(&pitch, resolution, bins_per_octave)
+}
+
+#[cfg(test)]
 mod test {
     use super::*;
+    use ndarray::{Array2, Axis};
+    use ndarray_npy::ReadNpyExt;
+    use std::fs::File;
+
+    #[test]
+    fn test_estimate_tuning() {
+        let file = File::open("data/spectrum-chroma.npy").unwrap();
+        let arr = Array2::<f32>::read_npy(file).unwrap();
+        let len = arr.len_of(Axis(0));
+        let mut vec = vec![];
+        for i in 0..len {
+            vec.push(arr.row(i).to_vec());
+        }
+
+        let tuning = estimate_tuning(22050, vec, 2048, 0.01, 12);
+        assert!(0.0001 > (0.08999999999999997 - tuning).abs());
+    }
 
     #[test]
     fn test_pitch_tuning() {

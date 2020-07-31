@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 pub fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
     input.iter().map(|x| x.clone().into() as f32).sum::<f32>() / input.len() as f32
 }
@@ -34,7 +36,7 @@ pub fn geometric_mean(input: &[f32]) -> f32 {
 
     for &sample in input {
         if sample == 0.0 {
-            return 0.0
+            return 0.0;
         }
         mean += sample.ln();
     }
@@ -47,12 +49,36 @@ pub fn geometric_mean(input: &[f32]) -> f32 {
 pub fn hz_to_octs(frequencies: &[f64], tuning: f64, bins_per_octave: u32) -> Vec<f64> {
     let a440 = 440.0 * (2_f64.powf(tuning / bins_per_octave as f64) as f64);
 
-    frequencies.iter().map(|freq| (freq / (a440 / 16.)).log2()).collect()
+    frequencies
+        .iter()
+        .map(|freq| (freq / (a440 / 16.)).log2())
+        .collect()
+}
+
+pub fn median(list: &[f32]) -> f32 {
+    let mut list = list.to_vec();
+    list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+    let len = list.len();
+    let mid = len / 2;
+    if len % 2 == 0 {
+        mean(&list[(mid - 1)..(mid + 1)])
+    } else {
+        list[mid]
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_median() {
+        let numbers = vec![10., 30., 35., 37., 40., 20., 50., 60.];
+        assert_eq!(36., median(&numbers));
+
+        let numbers = vec![5., 7., 10., 1., 11., 50., 55.];
+        assert_eq!(10., median(&numbers));
+    }
 
     #[test]
     fn test_mean() {
@@ -75,6 +101,8 @@ mod tests {
         let expected = vec![0.16864029, 1.16864029, 2.16864029, 3.16864029];
 
         let octs = hz_to_octs(&frequencies, 0.5, 10);
-        octs.iter().zip(expected.iter()).for_each(|(x, y) | assert!(0.0001 > (x - y).abs()));
+        octs.iter()
+            .zip(expected.iter())
+            .for_each(|(x, y)| assert!(0.0001 > (x - y).abs()));
     }
 }
