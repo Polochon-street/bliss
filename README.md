@@ -17,8 +17,6 @@ See ROADMAP.md for a (very incomplete) list of what's to come.
 * The main purpose of the library is to extract features from songs in the form of coordinates (tempo, amplitude, frequency, attack).
 * Use `bl_analyze()` to compute these coordinates for a given song.
 * Use `bl_distance_file()` to compute the euclidian distance between two songs. The closer the songs are, the more similar they are. Two same songs have a distance that tends towards 0. (This function is merely a wrapper for calling `bl_analyze()` for each song and computing their euclidian distance)
-* Use `bl_cosine_similarity_file()` to compute the [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) of two songs:
-![Graph from -1 to 1, 1 = close songs, -1 = opposite songs](https://cloud.githubusercontent.com/assets/9823290/11535215/31b59a18-9913-11e5-84c9-6d9ac22d4778.png)
 * Python bindings are also available for these functions. See [the wiki](https://github.com/Polochon-street/bliss/wiki/Python-Bindings) to learn how to use them. <br /> <br />
 These two functions are just examples of what can be done with coordinates in an euclidian space; machine-learning/big data algorithms could also be used to make cool things, such as clustering. See this [article](https://linuxfr.org/news/sortie-de-la-bibliotheque-d-analyse-musicale-bliss-1-0#performances) (in French)<br /><br />
 The most immediate thing one that can be done to test this library could be to install it and then run python/examples/make\_m3u\_playlist.py on a folder with random songs in it: it will try to build the best playlist out of the files in the directory.
