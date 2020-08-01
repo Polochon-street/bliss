@@ -7,7 +7,7 @@ extern crate ndarray_npy;
 use crate::utils::{hz_to_octs, median};
 
 // chroma(22050, n_fft=5, n_chroma=12)
-pub fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -> Vec<Vec<f32>> {
+fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -> Vec<Vec<f32>> {
     let step = sample_rate as f64 / n_fft as f64;
     let ctroct = 5.0;
     let octwidth = 2;
@@ -128,9 +128,9 @@ pub fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -
         .collect::<Vec<Vec<f32>>>()
 }
 
-pub fn pip_track(
+fn pip_track(
     sample_rate: u32,
-    spectrum: Vec<Vec<f32>>,
+    spectrum: &[Vec<f32>],
     n_fft: u32,
 ) -> (Vec<Vec<f32>>, Vec<Vec<f32>>) {
     let fmin = 150.0_f64;
@@ -252,7 +252,7 @@ pub fn pip_track(
     (pitches, mags)
 }
 
-pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) -> f32 {
+fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) -> f32 {
     let frequencies = frequencies
         .iter()
         .filter(|x| **x > 0.)
@@ -304,14 +304,14 @@ pub fn pitch_tuning(frequencies: &[f32], resolution: f32, bins_per_octave: u32) 
     bins[max_index]
 }
 
-pub fn estimate_tuning(
+fn estimate_tuning(
     sample_rate: u32,
-    spectrum: Vec<Vec<f32>>,
+    spectrum: &[Vec<f32>],
     n_fft: u32,
     resolution: f32,
     bins_per_octave: u32,
 ) -> f32 {
-    let (pitch, mag) = pip_track(sample_rate, spectrum, n_fft);
+    let (pitch, mag) = pip_track(sample_rate, &spectrum, n_fft);
 
     let pitch_indexes = pitch
         .iter()
@@ -342,12 +342,73 @@ pub fn estimate_tuning(
     pitch_tuning(&pitch, resolution, bins_per_octave)
 }
 
+pub fn chroma_stft(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32, n_chroma: u32) -> Vec<Vec<f32>> {
+    let tuning = estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma);
+    let chromafb = chroma_filter(sample_rate, n_fft, n_chroma, tuning as f64);
+
+    let mut raw_chroma = vec![vec![0.; spectrum[0].len()]; chromafb.len()];
+    for i in 0..chromafb.len() {
+        for j in 0..spectrum[0].len() {
+            for k in 0..spectrum.len() {
+                raw_chroma[i][j] += chromafb[i][k] * spectrum[k][j];
+            }
+        }
+    }
+
+    // Normalize by computing the l2-norm over the columns
+    let mut length = vec![0.; raw_chroma[0].len()];
+    for i in 0..(raw_chroma[0].len() as usize) {
+        let mut vec = vec![0.; raw_chroma[0].len() as usize];
+        for x in &raw_chroma {
+            vec.push(x[i].abs());
+        }
+        length[i] = *vec.iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap()
+    }
+
+    raw_chroma
+        .iter()
+        .map(|s| {
+            s.iter()
+                .enumerate()
+                .map(|(i, v)| v / (&length)[i])
+                .collect::<Vec<f32>>()
+        })
+        .collect::<Vec<Vec<f32>>>()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use ndarray::{Array2, Axis};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
+
+    #[test]
+    fn test_chroma_stft() {
+        let file = File::open("data/spectrum-chroma.npy").unwrap();
+        let arr = Array2::<f32>::read_npy(file).unwrap();
+        let len = arr.len_of(Axis(0));
+        let mut vec = vec![];
+        for i in 0..len {
+            vec.push(arr.row(i).to_vec());
+        }
+
+        let chroma = chroma_stft(22050, vec, 2048, 12);
+
+        let chroma_stft_file = File::open("data/chroma-stft-normalized-expected.npy").unwrap();
+        let arr = Array2::<f32>::read_npy(chroma_stft_file).unwrap();
+        let len = arr.len_of(Axis(0));
+        let mut expected_chroma = vec![];
+        for i in 0..len {
+            expected_chroma.push(arr.row(i).to_vec());
+        }
+
+        for (column1, column2) in expected_chroma.iter().zip(chroma.iter()) {
+            for (val1, val2) in column1.iter().zip(column2) {
+                assert!(0.001 > (val1 - val2).abs());
+            }
+        }
+    }
 
     #[test]
     fn test_estimate_tuning() {
@@ -359,8 +420,8 @@ mod test {
             vec.push(arr.row(i).to_vec());
         }
 
-        let tuning = estimate_tuning(22050, vec, 2048, 0.01, 12);
-        assert!(0.0001 > (0.08999999999999997 - tuning).abs());
+        let tuning = estimate_tuning(22050, &vec, 2048, 0.01, 12);
+        assert!(0.0001 > (-0.09999999999999998 - tuning).abs());
     }
 
     #[test]
@@ -413,7 +474,7 @@ mod test {
         for i in 0..len {
             expected_pitches.push(arr.row(i).to_vec());
         }
-        let (pitches, mags) = pip_track(22050, vec, 2048);
+        let (pitches, mags) = pip_track(22050, &vec, 2048);
 
         for (column1, column2) in expected_mags.iter().zip(mags.iter()) {
             for (val1, val2) in column1.iter().zip(column2) {
