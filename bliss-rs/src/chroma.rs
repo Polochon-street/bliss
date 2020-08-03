@@ -5,7 +5,93 @@ extern crate ndarray;
 extern crate ndarray_npy;
 
 use crate::utils::{hz_to_octs, median};
+use aubio_rs::vec::CVec;
+use aubio_rs::PVoc;
 
+pub struct ChromaDesc {
+    sample_rate: u32,
+    n_chroma: u32,
+    phase_vocoder: PVoc,
+    // 12 * nb_fft chroma values
+    values_chroma: Vec<Vec<f32>>,
+    collected_spectra: Vec<Vec<f32>>,
+}
+
+impl ChromaDesc {
+    pub const WINDOW_SIZE: usize = 2048;
+    pub const HOP_SIZE: usize = 512;
+
+    pub fn new(sample_rate: u32, n_chroma: u32) -> ChromaDesc {
+        ChromaDesc {
+            sample_rate,
+            n_chroma,
+            values_chroma: Vec::new(),
+            phase_vocoder: PVoc::new(ChromaDesc::WINDOW_SIZE, ChromaDesc::HOP_SIZE).unwrap(),
+            collected_spectra: vec![],
+        }
+    }
+
+    pub fn do_(&mut self, chunk: &[f32]) {
+        let mut fftgrain: Vec<f32> = vec![0.0; ChromaDesc::WINDOW_SIZE + 2];
+        self.phase_vocoder
+            .do_(chunk, fftgrain.as_mut_slice())
+            .unwrap();
+        let cvec: CVec = fftgrain.as_slice().into();
+        let norm: Vec<f32> = cvec.norm().to_vec();
+        self.collected_spectra.push(norm);
+
+        if self.collected_spectra.len() >= 100 {
+            let mut transpose_collected_spectra =
+                vec![vec![0.; self.collected_spectra.len()]; self.collected_spectra[0].len()];
+            for i in 0..self.collected_spectra.len() {
+                for j in 0..self.collected_spectra[0].len() {
+                    transpose_collected_spectra[j][i] = self.collected_spectra[i][j];
+                }
+            }
+
+            let chroma = chroma_stft(
+                self.sample_rate,
+                &transpose_collected_spectra,
+                ChromaDesc::WINDOW_SIZE as u32,
+                self.n_chroma,
+            );
+            self.values_chroma.extend(chroma);
+            self.collected_spectra = vec![];
+        }
+    }
+
+    pub fn finish(&mut self) {
+        if self.collected_spectra.len() <= 2 {
+            return;
+        }
+        let mut transpose_collected_spectra =
+            vec![vec![0.; self.collected_spectra.len()]; self.collected_spectra[0].len()];
+        for i in 0..self.collected_spectra.len() {
+            for j in 0..self.collected_spectra[0].len() {
+                transpose_collected_spectra[j][i] = self.collected_spectra[i][j];
+            }
+        }
+        let chroma = chroma_stft(
+            self.sample_rate,
+            &transpose_collected_spectra,
+            ChromaDesc::WINDOW_SIZE as u32,
+            self.n_chroma,
+        );
+        self.values_chroma.extend(chroma);
+        self.collected_spectra = vec![];
+    }
+
+    // Doesn't make any sense now! Only here for the test
+    pub fn get_value(&mut self) -> f32 {
+        self.values_chroma
+            .iter()
+            .map(|s| s.iter().sum::<f32>())
+            .sum()
+    }
+}
+
+// All the functions below are more than heavily inspired from
+// librosa's code: https://github.com/librosa/librosa/blob/main/librosa/feature/spectral.py#L1165
 // chroma(22050, n_fft=5, n_chroma=12)
 fn chroma_filter(sample_rate: u32, n_fft: u32, n_chroma: u32, tuning: f64) -> Vec<Vec<f32>> {
     let step = sample_rate as f64 / n_fft as f64;
@@ -342,7 +428,12 @@ fn estimate_tuning(
     pitch_tuning(&pitch, resolution, bins_per_octave)
 }
 
-pub fn chroma_stft(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32, n_chroma: u32) -> Vec<Vec<f32>> {
+pub fn chroma_stft(
+    sample_rate: u32,
+    spectrum: &[Vec<f32>],
+    n_fft: u32,
+    n_chroma: u32,
+) -> Vec<Vec<f32>> {
     let tuning = estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma);
     let chromafb = chroma_filter(sample_rate, n_fft, n_chroma, tuning as f64);
 
@@ -355,17 +446,21 @@ pub fn chroma_stft(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32, n_chro
         }
     }
 
-    // Normalize by computing the l2-norm over the columns
     let mut length = vec![0.; raw_chroma[0].len()];
     for i in 0..(raw_chroma[0].len() as usize) {
         let mut vec = vec![0.; raw_chroma[0].len() as usize];
         for x in &raw_chroma {
             vec.push(x[i].abs());
         }
-        length[i] = *vec.iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap()
+        let max = *vec.iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+        if max.abs() < f32::MIN_POSITIVE {
+            length[i] = 1.;
+        } else {
+            length[i] = max;
+        }
     }
 
-    raw_chroma
+    let normalized = raw_chroma
         .iter()
         .map(|s| {
             s.iter()
@@ -373,15 +468,46 @@ pub fn chroma_stft(sample_rate: u32, spectrum: Vec<Vec<f32>>, n_fft: u32, n_chro
                 .map(|(i, v)| v / (&length)[i])
                 .collect::<Vec<f32>>()
         })
-        .collect::<Vec<Vec<f32>>>()
+        .collect::<Vec<Vec<f32>>>();
+
+    let mut transpose_normalized = vec![vec![0.; normalized.len()]; normalized[0].len()];
+    for i in 0..normalized.len() {
+        for j in 0..normalized[0].len() {
+            transpose_normalized[j][i] = normalized[i][j];
+        }
+    }
+
+    transpose_normalized
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::decode::decode_song;
     use ndarray::{Array2, Axis};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
+
+    #[test]
+    fn test_chroma_desc() {
+        let song = decode_song("data/piano.flac").unwrap();
+        let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
+        for chunk in song.sample_array.chunks_exact(ChromaDesc::HOP_SIZE) {
+            chroma_desc.do_(&chunk);
+        }
+        chroma_desc.finish();
+
+        // Temporary get_value()
+        assert!((481.0289 - chroma_desc.get_value()).abs() < 0.001);
+        //for val in chroma_desc.values_chroma {
+        //    let joined = val
+        //        .iter()
+        //        .map(|x| x.to_string())
+        //        .collect::<Vec<String>>()
+        //        .join(",");
+        //    println!("{}", joined);
+        //}
+    }
 
     #[test]
     fn test_chroma_stft() {
@@ -393,7 +519,7 @@ mod test {
             vec.push(arr.row(i).to_vec());
         }
 
-        let chroma = chroma_stft(22050, vec, 2048, 12);
+        let chroma = chroma_stft(22050, &vec, 2048, 12);
 
         let chroma_stft_file = File::open("data/chroma-stft-normalized-expected.npy").unwrap();
         let arr = Array2::<f32>::read_npy(chroma_stft_file).unwrap();
@@ -402,7 +528,6 @@ mod test {
         for i in 0..len {
             expected_chroma.push(arr.row(i).to_vec());
         }
-
         for (column1, column2) in expected_chroma.iter().zip(chroma.iter()) {
             for (val1, val2) in column1.iter().zip(column2) {
                 assert!(0.001 > (val1 - val2).abs());
@@ -447,6 +572,12 @@ mod test {
             0.0000000e+00,
         ];
         assert_eq!(-0.2, pitch_tuning(&frequencies, 0.01, 12));
+    }
+
+    #[test]
+    fn test_pitch_tuning_no_frequencies() {
+        let frequencies = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        assert_eq!(0.0, pitch_tuning(&frequencies, 0.01, 12));
     }
 
     #[test]
