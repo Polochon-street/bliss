@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use ndarray::{Array1};
+
 pub fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
     input.iter().map(|x| x.clone().into() as f32).sum::<f32>() / input.len() as f32
 }
@@ -46,22 +48,19 @@ pub fn geometric_mean(input: &[f32]) -> f32 {
     mean.exp()
 }
 
-pub fn hz_to_octs(frequencies: &[f64], tuning: f64, bins_per_octave: u32) -> Vec<f64> {
+pub fn hz_to_octs(frequencies: &Array1<f64>, tuning: f64, bins_per_octave: u32) -> Array1<f64> {
     let a440 = 440.0 * (2_f64.powf(tuning / bins_per_octave as f64) as f64);
 
-    frequencies
-        .iter()
-        .map(|freq| (freq / (a440 / 16.)).log2())
-        .collect()
+    (frequencies / (a440 / 16.)).mapv(f64::log2)
 }
 
-pub fn median(list: &[f32]) -> f32 {
+pub fn median(list: &[f64]) -> f64{
     let mut list = list.to_vec();
     list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
     let len = list.len();
     let mid = len / 2;
     if len % 2 == 0 {
-        mean(&list[(mid - 1)..(mid + 1)])
+        (&list[mid - 1] + &list[mid]) / 2.
     } else {
         list[mid]
     }
@@ -70,6 +69,7 @@ pub fn median(list: &[f32]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ndarray::arr1;
 
     #[test]
     fn test_median() {
@@ -97,8 +97,8 @@ mod tests {
 
     #[test]
     fn test_hz_to_octs() {
-        let frequencies = vec![32., 64., 128., 256.];
-        let expected = vec![0.16864029, 1.16864029, 2.16864029, 3.16864029];
+        let frequencies = arr1(&[32., 64., 128., 256.]);
+        let expected = arr1(&[0.16864029, 1.16864029, 2.16864029, 3.16864029]);
 
         let octs = hz_to_octs(&frequencies, 0.5, 10);
         octs.iter()
