@@ -13,6 +13,7 @@ build-ffmpeg = ["ffmpeg4/build"]
 ripemd160 = "0.9.0"
 ndarray-npy = "0.5.0"
 ndarray = "*"
+ndarray-stats = "*"
 
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
