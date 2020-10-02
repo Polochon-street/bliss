@@ -15,7 +15,7 @@ use aubio_rs::{OnsetMode, Tempo};
  * It indicates the (subjective) "speed" of a music piece. The higher the BPM,
  * the "quicker" the song will feel.
  *
- * It uses "WPhase", a phase-deviation onset detection function to perform
+ * It uses `WPhase`, a phase-deviation onset detection function to perform
  * onset detection; it proved to be the best for finding out the BPM of a panel
  * of songs I had, but it could very well be replaced by something better in the
  * future.

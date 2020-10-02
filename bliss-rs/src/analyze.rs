@@ -6,6 +6,15 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
+extern crate ndarray;
+extern crate ndarray_npy;
+
+use std::f64::consts::PI;
+
+use aubio_rs::vec::CVec;
+use aubio_rs::FFT;
+use ndarray::{arr1, s, stack, Array, Array1, Array2, Axis};
+
 use crate::timbral::{
     SpectralDesc,
     ZeroCrossingRateDesc,
@@ -21,6 +30,53 @@ pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
 
     song.analysis = analyze(&song);
     Ok(song)
+}
+
+fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
+        let mut prefix = array[1..=pad]
+            .iter()
+            .rev()
+            .copied()
+            .collect::<Vec<f32>>();
+        let suffix = array[(array.len() - 2) - pad + 1..array.len() - 1]
+            .iter()
+            .rev()
+            .copied()
+            .collect::<Vec<f32>>();
+        prefix.extend(array);
+        prefix.extend(suffix);
+        prefix
+}
+
+pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2::<f64> {
+    let mut fft = FFT::new(window_length).unwrap();
+    
+    let signal = reflect_pad(&signal, window_length / 2);
+    let mut stft = Array2::zeros((window_length / 2 + 1, 0));
+    
+    // TODO actually have it constant - no need to compute it everytime
+    // Periodic, so window_size + 1
+    let mut hann_window = Array::zeros(window_length + 1);
+    for n in 0..window_length {
+        hann_window[[n]] = 0.5 - 0.5 * f64::cos(2. * n as f64 * PI / (window_length as f64));
+    }
+    hann_window = hann_window.slice_move(s![0..window_length]);
+    for i in 1..signal.len() {
+        if i >= window_length && (i - window_length) % hop_length == 0 {
+            let beginning = i - window_length;
+            let end = i;
+            let mut fftgrain: Vec<f32> = vec![0.0; window_length + 2];
+            // TODO directly apply hann window maybe
+            let signal = (arr1(&signal[beginning..end]).mapv(f64::from) * &hann_window)
+                .mapv(|x| x as f32)
+                .to_vec();
+            fft.do_(&signal, fftgrain.as_mut_slice()).unwrap();
+            let cvec: CVec = fftgrain.as_slice().into();
+            let norm: Array1<f32> = arr1(&cvec.norm());
+            stft = stack![Axis(1), stft, norm.insert_axis(Axis(1))];
+        }
+    }
+    stft.mapv(f64::from)
 }
 
 pub fn analyze(song: &Song) -> Analysis {
@@ -65,6 +121,9 @@ pub fn analyze(song: &Song) -> Analysis {
 mod tests {
     use super::*;
     use crate::decode::decode_song;
+    use ndarray::Array2;
+    use ndarray_npy::ReadNpyExt;
+    use std::fs::File;
 
     #[test]
     fn test_analyze() {
@@ -78,5 +137,20 @@ mod tests {
             loudness: -32.79,
         };
         assert!(expected_analysis.approx_eq(&analyze(&song)));
+    }
+
+    #[test]
+    fn test_compute_stft() {
+        let file = File::open("data/librosa-stft.npy").unwrap();
+        let expected_stft = Array2::<f32>::read_npy(file).unwrap().mapv(|x| x as f64);
+
+        let song = decode_song("data/piano.flac").unwrap();
+
+        let stft = stft(&song.sample_array, 2048, 512);
+
+        assert!(!stft.is_empty() && !expected_stft.is_empty());
+        for (expected, actual) in expected_stft.iter().zip(stft.iter()) {
+            assert!(0.0001 > (expected - actual).abs());
+        }
     }
 }

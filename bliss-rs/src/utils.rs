@@ -49,7 +49,7 @@ pub fn geometric_mean(input: &[f32]) -> f32 {
 }
 
 pub fn hz_to_octs(frequencies: &Array1<f64>, tuning: f64, bins_per_octave: u32) -> Array1<f64> {
-    let a440 = 440.0 * (2_f64.powf(tuning / bins_per_octave as f64) as f64);
+    let a440 = 440.0 * (2_f64.powf(tuning / f64::from(bins_per_octave)) as f64);
 
     (frequencies / (a440 / 16.)).mapv(f64::log2)
 }
@@ -60,7 +60,7 @@ pub fn median(list: &[f64]) -> f64{
     let len = list.len();
     let mid = len / 2;
     if len % 2 == 0 {
-        (&list[mid - 1] + &list[mid]) / 2.
+        (list[mid - 1] + list[mid]) / 2.
     } else {
         list[mid]
     }
