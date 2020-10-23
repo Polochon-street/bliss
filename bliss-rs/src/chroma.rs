@@ -6,8 +6,8 @@ extern crate ndarray_npy;
 extern crate ndarray_stats;
 
 use crate::analyze::stft;
-use crate::utils::{hz_to_octs, median};
-use ndarray::{arr1, s, stack, Array, Array1, Array2, Axis, RemoveAxis};
+use crate::utils::{convolve, hz_to_octs, median, TEMPLATES_MAJMIN};
+use ndarray::{arr1, arr2, s, stack, Array, Array1, Array2, Axis, RemoveAxis, Zip};
 use ndarray_stats::QuantileExt;
 
 pub struct ChromaDesc {
@@ -15,6 +15,32 @@ pub struct ChromaDesc {
     n_chroma: u32,
     values_chroma: Array2<f64>,
 }
+
+const FIFTH_INDICES: [u8; 12] = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+
+const CHORD_LABELS: [&str; 24] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m",
+    "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+];
+
+const SCALE_LABELS_ABSOLUTE: [&str; 12] = ["0", "1#", "2#", "3#", "4#", "5#", "6#", "5b", "4b", "3b", "2b", "1b"];
+
+// I order https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg
+// 0 = C / A, 1# = G / E etc
+const CIRCLE_FIFTHS: [(&str, &str); 12] = [
+    ("C", "A"),
+    ("G", "E"),
+    ("D", "B"),
+    ("A", "F#"),
+    ("E", "C#"),
+    ("B", "G#"),
+    ("F#", "D#"),
+    ("C#", "A#"),
+    ("G#", "F"),
+    ("D#", "C"),
+    ("A#", "G"),
+    ("F", "D"),
+];
 
 impl ChromaDesc {
     pub const WINDOW_SIZE: usize = 8192;
@@ -28,6 +54,8 @@ impl ChromaDesc {
         }
     }
 
+    // Here, we want to call `do_()` on the whole song as much as possible - streaming
+    // would be rather bad
     pub fn do_(&mut self, signal: &[f32]) {
         let stft = stft(signal, 8192, 2205);
         let tuning = estimate_tuning(
@@ -47,14 +75,169 @@ impl ChromaDesc {
         self.values_chroma = stack![Axis(1), self.values_chroma, chroma];
     }
 
-    // Doesn't make any sense now! Only here for testing
-    pub fn get_value(&mut self) -> f64 {
-        self.values_chroma.sum()
+    pub fn get_value(&mut self) -> (bool, &str) {
+        chroma_fifth_is_major(&self.values_chroma)
+    }
+}
+
+fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, &str) {
+    let templates_majmin = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
+
+    let chroma_filtered = smooth_downsample_feature_sequence(chroma, 15, 10);
+    let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
+    let f_analysis_prefilt = analysis_template_match(&chroma_filtered, &templates_majmin, true);
+    let mut f_analysis_max_prefilt = Array::zeros((24, 12));
+    for (i, column) in f_analysis_prefilt.gencolumns().into_iter().enumerate() {
+        let index = column.argmax().unwrap();
+        f_analysis_max_prefilt[[index, i]] = 1.;
+    }
+    let summed = f_analysis_max_prefilt.sum_axis(Axis(1));
+
+    let chroma_filtered = smooth_downsample_feature_sequence(chroma, 45, 15);
+    let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
+    let chroma_sorted = sort_by_fifths(&chroma_filtered, -1);
+    let template_diatonic = arr2(&[[1., 3., 2., 1., 2., 3., 1., 0., 0., 0., 0., 0.]])
+        .t()
+        .to_owned();
+    let templates_scale = generate_template_matrix(&template_diatonic);
+    let f_analysis = analysis_template_match(&chroma_sorted, &templates_scale, false);
+    let f_analysis_norm = normalize_feature_sequence(&f_analysis);
+    let f_analysis_exp = (f_analysis_norm * 70.).mapv(f64::exp);
+    let f_analysis_rescaled = (&f_analysis_exp / &f_analysis_exp.sum_axis(Axis(0))).to_owned();
+    let index = f_analysis_rescaled
+        .mean_axis(Axis(1))
+        .unwrap()
+        .argmax()
+        .unwrap();
+    let major_chord = CIRCLE_FIFTHS[index].0;
+    let major_chord_index = CHORD_LABELS.iter().position(|&x| x == major_chord).unwrap();
+    let minor_chord = format!("{}m", CIRCLE_FIFTHS[index].1);
+    let minor_chord_index = CHORD_LABELS.iter().position(|&x| x == minor_chord).unwrap();
+
+    let minor = summed[minor_chord_index];
+    let major = summed[major_chord_index];
+    let mode = SCALE_LABELS_ABSOLUTE[index];
+    (major > minor, mode)
+}
+
+fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
+    let mut output = Array2::zeros((12, 12 * templates.dim().1));
+
+    for shift in 0..12 as isize {
+        let mut uninit: Vec<f64> = Vec::with_capacity((&templates).len());
+        unsafe {
+            uninit.set_len(templates.len());
+        }
+        let mut rolled = Array::from(uninit).into_shape(templates.dim()).unwrap();
+        if shift != 0 {
+            rolled
+                .slice_mut(s![shift.., ..])
+                .assign(&templates.slice(s![..-shift, ..]));
+            rolled
+                .slice_mut(s![..shift, ..])
+                .assign(&templates.slice(s![-shift.., ..]));
+        } else {
+            rolled = templates.to_owned();
+        }
+        output
+            .column_mut(shift as usize)
+            .assign(&rolled.index_axis(Axis(1), 0));
+        // TODO ugly hack; fixme
+        if templates.dim().1 > 1 {
+            output
+                .column_mut(shift as usize + 12)
+                .assign(&rolled.index_axis(Axis(1), 1));
+        }
+    }
+
+    output
+}
+
+fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
+    let mut output = Array2::zeros((0, feature.dim().1));
+    for index in FIFTH_INDICES.iter() {
+        output = stack![
+            Axis(0),
+            output,
+            feature
+                .index_axis(Axis(0), *index as usize)
+                .insert_axis(Axis(0))
+        ];
+    }
+
+    // np.roll again TODO make a proper function
+    // np.roll(array, -offset)
+    let mut uninit: Vec<f64> = Vec::with_capacity((&output).len());
+    unsafe {
+        uninit.set_len(output.len());
+    }
+    let mut b = Array::from(uninit).into_shape(output.dim()).unwrap();
+    b.slice_mut(s![-offset.., ..])
+        .assign(&output.slice(s![..offset, ..]));
+    b.slice_mut(s![..-offset, ..])
+        .assign(&output.slice(s![offset.., ..]));
+
+    b
+}
+
+fn smooth_downsample_feature_sequence(
+    feature: &Array2<f64>,
+    filter_length: u32,
+    down_sampling: u32,
+) -> Array2<f64> {
+    let filter_kernel = Array::ones(filter_length as usize);
+    // TODO +1, really?
+    let mut output = Array2::zeros((0, feature.dim().1 / down_sampling as usize + 1));
+    for row in feature.genrows() {
+        let smoothed = convolve(&row.to_owned(), &filter_kernel);
+        let smoothed: Array2<f64> = smoothed
+            .to_vec()
+            .into_iter()
+            .step_by(down_sampling as usize)
+            .collect::<Array1<f64>>()
+            .insert_axis(Axis(0));
+        output = stack![Axis(0), output, smoothed];
+    }
+    output / filter_length as f64
+}
+
+fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
+    let mut normalized_sequence = Array::zeros(feature.raw_dim());
+    Zip::from(feature.gencolumns())
+        .and(normalized_sequence.gencolumns_mut())
+        .apply(|col, mut norm_col| {
+            let mut sum = (&col * &col).sum().sqrt();
+            if sum < 0.0001 {
+                sum = 1.;
+            }
+            norm_col.assign(&(&col / sum));
+        });
+
+    normalized_sequence
+}
+
+fn analysis_template_match(
+    chroma: &Array2<f64>,
+    templates: &Array2<f64>,
+    normalize: bool,
+) -> Array2<f64> {
+    if chroma.shape()[0] != 12 || templates.shape()[0] != 12 {
+        panic!("Wrong size for input");
+    }
+
+    let chroma_normalized = normalize_feature_sequence(chroma);
+    let templates_normalized = normalize_feature_sequence(templates);
+
+    let f_analysis = &templates_normalized.t().dot(&chroma_normalized);
+    if normalize {
+        normalize_feature_sequence(&f_analysis)
+    } else {
+        f_analysis.to_owned()
     }
 }
 
 // All the functions below are more than heavily inspired from
-// librosa's code: https://github.com/librosa/librosa/blob/main/librosa/feature/spectral.py#L1165
+// librosa"s code: https://github.com/librosa/librosa/blob/main/librosa/feature/spectral.py#L1165
 // chroma(22050, n_fft=5, n_chroma=12)
 fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
     let ctroct = 5.0;
@@ -88,7 +271,8 @@ fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> 
     let d = -a + &freq_bins;
     let n_chroma2 = (f64::from(n_chroma) / 2.0).round() as u32;
 
-    let d = (d + f64::from(n_chroma2) + 10. * f64::from(n_chroma)) % f64::from(n_chroma) - f64::from(n_chroma2) as f64;
+    let d = (d + f64::from(n_chroma2) + 10. * f64::from(n_chroma)) % f64::from(n_chroma)
+        - f64::from(n_chroma2) as f64;
     let mut a: Array2<f64> = Array::zeros((n_chroma as usize, binwidth_bins.len()));
     for mut row in a.genrows_mut() {
         row.assign(&binwidth_bins);
@@ -107,7 +291,8 @@ fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> 
     for mut row in scaling.genrows_mut() {
         row.assign(
             &(-0.5
-                * ((&freq_bins / f64::from(n_chroma) - ctroct) / f64::from(octwidth)).mapv(|x| x.powf(2.)))
+                * ((&freq_bins / f64::from(n_chroma) - ctroct) / f64::from(octwidth))
+                    .mapv(|x| x.powf(2.)))
             .mapv(f64::exp),
         );
     }
@@ -244,8 +429,9 @@ fn estimate_tuning(
                 .map(|(i, j)| mag[[*i, *j]])
                 .collect::<Vec<f64>>();
             median(&mags)
+        } else {
+            0.
         }
-        else { 0. }
     };
 
     let pitch = pitches_index
@@ -288,16 +474,130 @@ mod test {
     use super::*;
     use crate::analyze::stft;
     use crate::decode::decode_song;
-    use ndarray::Array2;
+    use ndarray::{arr2, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
+
+    #[test]
+    fn test_fifth_is_major() {
+        let file = File::open("data/chroma.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
+
+        let fifth_is_major = chroma_fifth_is_major(&chroma);
+        assert_eq!(fifth_is_major, (false, "5#"));
+    }
+
+    #[test]
+    fn test_generate_template_matrix() {
+        let templates = arr2(&[
+            [1., 1.],
+            [0., 0.],
+            [0., 0.],
+            [0., 1.],
+            [1., 0.],
+            [0., 0.],
+            [0., 0.],
+            [1., 1.],
+            [0., 0.],
+            [0., 0.],
+            [0., 0.],
+            [0., 0.],
+        ]);
+
+        let expected_template = [
+            1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1.,
+            0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.,
+            0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0.,
+            0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 1., 0., 0., 1.,
+            0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1.,
+            0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.,
+            0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0.,
+            0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1., 1., 0., 0., 1., 0., 0., 0., 1.,
+            0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0.,
+            0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0.,
+            0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0.,
+            0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0.,
+            0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0.,
+            0., 1.,
+        ];
+        let expected_template =
+            Array::from_shape_vec((12, 24), expected_template.to_vec()).unwrap();
+        let template_matrix = generate_template_matrix(&templates);
+        assert_eq!(template_matrix, expected_template);
+    }
+
+    #[test]
+    fn test_sort_by_fifths() {
+        let file = File::open("data/filtered_features.npy").unwrap();
+        let features = Array2::<f64>::read_npy(file).unwrap();
+        let file = File::open("data/sorted_features.npy").unwrap();
+        let expected_sorted = Array2::<f64>::read_npy(file).unwrap();
+
+        let sorted = sort_by_fifths(&features, -1);
+        for (expected, actual) in expected_sorted.iter().zip(sorted.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
+    }
+
+    #[test]
+    fn test_smooth_downsample_feature_sequence() {
+        let file = File::open("data/chroma.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
+        let file = File::open("data/downsampled.npy").unwrap();
+        let expected_downsampled = Array2::<f64>::read_npy(file).unwrap();
+
+        let downsampled = smooth_downsample_feature_sequence(&chroma, 45, 15);
+        for (expected, actual) in expected_downsampled.iter().zip(downsampled.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
+    }
+
+    #[test]
+    fn test_analysis_template_match() {
+        let file = File::open("data/f_analysis_normalized.npy").unwrap();
+        let expected_analysis = Array2::<f64>::read_npy(file).unwrap();
+
+        let file = File::open("data/chroma.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
+
+        let templates = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
+        let analysis = analysis_template_match(&chroma, &templates, true);
+
+        for (expected, actual) in expected_analysis.iter().zip(analysis.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
+
+        let analysis = analysis_template_match(&chroma, &templates, false);
+        let file = File::open("data/f_analysis.npy").unwrap();
+        let expected_analysis = Array2::<f64>::read_npy(file).unwrap();
+        for (expected, actual) in expected_analysis.iter().zip(analysis.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
+    }
+
+    #[test]
+    fn test_normalize_feature_sequence() {
+        let array = arr2(&[[0.1, 0.3, 0.4], [1.1, 0.53, 1.01]]);
+        let expected_array = arr2(&[
+            [0.09053575, 0.49259822, 0.36821425],
+            [0.99589321, 0.87025686, 0.92974097],
+        ]);
+
+        let normalized_array = normalize_feature_sequence(&array);
+
+        assert!(!array.is_empty() && !expected_array.is_empty());
+
+        for (expected, actual) in normalized_array.iter().zip(expected_array.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
+    }
 
     #[test]
     fn test_chroma_desc() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
         chroma_desc.do_(&song.sample_array);
-        assert!((263.7979324- chroma_desc.get_value()).abs() < 0.00001);
+        assert_eq!(chroma_desc.get_value(), (false, "5#"));
     }
 
     #[test]
