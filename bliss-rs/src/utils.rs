@@ -1,6 +1,26 @@
 use std::cmp::Ordering;
 
-use ndarray::{Array1};
+extern crate rustfft;
+use ndarray::{arr1, s, stack, Array, Array1, Axis};
+use rustfft::num_complex::Complex;
+use rustfft::num_traits::Zero;
+use rustfft::FFTplanner;
+
+// Until https://github.com/rust-ndarray/ndarray/issues/446 is solved
+pub const TEMPLATES_MAJMIN: [f64; 12 * 24] = [
+    1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0.,
+    0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0.,
+    0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1.,
+    0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0.,
+    1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0.,
+    0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0.,
+    0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1.,
+    1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0.,
+    0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0.,
+    0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0.,
+    0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0.,
+    0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1.,
+];
 
 pub fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
     input.iter().map(|x| x.clone().into() as f32).sum::<f32>() / input.len() as f32
@@ -54,7 +74,7 @@ pub fn hz_to_octs(frequencies: &Array1<f64>, tuning: f64, bins_per_octave: u32) 
     (frequencies / (a440 / 16.)).mapv(f64::log2)
 }
 
-pub fn median(list: &[f64]) -> f64{
+pub fn median(list: &[f64]) -> f64 {
     let mut list = list.to_vec();
     list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
     let len = list.len();
@@ -66,10 +86,63 @@ pub fn median(list: &[f64]) -> f64{
     }
 }
 
+pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
+    let common_length = input.len() + kernel.len() - 1;
+    let padded_input = stack![Axis(0), *input, Array::zeros(common_length - input.len())];
+    let padded_kernel = stack![Axis(0), *kernel, Array::zeros(common_length - kernel.len())];
+    let mut padded_input = padded_input.mapv(|x| Complex::new(x, 0.)).to_vec();
+    let mut padded_kernel = padded_kernel.mapv(|x| Complex::new(x, 0.)).to_vec();
+
+    let mut input_fft: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
+    let mut kernel_fft: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
+
+    let mut planner = FFTplanner::new(false);
+    let fft = planner.plan_fft(common_length);
+    fft.process(&mut padded_input, &mut input_fft);
+    fft.process(&mut padded_kernel, &mut kernel_fft);
+
+    let mut multiplication = input_fft
+        .iter()
+        .zip(kernel_fft)
+        .map(|(x, y)| x * y)
+        .collect::<Vec<Complex<f64>>>();
+
+    let mut planner = FFTplanner::new(true);
+    let mut output: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
+    let fft = planner.plan_fft(common_length);
+    fft.process(&mut multiplication, &mut output);
+
+    let output = arr1(
+        &output
+            .iter()
+            .map(|x| x.re / output.len() as f64)
+            .collect::<Vec<f64>>(),
+    );
+    output.slice_move(s![
+        (common_length - input.len()) / 2..(common_length - input.len()) / 2 + input.len()
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::arr1;
+    use ndarray::{arr1, Array};
+    use ndarray_npy::ReadNpyExt;
+    use std::fs::File;
+
+    #[test]
+    fn test_convolve() {
+        let file = File::open("data/convolve.npy").unwrap();
+        let expected_convolve = Array1::<f64>::read_npy(file).unwrap();
+        let input: Array1<f64> = Array::range(0., 1000., 0.5);
+        let kernel: Array1<f64> = Array::ones(100);
+
+        let output = convolve(&input, &kernel);
+
+        for (expected, actual) in expected_convolve.iter().zip(output.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
+    }
 
     #[test]
     fn test_median() {

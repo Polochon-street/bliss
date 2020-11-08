@@ -10,10 +10,14 @@ edition = "2018"
 build-ffmpeg = ["ffmpeg4/build"]
 
 [dependencies]
+# TODO set proper deps
 ripemd160 = "0.9.0"
 ndarray-npy = "0.5.0"
 ndarray = "*"
 ndarray-stats = "*"
+rustfft = "4.0.0"
+realfft = "*"
+num-complex = "0.3.0"
 
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
