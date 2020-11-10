@@ -31,6 +31,8 @@ pub struct Analysis {
     pub spectral_rolloff: f32,
     pub spectral_flatness: f32,
     pub loudness: f32,
+    pub is_major: f32,
+    pub fifth: (f32, f32),
 }
 
 impl Analysis {
@@ -40,6 +42,10 @@ impl Analysis {
         0.01 > (self.spectral_centroid - other.spectral_centroid).abs() &&
         0.01 > (self.zero_crossing_rate - other.zero_crossing_rate).abs() &&
         0.01 > (self.spectral_rolloff - other.spectral_rolloff).abs() &&
-        0.01 > (self.spectral_flatness - other.spectral_flatness).abs()
+        0.01 > (self.spectral_flatness - other.spectral_flatness).abs() &&
+        0.01 > (self.loudness - other.loudness).abs() &&
+        0.01 > (self.fifth.0 - other.fifth.0).abs() &&
+        0.01 > (self.fifth.1 - other.fifth.1).abs() &&
+        self.fifth == other.fifth
     }
 }
