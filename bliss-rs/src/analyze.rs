@@ -15,13 +15,11 @@ use aubio_rs::vec::CVec;
 use aubio_rs::FFT;
 use ndarray::{arr1, s, stack, Array, Array1, Array2, Axis};
 
-use crate::timbral::{
-    SpectralDesc,
-    ZeroCrossingRateDesc,
-};
+use crate::chroma::ChromaDesc;
 use crate::decode::decode_song;
 use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
+use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::{Analysis, Song};
 
 pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
@@ -33,27 +31,23 @@ pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
 }
 
 fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
-        let mut prefix = array[1..=pad]
-            .iter()
-            .rev()
-            .copied()
-            .collect::<Vec<f32>>();
-        let suffix = array[(array.len() - 2) - pad + 1..array.len() - 1]
-            .iter()
-            .rev()
-            .copied()
-            .collect::<Vec<f32>>();
-        prefix.extend(array);
-        prefix.extend(suffix);
-        prefix
+    let mut prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();
+    let suffix = array[(array.len() - 2) - pad + 1..array.len() - 1]
+        .iter()
+        .rev()
+        .copied()
+        .collect::<Vec<f32>>();
+    prefix.extend(array);
+    prefix.extend(suffix);
+    prefix
 }
 
-pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2::<f64> {
+pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f64> {
     let mut fft = FFT::new(window_length).unwrap();
-    
+
     let signal = reflect_pad(&signal, window_length / 2);
     let mut stft = Array2::zeros((window_length / 2 + 1, 0));
-    
+
     // TODO actually have it constant - no need to compute it everytime
     // Periodic, so window_size + 1
     let mut hann_window = Array::zeros(window_length + 1);
@@ -84,7 +78,9 @@ pub fn analyze(song: &Song) -> Analysis {
     let mut zcr_desc = ZeroCrossingRateDesc::default();
     let mut tempo_desc = BPMDesc::new(song.sample_rate);
     let mut loudness_desc = LoudnessDesc::default();
+    let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
 
+    // These descriptors can be streamed
     for i in 1..song.sample_array.len() {
         if (i % SpectralDesc::HOP_SIZE) == 0 {
             let beginning = (i / SpectralDesc::HOP_SIZE - 1) * SpectralDesc::HOP_SIZE;
@@ -106,6 +102,13 @@ pub fn analyze(song: &Song) -> Analysis {
             loudness_desc.do_(&song.sample_array[beginning..end]);
         }
     }
+    // Non-streaming approach for that one
+    chroma_desc.do_(&song.sample_array);
+    let mut is_major = 0.;
+    let (is_major_bool, fifth) = chroma_desc.get_values();
+    if is_major_bool {
+        is_major = 1.;
+    }
 
     Analysis {
         tempo: tempo_desc.get_value(),
@@ -114,6 +117,8 @@ pub fn analyze(song: &Song) -> Analysis {
         spectral_rolloff: spectral_desc.get_rolloff(),
         spectral_flatness: spectral_desc.get_flatness(),
         loudness: loudness_desc.get_value(),
+        is_major,
+        fifth,
     }
 }
 
@@ -124,6 +129,7 @@ mod tests {
     use ndarray::Array2;
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
+    use std::f32::consts::PI;
 
     #[test]
     fn test_analyze() {
@@ -135,6 +141,8 @@ mod tests {
             spectral_rolloff: 2026.76,
             spectral_flatness: 0.11,
             loudness: -32.79,
+            is_major: 0.,
+            fifth: (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
         };
         assert!(expected_analysis.approx_eq(&analyze(&song)));
     }

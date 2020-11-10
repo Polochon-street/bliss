@@ -1,31 +1,28 @@
+//! Chroma feature extraction module.
+//!
+//! Contains functions to compute the chromagram of a song, and
+//! then from this chromagram extract the song's tone and mode
+//! (minor / major).
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
-
-extern crate ndarray;
-extern crate ndarray_npy;
-extern crate ndarray_stats;
 
 use crate::analyze::stft;
 use crate::utils::{convolve, hz_to_octs, median, TEMPLATES_MAJMIN};
 use ndarray::{arr1, arr2, s, stack, Array, Array1, Array2, Axis, RemoveAxis, Zip};
 use ndarray_stats::QuantileExt;
-
-pub struct ChromaDesc {
-    sample_rate: u32,
-    n_chroma: u32,
-    values_chroma: Array2<f64>,
-}
-
-const FIFTH_INDICES: [u8; 12] = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+use std::f32::consts::PI;
 
 const CHORD_LABELS: [&str; 24] = [
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m",
     "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
 ];
-
-const SCALE_LABELS_ABSOLUTE: [&str; 12] = ["0", "1#", "2#", "3#", "4#", "5#", "6#", "5b", "4b", "3b", "2b", "1b"];
-
-// I order https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg
+// Contains the sequence of fifths: CHORD_LABELS[0] = C, CHORD_LABELS[7] = G, etc.
+const PERFECT_FIFTH_INDICES: [u8; 12] = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+#[allow(dead_code)]
+const SCALE_LABELS_ABSOLUTE: [&str; 12] = [
+    "0", "1#", "2#", "3#", "4#", "5#", "6#", "5b", "4b", "3b", "2b", "1b",
+];
+// In order https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg
 // 0 = C / A, 1# = G / E etc
 const CIRCLE_FIFTHS: [(&str, &str); 12] = [
     ("C", "A"),
@@ -42,6 +39,22 @@ const CIRCLE_FIFTHS: [(&str, &str); 12] = [
     ("F", "D"),
 ];
 
+/**
+ * General object holding the chroma descriptor.
+ *
+ * Current chroma descriptors are the tone and the mode, see the [circle of
+ * fifths](https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg).
+ *
+ * Contrary to the other descriptors that can be used with streaming
+ * without consequences, this one performs better if the full song is used at
+ * once.
+ */
+pub struct ChromaDesc {
+    sample_rate: u32,
+    n_chroma: u32,
+    values_chroma: Array2<f64>,
+}
+
 impl ChromaDesc {
     pub const WINDOW_SIZE: usize = 8192;
     pub const HOP_SIZE: usize = 2205;
@@ -56,6 +69,12 @@ impl ChromaDesc {
 
     // Here, we want to call `do_()` on the whole song as much as possible - streaming
     // would be rather bad
+    /**
+     * Compute and store the chroma of a signal.
+     *
+     * Passing a full song here once instead of streaming smaller parts of the
+     * song will greatly improve accuracy.
+     */
     pub fn do_(&mut self, signal: &[f32]) {
         let stft = stft(signal, 8192, 2205);
         let tuning = estimate_tuning(
@@ -75,18 +94,45 @@ impl ChromaDesc {
         self.values_chroma = stack![Axis(1), self.values_chroma, chroma];
     }
 
-    pub fn get_value(&mut self) -> (bool, &str) {
+    /**
+     * Get the song's mode (minor / major) and its tone.
+     *
+     * The song's tone is made of the projection of
+     * https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg
+     * into a trigonometric circle: for example 1# is at pi/3, #2 pi/6, etc.
+     * While it may not make a lot of sense conceptually, it's a good way to
+     * convert the tone in a set of usable / comparable features.
+     */
+    pub fn get_values(&mut self) -> (bool, (f32, f32)) {
         chroma_fifth_is_major(&self.values_chroma)
     }
 }
 
-fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, &str) {
+// Functions below are Rust versions of python notebooks by AudioLabs Erlang
+// (https://www.audiolabs-erlangen.de/resources/MIR/FMP/C0/C0.html)
+fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, (f32, f32)) {
+    // Values here are in the same order as SCALE_LABELS_ABSOLUTES
+    let scale_values: [(f32, f32); 12] = [
+        (f32::cos(PI / 2.), f32::sin(PI / 2.)),
+        (f32::cos(PI / 3.), f32::sin(PI / 3.)),
+        (f32::cos(PI / 6.), f32::sin(PI / 6.)),
+        (f32::cos(0.), f32::sin(0.)),
+        (f32::cos(11. * PI / 6.), f32::sin(11. * PI / 6.)),
+        (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
+        (f32::cos(3. * PI / 2.), f32::sin(3. * PI / 2.)),
+        (f32::cos(4. * PI / 3.), f32::sin(4. * PI / 3.)),
+        (f32::cos(7. * PI / 6.), f32::sin(7. * PI / 6.)),
+        (f32::cos(PI), f32::sin(PI)),
+        (f32::cos(5. * PI / 6.), f32::sin(5. * PI / 6.)),
+        (f32::cos(2. * PI / 3.), f32::sin(2. * PI / 3.)),
+    ];
+
     let templates_majmin = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
 
     let chroma_filtered = smooth_downsample_feature_sequence(chroma, 15, 10);
     let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
     let f_analysis_prefilt = analysis_template_match(&chroma_filtered, &templates_majmin, true);
-    let mut f_analysis_max_prefilt = Array::zeros((24, 12));
+    let mut f_analysis_max_prefilt = Array::zeros((24, f_analysis_prefilt.dim().1));
     for (i, column) in f_analysis_prefilt.gencolumns().into_iter().enumerate() {
         let index = column.argmax().unwrap();
         f_analysis_max_prefilt[[index, i]] = 1.;
@@ -104,6 +150,7 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, &str) {
     let f_analysis_norm = normalize_feature_sequence(&f_analysis);
     let f_analysis_exp = (f_analysis_norm * 70.).mapv(f64::exp);
     let f_analysis_rescaled = (&f_analysis_exp / &f_analysis_exp.sum_axis(Axis(0))).to_owned();
+    // should this really be a mean?
     let index = f_analysis_rescaled
         .mean_axis(Axis(1))
         .unwrap()
@@ -116,7 +163,7 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, &str) {
 
     let minor = summed[minor_chord_index];
     let major = summed[major_chord_index];
-    let mode = SCALE_LABELS_ABSOLUTE[index];
+    let mode = scale_values[index];
     (major > minor, mode)
 }
 
@@ -155,7 +202,7 @@ fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
 
 fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
     let mut output = Array2::zeros((0, feature.dim().1));
-    for index in FIFTH_INDICES.iter() {
+    for index in PERFECT_FIFTH_INDICES.iter() {
         output = stack![
             Axis(0),
             output,
@@ -186,8 +233,10 @@ fn smooth_downsample_feature_sequence(
     down_sampling: u32,
 ) -> Array2<f64> {
     let filter_kernel = Array::ones(filter_length as usize);
-    // TODO +1, really?
-    let mut output = Array2::zeros((0, feature.dim().1 / down_sampling as usize + 1));
+    let mut output = Array2::zeros((
+        0,
+        (feature.dim().1 as f64 / down_sampling as f64).ceil() as usize,
+    ));
     for row in feature.genrows() {
         let smoothed = convolve(&row.to_owned(), &filter_kernel);
         let smoothed: Array2<f64> = smoothed
@@ -443,7 +492,7 @@ fn estimate_tuning(
     pitch_tuning(&pitch, resolution, bins_per_octave)
 }
 
-pub fn chroma_stft(
+fn chroma_stft(
     sample_rate: u32,
     spectrum: &Array2<f64>,
     n_fft: usize,
@@ -484,7 +533,10 @@ mod test {
         let chroma = Array2::<f64>::read_npy(file).unwrap();
 
         let fifth_is_major = chroma_fifth_is_major(&chroma);
-        assert_eq!(fifth_is_major, (false, "5#"));
+        assert_eq!(
+            fifth_is_major,
+            (false, (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
+        );
     }
 
     #[test]
@@ -597,7 +649,10 @@ mod test {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
         chroma_desc.do_(&song.sample_array);
-        assert_eq!(chroma_desc.get_value(), (false, "5#"));
+        assert_eq!(
+            chroma_desc.get_values(),
+            (false, (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
+        );
     }
 
     #[test]
