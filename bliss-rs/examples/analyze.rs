@@ -12,8 +12,8 @@ fn main() {
     for path in &args {
         match decode_and_analyze(&path) {
             Ok(song) => println!(
-                "{}: {} - ({}, {})",
-                path, song.analysis.is_major, song.analysis.fifth.0, song.analysis.fifth.1
+                "{}: {}",
+                path, song.analysis.tempo,
             ),
             Err(e) => println!("{}: {}", path, e),
         }

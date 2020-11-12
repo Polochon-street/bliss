@@ -9,7 +9,8 @@ extern crate aubio_lib;
 use aubio_rs::vec::CVec;
 use aubio_rs::{bin_to_freq, PVoc, SpecDesc, SpecShape};
 
-use super::utils::{geometric_mean, mean, number_crossings};
+use super::utils::{geometric_mean, mean, number_crossings, Normalize};
+use crate::SAMPLE_RATE;
 
 /**
  * General object holding all the spectral descriptor.
@@ -54,7 +55,7 @@ impl SpectralDesc {
      * The value range is between 0 and `sample_rate / 2`.
      */
     pub fn get_centroid(&mut self) -> f32 {
-        mean(&self.values_centroid)
+        self.normalize(mean(&self.values_centroid))
     }
 
     /**
@@ -71,7 +72,7 @@ impl SpectralDesc {
      * The value range is between 0 and `sample_rate / 2`
      */
     pub fn get_rolloff(&mut self) -> f32 {
-        mean(&self.values_rolloff)
+        self.normalize(mean(&self.values_rolloff))
     }
 
     /**
@@ -91,7 +92,11 @@ impl SpectralDesc {
      * than the arithmetic mean.
      */
     pub fn get_flatness(&mut self) -> f32 {
-        mean(&self.values_flatness)
+        let max_value = 1.;
+        let min_value = 0.;
+        // Range is different from the other spectral algorithms, so normalizing
+        // manually here.
+        2. * (mean(&self.values_flatness) - min_value) / (max_value - min_value) - 1.
     }
 
     pub fn new(sample_rate: u32) -> Self {
@@ -117,7 +122,7 @@ impl SpectralDesc {
      * descriptors' values.
      */
     pub fn do_(&mut self, chunk: &[f32]) {
-        let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE + 2];
+        let mut fftgrain: Vec<f32> = vec![0.0; SpectralDesc::WINDOW_SIZE];
         self.phase_vocoder
             .do_(chunk, fftgrain.as_mut_slice())
             .unwrap();
@@ -133,10 +138,16 @@ impl SpectralDesc {
         );
         self.values_centroid.push(freq);
 
-        let bin = self
+        let mut bin = self
             .rolloff_aubio_desc
             .do_result(fftgrain.as_slice())
             .unwrap();
+
+        // Until https://github.com/aubio/aubio/pull/318 is in
+        if bin > SpectralDesc::WINDOW_SIZE as f32 / 2. {
+            bin = SpectralDesc::WINDOW_SIZE as f32 / 2.;
+        }
+
         let freq = bin_to_freq(
             bin,
             self.sample_rate as f32,
@@ -153,6 +164,11 @@ impl SpectralDesc {
         let flatness = geo_mean / mean(&cvec.norm());
         self.values_flatness.push(flatness);
     }
+}
+
+impl Normalize for SpectralDesc {
+    const MAX_VALUE: f32 = SAMPLE_RATE as f32 / 2.;
+    const MIN_VALUE: f32 = 0.;
 }
 
 /**
@@ -187,8 +203,13 @@ impl ZeroCrossingRateDesc {
     /// Sum the number of zero-crossings witnessed and divide by
     /// the total number of samples.
     pub fn get_value(&mut self) -> f32 {
-        (self.values.iter().sum::<u32>()) as f32 / self.number_samples as f32
+        self.normalize((self.values.iter().sum::<u32>()) as f32 / self.number_samples as f32)
     }
+}
+
+impl Normalize for ZeroCrossingRateDesc {
+    const MAX_VALUE: f32 = 1.;
+    const MIN_VALUE: f32 = 0.;
 }
 
 #[cfg(test)]
@@ -198,13 +219,49 @@ mod tests {
     use crate::decode::decode_song;
 
     #[test]
+    fn test_zcr_boundaries() {
+        let mut zcr_desc = ZeroCrossingRateDesc::default();
+        let chunk = vec![0.; 1024];
+        zcr_desc.do_(&chunk);
+        assert_eq!(-1., zcr_desc.get_value());
+
+        let one_chunk = vec![-1., 1.];
+        let chunks = std::iter::repeat(one_chunk.iter())
+            .take(512)
+            .flatten()
+            .cloned()
+            .collect::<Vec<f32>>();
+        let mut zcr_desc = ZeroCrossingRateDesc::default();
+        zcr_desc.do_(&chunks);
+        assert!(0.001 > (0.9980469 - zcr_desc.get_value()).abs());
+    }
+
+    #[test]
     fn test_zcr() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let mut zcr_desc = ZeroCrossingRateDesc::default();
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             zcr_desc.do_(&chunk);
         }
-        assert!(0.001 > (0.075 - zcr_desc.get_value()).abs());
+        assert!(0.001 > (-0.85036 - zcr_desc.get_value()).abs());
+    }
+
+    #[test]
+    fn test_spectral_flatness_boundaries() {
+        let mut spectral_desc = SpectralDesc::new(10);
+        let chunk = vec![0.; 1024];
+
+        spectral_desc.do_(&chunk);
+        assert_eq!(-1., spectral_desc.get_flatness());
+
+        let song = decode_song("data/white_noise.flac").unwrap();
+        let mut spectral_desc = SpectralDesc::new(22050);
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+            spectral_desc.do_(&chunk);
+        }
+        // White noise - as close to 1 as possible
+        assert!(0.001 > (0.6706717 - spectral_desc.get_flatness()).abs());
+
     }
 
     #[test]
@@ -214,9 +271,25 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
-        // Spectral flatness value computed here with phase vocoder: 0.111949615
+        // Spectral flatness value computed here with phase vocoder before normalization: 0.111949615
         // Essentia value with spectrum / hann window: 0.11197535695207445
-        assert!(0.01 > (0.11 - spectral_desc.get_flatness()).abs());
+        assert!(0.01 > (-0.77610075 - spectral_desc.get_flatness()).abs());
+    }
+
+    #[test]
+    fn test_spectral_roll_off_boundaries() {
+        let mut spectral_desc = SpectralDesc::new(10);
+        let chunk = vec![0.; 512];
+
+        spectral_desc.do_(&chunk);
+        assert_eq!(-1., spectral_desc.get_rolloff());
+
+        let song = decode_song("data/tone_11080Hz.flac").unwrap();
+        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+            spectral_desc.do_(&chunk);
+        }
+        assert!(0.01 > (0.9967681 - spectral_desc.get_rolloff()).abs());
     }
 
     #[test]
@@ -226,9 +299,9 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
-        // Roll-off value computed here with phase vocoder: 2026.7644
+        // Roll-off value computed here with phase vocoder before normalization: 2026.7644
         // Essentia value with spectrum / hann window: 1979.632683520047
-        assert!(0.01 > (2026.76 - spectral_desc.get_rolloff()).abs());
+        assert!(0.01 > (-0.6326486 - spectral_desc.get_rolloff()).abs());
     }
 
     #[test]
@@ -238,8 +311,24 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
-        // Spectral centroid value computed here with phase vocoder: 1354.2273
+        // Spectral centroid value computed here with phase vocoder before normalization: 1354.2273
         // Essentia value with spectrum / hann window: 1351
-        assert!(0.01 > (1354.2273 - spectral_desc.get_centroid()).abs());
+        assert!(0.01 > (-0.75483 - spectral_desc.get_centroid()).abs());
+    }
+
+    #[test]
+    fn test_spectral_centroid_boundaries() {
+        let mut spectral_desc = SpectralDesc::new(10);
+        let chunk = vec![0.; 512];
+
+        spectral_desc.do_(&chunk);
+        assert_eq!(-1., spectral_desc.get_centroid());
+
+        let song = decode_song("data/tone_11080Hz.flac").unwrap();
+        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+            spectral_desc.do_(&chunk);
+        }
+        assert!(0.01 > (0.97266 - spectral_desc.get_centroid()).abs());
     }
 }

@@ -7,7 +7,7 @@ extern crate aubio_lib;
 
 use aubio_rs::level_lin;
 
-use super::utils::mean;
+use super::utils::{mean, Normalize};
 
 /**
  * Loudness (in dB) detection object.
@@ -21,7 +21,7 @@ use super::utils::mean;
  * is exactly what we want, given that this is not a music theory project, but
  * one that aims at giving the best real-life results.
  *
- * Ranges between -90 dB (~silence) and ~50 dB.
+ * Ranges between -90 dB (~silence) and 0 dB.
  *
  * (This is technically the sound pressure level of the track, but loudness is
  * way more visual)
@@ -40,8 +40,16 @@ impl LoudnessDesc {
     }
 
     pub fn get_value(&mut self) -> f32 {
-        10.0 * (mean(&self.values)).log10()
+        let mut mean_values = mean(&self.values);
+        // Make sure the dB don't go less than -90dB
+        if mean_values < 1e-9 { mean_values = 1e-9 };
+        self.normalize(10.0 * mean_values.log10())
     }
+}
+
+impl Normalize for LoudnessDesc {
+    const MAX_VALUE: f32 = 0.;
+    const MIN_VALUE: f32 = -90.;
 }
 
 #[cfg(test)]
@@ -56,6 +64,24 @@ mod tests {
         for chunk in song.sample_array.chunks_exact(LoudnessDesc::WINDOW_SIZE) {
             loudness_desc.do_(&chunk);
         }
-        assert!(0.01 > (-32.7931 - loudness_desc.get_value()).abs());
+        assert!(0.01 > (0.271263 - loudness_desc.get_value()).abs());
+    }
+
+    #[test]
+    fn test_loudness_boundaries() {
+        let mut loudness_desc = LoudnessDesc::default();
+        let silence_chunk = vec![0.; 1024];
+        loudness_desc.do_(&silence_chunk);
+        assert_eq!(-1., loudness_desc.get_value());
+
+        let mut loudness_desc = LoudnessDesc::default();
+        let silence_chunk = vec![1.; 1024];
+        loudness_desc.do_(&silence_chunk);
+        assert_eq!(1., loudness_desc.get_value());
+
+        let mut loudness_desc = LoudnessDesc::default();
+        let silence_chunk = vec![-1.; 1024];
+        loudness_desc.do_(&silence_chunk);
+        assert_eq!(1., loudness_desc.get_value());
     }
 }

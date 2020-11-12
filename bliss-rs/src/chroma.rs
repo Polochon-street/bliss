@@ -164,6 +164,7 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, (f32, f32)) {
     let minor = summed[minor_chord_index];
     let major = summed[major_chord_index];
     let mode = scale_values[index];
+    // No normalization needed since `mode` is on the unit circle
     (major > minor, mode)
 }
 
