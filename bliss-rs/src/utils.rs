@@ -26,6 +26,15 @@ pub fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
     input.iter().map(|x| x.clone().into() as f32).sum::<f32>() / input.len() as f32
 }
 
+pub trait Normalize {
+    const MAX_VALUE: f32;
+    const MIN_VALUE: f32;
+
+    fn normalize(&self, value: f32) -> f32 {
+        2. * (value - Self::MIN_VALUE) / (Self::MAX_VALUE - Self::MIN_VALUE) - 1.
+    }
+}
+
 // Essentia algorithm
 // https://github.com/MTG/essentia/blob/master/src/algorithms/temporal/zerocrossingrate.cpp
 pub fn number_crossings(input: &[f32]) -> u32 {
@@ -55,16 +64,13 @@ pub fn number_crossings(input: &[f32]) -> u32 {
 
 pub fn geometric_mean(input: &[f32]) -> f32 {
     let mut mean = 0.0;
-
     for &sample in input {
         if sample == 0.0 {
             return 0.0;
         }
         mean += sample.ln();
     }
-
     mean /= input.len() as f32;
-
     mean.exp()
 }
 

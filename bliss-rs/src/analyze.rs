@@ -135,12 +135,12 @@ mod tests {
     fn test_analyze() {
         let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
         let expected_analysis = Analysis {
-            tempo: 141.99,
-            spectral_centroid: 1354.22,
-            zero_crossing_rate: 0.075,
-            spectral_rolloff: 2026.76,
-            spectral_flatness: 0.11,
-            loudness: -32.79,
+            tempo: 0.37860596,
+            spectral_centroid: -0.75483,
+            zero_crossing_rate: -0.85036564,
+            spectral_rolloff: -0.6326486,
+            spectral_flatness: -0.77610075,
+            loudness: 0.27126348,
             is_major: 0.,
             fifth: (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
         };
