@@ -67,8 +67,6 @@ impl ChromaDesc {
         }
     }
 
-    // Here, we want to call `do_()` on the whole song as much as possible - streaming
-    // would be rather bad
     /**
      * Compute and store the chroma of a signal.
      *
@@ -103,14 +101,17 @@ impl ChromaDesc {
      * While it may not make a lot of sense conceptually, it's a good way to
      * convert the tone in a set of usable / comparable features.
      */
-    pub fn get_values(&mut self) -> (bool, (f32, f32)) {
+    // TODO maybe split this into `get_mode` and `get_is_major`?
+    // Also either change `get_value()` everywhere to a `Result`,
+    // or to return another struct that has a `continue()` and a `get_value`
+    pub fn get_values(&mut self) -> (f32, (f32, f32)) {
         chroma_fifth_is_major(&self.values_chroma)
     }
 }
 
 // Functions below are Rust versions of python notebooks by AudioLabs Erlang
 // (https://www.audiolabs-erlangen.de/resources/MIR/FMP/C0/C0.html)
-fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, (f32, f32)) {
+fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     // Values here are in the same order as SCALE_LABELS_ABSOLUTES
     let scale_values: [(f32, f32); 12] = [
         (f32::cos(PI / 2.), f32::sin(PI / 2.)),
@@ -164,8 +165,11 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (bool, (f32, f32)) {
     let minor = summed[minor_chord_index];
     let major = summed[major_chord_index];
     let mode = scale_values[index];
+    let tone_bool = major > minor;
+    let mut tone = -1.;
+    if tone_bool { tone = 1. };
     // No normalization needed since `mode` is on the unit circle
-    (major > minor, mode)
+    (tone, mode)
 }
 
 fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
@@ -536,7 +540,7 @@ mod test {
         let fifth_is_major = chroma_fifth_is_major(&chroma);
         assert_eq!(
             fifth_is_major,
-            (false, (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
+            (-1., (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
         );
     }
 
@@ -652,7 +656,7 @@ mod test {
         chroma_desc.do_(&song.sample_array);
         assert_eq!(
             chroma_desc.get_values(),
-            (false, (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
+            (-1., (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
         );
     }
 

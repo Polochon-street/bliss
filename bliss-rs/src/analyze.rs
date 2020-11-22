@@ -104,11 +104,7 @@ pub fn analyze(song: &Song) -> Analysis {
     }
     // Non-streaming approach for that one
     chroma_desc.do_(&song.sample_array);
-    let mut is_major = 0.;
-    let (is_major_bool, fifth) = chroma_desc.get_values();
-    if is_major_bool {
-        is_major = 1.;
-    }
+    let (is_major, fifth) = chroma_desc.get_values();
 
     Analysis {
         tempo: tempo_desc.get_value(),
@@ -141,7 +137,7 @@ mod tests {
             spectral_rolloff: -0.6326486,
             spectral_flatness: -0.77610075,
             loudness: 0.27126348,
-            is_major: 0.,
+            is_major: -1.,
             fifth: (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
         };
         assert!(expected_analysis.approx_eq(&analyze(&song)));
