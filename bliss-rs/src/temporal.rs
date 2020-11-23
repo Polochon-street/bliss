@@ -38,7 +38,7 @@ impl BPMDesc {
     pub fn new(sample_rate: u32) -> Self {
         BPMDesc {
             aubio_obj: Tempo::new(
-                OnsetMode::WPhase,
+                OnsetMode::SpecFlux,
                 BPMDesc::WINDOW_SIZE,
                 BPMDesc::HOP_SIZE,
                 sample_rate,
