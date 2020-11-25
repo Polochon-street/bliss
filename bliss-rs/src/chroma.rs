@@ -167,7 +167,9 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     let mode = scale_values[index];
     let tone_bool = major > minor;
     let mut tone = -1.;
-    if tone_bool { tone = 1. };
+    if tone_bool {
+        tone = 1.
+    };
     // No normalization needed since `mode` is on the unit circle
     (tone, mode)
 }
@@ -374,11 +376,18 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
 
     let fft_freqs = Array::linspace(0., f64::from(sample_rate) / 2., 1 + n_fft / 2);
 
-    let avg = 0.5 * (&spectrum.slice(s![2.., ..]) - &spectrum.slice(s![..-2, ..]));
     let length = spectrum.len_of(Axis(0));
-    let shift = 2. * &spectrum.slice(s![1..length - 1, ..])
-        - spectrum.slice(s![2.., ..])
-        - spectrum.slice(s![0..length - 2, ..]);
+
+    let mut avg = Array::zeros(spectrum.raw_dim());
+    avg.slice_mut(s![1..length - 1, ..])
+        .assign(&(0.5 * (&spectrum.slice(s![2.., ..]) - &spectrum.slice(s![..-2, ..]))));
+
+    let mut shift = Array::zeros(spectrum.raw_dim());
+    shift.slice_mut(s![1..length - 1, ..]).assign(
+        &(2. * &spectrum.slice(s![1..length - 1, ..])
+            - spectrum.slice(s![2.., ..])
+            - spectrum.slice(s![0..length - 2, ..])),
+    );
 
     // TODO find more optimal stuff
     let shift = &avg
@@ -389,11 +398,6 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
                 x
             }
         });
-    let zeros: Array2<f64> = Array::zeros((1, shift.shape()[1]));
-
-    let avg = stack![Axis(0), zeros, stack![Axis(0), avg, zeros]];
-    let shift = stack![Axis(0), zeros, stack![Axis(0), shift, zeros]];
-
     let dskew = 0.5 * &avg * &shift;
 
     let freq_mask = fft_freqs
@@ -407,11 +411,10 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
     }
 
     let mut idx = Vec::new();
-    let length_spectrum = spectrum.len_of(Axis(0));
     for ((i, j), elem) in spectrum.indexed_iter() {
         if i == 0 {
             {}
-        } else if i + 1 >= length_spectrum {
+        } else if i + 1 >= length {
             if spectrum[[i - 1, j]] < *elem && *elem > ref_value[j] && freq_mask[i] {
                 idx.push((i, j));
             }
