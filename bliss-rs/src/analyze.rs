@@ -6,6 +6,7 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
+extern crate crossbeam;
 extern crate ndarray;
 extern crate ndarray_npy;
 
@@ -13,7 +14,8 @@ use std::f64::consts::PI;
 
 use aubio_rs::vec::CVec;
 use aubio_rs::FFT;
-use ndarray::{arr1, s, stack, Array, Array1, Array2, Axis};
+use ndarray::ShapeBuilder;
+use ndarray::{arr1, s, Array, Array1, Array2};
 
 use crate::chroma::ChromaDesc;
 use crate::decode::decode_song;
@@ -21,6 +23,7 @@ use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::{Analysis, Song};
+use crossbeam::thread;
 
 pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
     // TODO error handling here
@@ -46,7 +49,8 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
     let mut fft = FFT::new(window_length).unwrap();
 
     let signal = reflect_pad(&signal, window_length / 2);
-    let mut stft = Array2::zeros((window_length / 2 + 1, 0));
+    //let mut stft = Array2::zeros((window_length / 2 + 1, 0));
+    let mut stft: Vec<f32> = Vec::new();
 
     // TODO actually have it constant - no need to compute it everytime
     // Periodic, so window_size + 1
@@ -54,6 +58,8 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
     for n in 0..window_length {
         hann_window[[n]] = 0.5 - 0.5 * f64::cos(2. * n as f64 * PI / (window_length as f64));
     }
+    // TODO no need for count
+    let mut count = 0;
     hann_window = hann_window.slice_move(s![0..window_length]);
     for i in 1..signal.len() {
         if i >= window_length && (i - window_length) % hop_length == 0 {
@@ -67,9 +73,15 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
             fft.do_(&signal, fftgrain.as_mut_slice()).unwrap();
             let cvec: CVec = fftgrain.as_slice().into();
             let norm: Array1<f32> = arr1(&cvec.norm());
-            stft = stack![Axis(1), stft, norm.insert_axis(Axis(1))];
+            stft.append(&mut norm.to_vec());
+            count += 1;
         }
     }
+    let stft = Array::from_shape_vec(
+        (window_length / 2 + 1, count).strides((1, window_length / 2 + 1)),
+        stft,
+    )
+    .unwrap();
     stft.mapv(f64::from)
 }
 
@@ -78,44 +90,50 @@ pub fn analyze(song: &Song) -> Analysis {
     let mut zcr_desc = ZeroCrossingRateDesc::default();
     let mut tempo_desc = BPMDesc::new(song.sample_rate);
     let mut loudness_desc = LoudnessDesc::default();
-    let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
 
-    // These descriptors can be streamed
-    for i in 1..song.sample_array.len() {
-        if (i % SpectralDesc::HOP_SIZE) == 0 {
-            let beginning = (i / SpectralDesc::HOP_SIZE - 1) * SpectralDesc::HOP_SIZE;
-            let end = i;
-            spectral_desc.do_(&song.sample_array[beginning..end]);
-            zcr_desc.do_(&song.sample_array[beginning..end]);
+    thread::scope(|s| {
+        let child = s.spawn(|_| {
+        let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
+            chroma_desc.do_(&song.sample_array);
+            chroma_desc.get_values()
+        });
+
+        // These descriptors can be streamed
+        for i in 1..song.sample_array.len() {
+            if (i % SpectralDesc::HOP_SIZE) == 0 {
+                let beginning = (i / SpectralDesc::HOP_SIZE - 1) * SpectralDesc::HOP_SIZE;
+                let end = i;
+                spectral_desc.do_(&song.sample_array[beginning..end]);
+                zcr_desc.do_(&song.sample_array[beginning..end]);
+            }
+
+            if (i % BPMDesc::HOP_SIZE) == 0 {
+                let beginning = (i / BPMDesc::HOP_SIZE - 1) * BPMDesc::HOP_SIZE;
+                let end = i;
+                tempo_desc.do_(&song.sample_array[beginning..end]);
+            }
+
+            // Contiguous windows, so WINDOW_SIZE here
+            if (i % LoudnessDesc::WINDOW_SIZE) == 0 {
+                let beginning = (i / LoudnessDesc::WINDOW_SIZE - 1) * LoudnessDesc::WINDOW_SIZE;
+                let end = i;
+                loudness_desc.do_(&song.sample_array[beginning..end]);
+            }
         }
-
-        if (i % BPMDesc::HOP_SIZE) == 0 {
-            let beginning = (i / BPMDesc::HOP_SIZE - 1) * BPMDesc::HOP_SIZE;
-            let end = i;
-            tempo_desc.do_(&song.sample_array[beginning..end]);
+        // Non-streaming approach for that one
+        let (is_major, fifth) = child.join().unwrap();
+        
+        Analysis {
+            tempo: tempo_desc.get_value(),
+            spectral_centroid: spectral_desc.get_centroid(),
+            zero_crossing_rate: zcr_desc.get_value(),
+            spectral_rolloff: spectral_desc.get_rolloff(),
+            spectral_flatness: spectral_desc.get_flatness(),
+            loudness: loudness_desc.get_value(),
+            is_major,
+            fifth,
         }
-
-        // Contiguous windows, so WINDOW_SIZE here
-        if (i % LoudnessDesc::WINDOW_SIZE) == 0 {
-            let beginning = (i / LoudnessDesc::WINDOW_SIZE - 1) * LoudnessDesc::WINDOW_SIZE;
-            let end = i;
-            loudness_desc.do_(&song.sample_array[beginning..end]);
-        }
-    }
-    // Non-streaming approach for that one
-    chroma_desc.do_(&song.sample_array);
-    let (is_major, fifth) = chroma_desc.get_values();
-
-    Analysis {
-        tempo: tempo_desc.get_value(),
-        spectral_centroid: spectral_desc.get_centroid(),
-        zero_crossing_rate: zcr_desc.get_value(),
-        spectral_rolloff: spectral_desc.get_rolloff(),
-        spectral_flatness: spectral_desc.get_flatness(),
-        loudness: loudness_desc.get_value(),
-        is_major,
-        fifth,
-    }
+    }).unwrap()
 }
 
 #[cfg(test)]
@@ -124,8 +142,8 @@ mod tests {
     use crate::decode::decode_song;
     use ndarray::Array2;
     use ndarray_npy::ReadNpyExt;
-    use std::fs::File;
     use std::f32::consts::PI;
+    use std::fs::File;
 
     #[test]
     fn test_analyze() {

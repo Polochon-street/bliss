@@ -18,6 +18,7 @@ ndarray-stats = "*"
 rustfft = "4.0.0"
 realfft = "*"
 num-complex = "0.3.0"
+crossbeam = "*"
 
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
