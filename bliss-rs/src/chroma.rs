@@ -143,9 +143,20 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     let chroma_filtered = smooth_downsample_feature_sequence(chroma, 45, 15);
     let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
     let chroma_sorted = sort_by_fifths(&chroma_filtered, -1);
-    let template_diatonic = arr2(&[[1., 3., 2., 1., 2., 3., 1., 0., 0., 0., 0., 0.]])
-        .t()
-        .to_owned();
+    let template_diatonic = arr2(&[
+        [1.],
+        [3.],
+        [2.],
+        [1.],
+        [2.],
+        [3.],
+        [1.],
+        [0.],
+        [0.],
+        [0.],
+        [0.],
+        [0.],
+    ]);
     let templates_scale = generate_template_matrix(&template_diatonic);
     let f_analysis = analysis_template_match(&chroma_sorted, &templates_scale, false);
     let f_analysis_norm = normalize_feature_sequence(&f_analysis);
@@ -386,14 +397,14 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
     );
 
     // TODO find more optimal stuff
-    let shift = &avg
-        / &shift.mapv(|x| {
-            if x.abs() < f64::MIN_POSITIVE {
-                x + 1.
-            } else {
-                x
-            }
-        });
+    shift.mapv_inplace(|x| {
+        if x.abs() < f64::MIN_POSITIVE {
+            x + 1.
+        } else {
+            x
+        }
+    });
+    shift = &avg / &shift;
     let dskew = 0.5 * &avg * &shift;
 
     let freq_mask = fft_freqs
@@ -406,30 +417,30 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
         ref_value[i] = threshold * *row.max().unwrap();
     }
 
-    let mut idx = Vec::new();
-    for ((i, j), elem) in spectrum.indexed_iter() {
-        if i == 0 {
-            {}
-        } else if i + 1 >= length {
-            if spectrum[[i - 1, j]] < *elem && *elem > ref_value[j] && freq_mask[i] {
-                idx.push((i, j));
-            }
-        } else if spectrum[[i - 1, j]] < *elem
-            && spectrum[[i + 1, j]] <= *elem
-            && *elem > ref_value[j]
-            && freq_mask[i]
-        {
-            idx.push((i, j));
-        }
-    }
-
     let mut pitches = Array::zeros(spectrum.raw_dim());
     let mut mags = Array::zeros(spectrum.raw_dim());
 
-    for (i, j) in idx {
-        pitches[[i, j]] = (i as f64 + shift[[i, j]]) * f64::from(sample_rate) / n_fft as f64;
-        mags[[i, j]] = spectrum[[i, j]] + dskew[[i, j]];
-    }
+    let zipped = Zip::indexed(spectrum)
+        .and(&mut pitches)
+        .and(&mut mags)
+        .and(&shift)
+        .and(&dskew);
+
+    // TODO if becomes slow, then zip spectrum.slice[..-2, ..] together with
+    // spectrum.slice[1..-1, ..] and spectrum.slice[2, ..], do stuff regarding i + 1
+    // instead and work separately on the last column.
+    zipped.apply(|(i, j), elem, pitch, mag, shift, dskew| {
+        if i != 0
+            && freq_mask[i]
+            && *elem > ref_value[j]
+            && (i + 1 >= length || spectrum[[i + 1, j]] <= *elem)
+            && spectrum[[i - 1, j]] < *elem
+        {
+            *pitch = (i as f64 + *shift) * f64::from(sample_rate) / n_fft as f64;
+            *mag = *elem + *dskew;
+        }
+    });
+
     (pitches, mags)
 }
 
@@ -508,16 +519,15 @@ fn chroma_stft(
         None => estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma),
     };
     let spectrum = &spectrum.mapv(|x| x.powf(2.));
-    let chromafb = chroma_filter(sample_rate, n_fft, n_chroma, tuning);
+    let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning);
 
-    let mut raw_chroma = chromafb.dot(spectrum);
+    raw_chroma = raw_chroma.dot(spectrum);
     for mut row in raw_chroma.gencolumns_mut() {
         let mut sum = row.mapv(|x| x.powf(2.)).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
-        let sum_row = Array::from_elem(row.raw_dim(), sum);
-        row /= &sum_row;
+        row /= sum;
     }
     raw_chroma
 }
