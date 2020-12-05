@@ -8,7 +8,7 @@ extern crate aubio_lib;
 
 use crate::analyze::stft;
 use crate::utils::{convolve, hz_to_octs, median, TEMPLATES_MAJMIN};
-use ndarray::{arr1, arr2, s, stack, Array, Array1, Array2, Axis, RemoveAxis, Zip};
+use ndarray::{arr1, arr2, s, concatenate, Array, Array1, Array2, Axis, RemoveAxis, Zip};
 use ndarray_stats::QuantileExt;
 use std::f32::consts::PI;
 
@@ -89,7 +89,7 @@ impl ChromaDesc {
             self.n_chroma,
             Some(tuning),
         );
-        self.values_chroma = stack![Axis(1), self.values_chroma, chroma];
+        self.values_chroma = concatenate![Axis(1), self.values_chroma, chroma];
     }
 
     /**
@@ -210,7 +210,7 @@ fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
 fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
     let mut output = Array2::zeros((0, feature.dim().1));
     for index in PERFECT_FIFTH_INDICES.iter() {
-        output = stack![
+        output = concatenate![
             Axis(0),
             output,
             feature
@@ -252,7 +252,7 @@ fn smooth_downsample_feature_sequence(
             .step_by(down_sampling as usize)
             .collect::<Array1<f64>>()
             .insert_axis(Axis(0));
-        output = stack![Axis(0), output, smoothed];
+        output = concatenate![Axis(0), output, smoothed];
     }
     output / filter_length as f64
 }
@@ -304,13 +304,13 @@ fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> 
     let frequencies = frequencies.slice_move(s![1..length - 1]);
 
     let freq_bins = f64::from(n_chroma) * hz_to_octs(&frequencies, tuning, n_chroma);
-    let freq_bins = stack![
+    let freq_bins = concatenate![
         Axis(0),
         arr1(&[freq_bins[0] - 1.5 * f64::from(n_chroma)]),
         freq_bins
     ];
 
-    let binwidth_bins = stack![
+    let binwidth_bins = concatenate![
         Axis(0),
         (&freq_bins.slice(s![1..]) - &freq_bins.slice(s![..-1])).mapv(|x| if x <= 1. {
             1.

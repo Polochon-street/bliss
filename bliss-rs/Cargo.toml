@@ -12,12 +12,13 @@ build-ffmpeg = ["ffmpeg4/build"]
 [dependencies]
 # TODO set proper deps
 ripemd160 = "0.9.0"
-ndarray-npy = "0.5.0"
-ndarray = "*"
-ndarray-stats = "*"
+ndarray-npy = "0.7.0"
+ndarray = { version = "0.14.0", features = ["rayon"] }
+ndarray-stats = { git = "https://github.com/rust-ndarray/ndarray-stats" }
 rustfft = "4.0.0"
 realfft = "*"
 num-complex = "0.3.0"
+rayon = "*"
 crossbeam = "*"
 
 [dependencies.aubio-rs]
