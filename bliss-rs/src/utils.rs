@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 extern crate rustfft;
-use ndarray::{arr1, s, stack, Array, Array1, Axis};
+use ndarray::{arr1, s, Array, Array1};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FFTplanner;
@@ -94,18 +94,20 @@ pub fn median(list: &[f64]) -> f64 {
 
 pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let common_length = input.len() + kernel.len() - 1;
-    let padded_input = stack![Axis(0), *input, Array::zeros(common_length - input.len())];
-    let padded_kernel = stack![Axis(0), *kernel, Array::zeros(common_length - kernel.len())];
-    let mut padded_input = padded_input.mapv(|x| Complex::new(x, 0.)).to_vec();
-    let mut padded_kernel = padded_kernel.mapv(|x| Complex::new(x, 0.)).to_vec();
+    let input = input.mapv(|x| Complex::new(x, 0.));
+    let kernel = kernel.mapv(|x| Complex::new(x, 0.));
+    let mut padded_input = Array::from_elem(common_length, Complex::new(0., 0.));
+    padded_input.slice_mut(s![..input.len()]).assign(&input);
+    let mut padded_kernel = Array::zeros(common_length);
+    padded_kernel.slice_mut(s![..kernel.len()]).assign(&kernel);
 
     let mut input_fft: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
     let mut kernel_fft: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
 
     let mut planner = FFTplanner::new(false);
     let fft = planner.plan_fft(common_length);
-    fft.process(&mut padded_input, &mut input_fft);
-    fft.process(&mut padded_kernel, &mut kernel_fft);
+    fft.process(&mut padded_input.to_vec(), &mut input_fft);
+    fft.process(&mut padded_kernel.to_vec(), &mut kernel_fft);
 
     let mut multiplication = input_fft
         .iter()
