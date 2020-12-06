@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 
 extern crate rustfft;
 use ndarray::{arr1, s, Array, Array1};
@@ -80,21 +79,6 @@ pub fn hz_to_octs(frequencies: &Array1<f64>, tuning: f64, bins_per_octave: u32) 
     (frequencies / (a440 / 16.)).mapv(f64::log2)
 }
 
-pub fn median(list: &[f64]) -> Option<f64> {
-    if list.is_empty() {
-        return None;
-    }
-    let mut list = list.to_vec();
-    list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-    let len = list.len();
-    let mid = len / 2;
-    if len % 2 == 0 {
-        Some((list[mid - 1] + list[mid]) / 2.)
-    } else {
-        Some(list[mid])
-    }
-}
-
 pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let common_length = input.len() + kernel.len() - 1;
     let input = input.mapv(|x| Complex::new(x, 0.));
@@ -153,18 +137,6 @@ mod tests {
         for (expected, actual) in expected_convolve.iter().zip(output.iter()) {
             assert!(0.0000001 > (expected - actual).abs());
         }
-    }
-
-    #[test]
-    fn test_median() {
-        let numbers = vec![10., 30., 35., 37., 40., 20., 50., 60.];
-        assert_eq!(Some(36.), median(&numbers));
-
-        let numbers = vec![5., 7., 10., 1., 11., 50., 55.];
-        assert_eq!(Some(10.), median(&numbers));
-
-        let numbers = vec![];
-        assert_eq!(None, median(&numbers));
     }
 
     #[test]
