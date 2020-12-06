@@ -80,15 +80,18 @@ pub fn hz_to_octs(frequencies: &Array1<f64>, tuning: f64, bins_per_octave: u32) 
     (frequencies / (a440 / 16.)).mapv(f64::log2)
 }
 
-pub fn median(list: &[f64]) -> f64 {
+pub fn median(list: &[f64]) -> Option<f64> {
+    if list.is_empty() {
+        return None;
+    }
     let mut list = list.to_vec();
     list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
     let len = list.len();
     let mid = len / 2;
     if len % 2 == 0 {
-        (list[mid - 1] + list[mid]) / 2.
+        Some((list[mid - 1] + list[mid]) / 2.)
     } else {
-        list[mid]
+        Some(list[mid])
     }
 }
 
@@ -155,10 +158,13 @@ mod tests {
     #[test]
     fn test_median() {
         let numbers = vec![10., 30., 35., 37., 40., 20., 50., 60.];
-        assert_eq!(36., median(&numbers));
+        assert_eq!(Some(36.), median(&numbers));
 
         let numbers = vec![5., 7., 10., 1., 11., 50., 55.];
-        assert_eq!(10., median(&numbers));
+        assert_eq!(Some(10.), median(&numbers));
+
+        let numbers = vec![];
+        assert_eq!(None, median(&numbers));
     }
 
     #[test]
