@@ -8,7 +8,7 @@ extern crate aubio_lib;
 
 use crate::analyze::stft;
 use crate::utils::{convolve, hz_to_octs, median, TEMPLATES_MAJMIN};
-use ndarray::{arr2, s, concatenate, Array, Array1, Array2, Axis, RemoveAxis, Zip};
+use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, RemoveAxis, Zip};
 use ndarray_stats::QuantileExt;
 use std::f32::consts::PI;
 
@@ -470,6 +470,8 @@ fn pitch_tuning(frequencies: &Array1<f64>, resolution: f64, bins_per_octave: u32
     bins[max_index]
 }
 
+// TODO maybe merge pitch and mags upstream if one wants to micro-optimize
+// stuff.
 fn estimate_tuning(
     sample_rate: u32,
     spectrum: &Array2<f64>,
@@ -479,31 +481,25 @@ fn estimate_tuning(
 ) -> f64 {
     let (pitch, mag) = pip_track(sample_rate, &spectrum, n_fft);
 
-    let pitches_index = pitch
-        .indexed_iter()
-        .filter(|(_, item)| **item > 0.)
-        .map(|((i, j), _)| (i, j))
-        .collect::<Vec<(usize, usize)>>();
-
-    // TODO change that to Array1 stuff when bulk-indexing will be supported
-    let threshold = {
-        if !pitches_index.is_empty() {
-            let mags = pitches_index
-                .iter()
-                .map(|(i, j)| mag[[*i, *j]])
-                .collect::<Vec<f64>>();
-            median(&mags)
-        } else {
-            0.
-        }
-    };
-
-    let pitch = pitches_index
+    let pitches_and_mags = pitch
         .iter()
-        .filter(|(i, j)| mag[[*i, *j]] >= threshold)
-        .map(|(i, j)| pitch[[*i, *j]])
-        .collect::<Array1<f64>>();
+        .copied()
+        .zip(mag.iter().copied())
+        .filter(|(p, _)| *p > 0.)
+        .collect::<Vec<(f64, f64)>>();
 
+    let threshold = {
+        let mags = pitches_and_mags
+            .iter()
+            .copied()
+            .map(|(_, x)| x)
+            .collect::<Vec<f64>>();
+        median(&mags).unwrap_or(0.)
+    };
+    let pitch = pitches_and_mags
+        .into_iter()
+        .filter_map(|(p, m)| if m >= threshold { Some(p) } else { None })
+        .collect::<Array1<f64>>();
     pitch_tuning(&pitch, resolution, bins_per_octave)
 }
 
@@ -514,10 +510,8 @@ fn chroma_stft(
     n_chroma: u32,
     tuning: Option<f64>,
 ) -> Array2<f64> {
-    let tuning = match tuning {
-        Some(x) => x,
-        None => estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma),
-    };
+    let tuning =
+        tuning.unwrap_or_else(|| estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma));
     let spectrum = &spectrum.mapv(|x| x.powf(2.));
     let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning);
 
