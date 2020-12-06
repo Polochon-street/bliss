@@ -447,29 +447,25 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
     (pitches, mags)
 }
 
-pub fn pitch_tuning(frequencies: &Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
-    let frequencies = frequencies
-        .iter()
-        .filter(|x| **x > 0.)
-        .map(|x| *x as f64)
-        .collect::<Array1<f64>>();
+// Only use this with strictly positive `frequencies`.
+pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
     if frequencies.is_empty() {
         return 0.0;
     }
-    let frequencies = f64::from(bins_per_octave) * hz_to_octs(&frequencies, 0.0, 12) % 1.0;
+    *frequencies = f64::from(bins_per_octave) * hz_to_octs(frequencies, 0.0, 12) % 1.0;
 
-    let residual = frequencies.mapv(|x| if x >= 0.5 { x - 1. } else { x });
+    // Put everything between -0.5 and 0.5.
+    frequencies.mapv_inplace(|x| if x >= 0.5 { x - 1. } else { x });
 
-    let bins = Array::linspace(-50., 50., (1. / resolution).ceil() as usize + 1) / 100.;
-
-    let mut counts: Array1<usize> = Array::zeros(bins.len() - 1);
-    for res in residual.iter() {
-        let idx = ((res - -0.5) / resolution) as usize;
+    let indexes = ((frequencies.to_owned() - -0.5) / resolution).mapv(|x| x as usize);
+    let mut counts: Array1<usize> = Array::zeros(((0.5 - -0.5) / resolution) as usize);
+    for &idx in indexes.iter() {
         counts[idx] += 1;
     }
-
     let max_index = counts.argmax().unwrap();
-    bins[max_index]
+
+    // Return the bin with the most reoccuring frequency.
+    (-50. + (100. * resolution * max_index as f64)) / 100.
 }
 
 // TODO maybe merge pitch and mags upstream if one wants to micro-optimize
@@ -492,12 +488,12 @@ pub fn estimate_tuning(
         .unwrap()
         .into_scalar();
 
-    let pitch = filtered_pitch
+    let mut pitch = filtered_pitch
         .iter()
         .zip(&filtered_mag)
         .filter_map(|(&p, &m)| if m >= threshold { Some(p) } else { None })
         .collect::<Array1<f64>>();
-    pitch_tuning(&pitch, resolution, bins_per_octave)
+    pitch_tuning(&mut pitch, resolution, bins_per_octave)
 }
 
 fn chroma_stft(
@@ -702,15 +698,15 @@ mod test {
     #[test]
     fn test_pitch_tuning() {
         let file = File::open("data/pitch-tuning.npy").unwrap();
-        let pitch = Array1::<f64>::read_npy(file).unwrap();
+        let mut pitch = Array1::<f64>::read_npy(file).unwrap();
 
-        assert_eq!(-0.1, pitch_tuning(&pitch, 0.05, 12));
+        assert_eq!(-0.1, pitch_tuning(&mut pitch, 0.05, 12));
     }
 
     #[test]
     fn test_pitch_tuning_no_frequencies() {
-        let frequencies = arr1(&[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
-        assert_eq!(0.0, pitch_tuning(&frequencies, 0.05, 12));
+        let mut frequencies = arr1(&[]);
+        assert_eq!(0.0, pitch_tuning(&mut frequencies, 0.05, 12));
     }
 
     #[test]

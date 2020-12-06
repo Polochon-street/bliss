@@ -25,7 +25,7 @@ mod test {
         let file = File::open("data/pitch-tuning.npy").unwrap();
         let pitch = Array1::<f64>::read_npy(file).unwrap();
         b.iter(|| {
-            pitch_tuning(&pitch.to_owned(), 0.05, 12);
+            pitch_tuning(&mut pitch.to_owned(), 0.05, 12);
         });
     }
 }
