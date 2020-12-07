@@ -447,13 +447,12 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
     (pitches, mags)
 }
 
-fn pitch_tuning(frequencies: &Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
+pub fn pitch_tuning(frequencies: &Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
     let frequencies = frequencies
         .iter()
         .filter(|x| **x > 0.)
         .map(|x| *x as f64)
         .collect::<Array1<f64>>();
-
     if frequencies.is_empty() {
         return 0.0;
     }
