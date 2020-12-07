@@ -20,6 +20,7 @@ realfft = "*"
 num-complex = "0.3.0"
 rayon = "*"
 crossbeam = "*"
+noisy_float = "0.1.13"
 
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"

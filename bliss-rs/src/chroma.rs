@@ -5,11 +5,14 @@
 //! (minor / major).
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
+extern crate noisy_float;
 
 use crate::analyze::stft;
-use crate::utils::{convolve, hz_to_octs, median, TEMPLATES_MAJMIN};
+use crate::utils::{convolve, hz_to_octs, TEMPLATES_MAJMIN};
 use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, RemoveAxis, Zip};
+use ndarray_stats::interpolate::Midpoint;
 use ndarray_stats::QuantileExt;
+use noisy_float::prelude::*;
 use std::f32::consts::PI;
 
 const CHORD_LABELS: [&str; 24] = [
@@ -481,24 +484,19 @@ pub fn estimate_tuning(
 ) -> f64 {
     let (pitch, mag) = pip_track(sample_rate, &spectrum, n_fft);
 
-    let pitches_and_mags = pitch
-        .iter()
-        .copied()
-        .zip(mag.iter().copied())
-        .filter(|(p, _)| *p > 0.)
-        .collect::<Vec<(f64, f64)>>();
+    let (filtered_pitch, filtered_mag): (Vec<f64>, Vec<f64>) =
+        pitch.iter().zip(&mag).filter(|(&p, _)| p > 0.).unzip();
 
-    let threshold = {
-        let mags = pitches_and_mags
-            .iter()
-            .copied()
-            .map(|(_, x)| x)
-            .collect::<Vec<f64>>();
-        median(&mags).unwrap_or(0.)
-    };
-    let pitch = pitches_and_mags
-        .into_iter()
-        .filter_map(|(p, m)| if m >= threshold { Some(p) } else { None })
+    // TODO maybe use noisy floats to avoid the skipnan
+    let threshold: f64 = Array::from(filtered_mag.to_vec())
+        .quantile_axis_skipnan_mut(Axis(0), n64(0.5), &Midpoint)
+        .unwrap()
+        .into_scalar();
+
+    let pitch = filtered_pitch
+        .iter()
+        .zip(&filtered_mag)
+        .filter_map(|(&p, &m)| if m >= threshold { Some(p) } else { None })
         .collect::<Array1<f64>>();
     pitch_tuning(&pitch, resolution, bins_per_octave)
 }

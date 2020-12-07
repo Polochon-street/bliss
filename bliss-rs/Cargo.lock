@@ -129,6 +129,7 @@ dependencies = [
  "ndarray",
  "ndarray-npy",
  "ndarray-stats",
+ "noisy_float",
  "num-complex 0.3.0",
  "rayon",
  "realfft",
