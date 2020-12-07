@@ -472,7 +472,7 @@ fn pitch_tuning(frequencies: &Array1<f64>, resolution: f64, bins_per_octave: u32
 
 // TODO maybe merge pitch and mags upstream if one wants to micro-optimize
 // stuff.
-fn estimate_tuning(
+pub fn estimate_tuning(
     sample_rate: u32,
     spectrum: &Array2<f64>,
     n_fft: usize,
