@@ -379,7 +379,7 @@ fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> 
     wts.slice_move(s![.., ..non_aliased])
 }
 
-fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<f64>, Array2<f64>) {
+pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<f64>, Array2<f64>) {
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(f64::from(sample_rate) / 2.0);
     let threshold = 0.1;
@@ -408,7 +408,6 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
         }
     });
     shift = &avg / &shift;
-    let dskew = 0.5 * &avg * &shift;
 
     let freq_mask = fft_freqs
         .iter()
@@ -426,13 +425,14 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
     let zipped = Zip::indexed(spectrum)
         .and(&mut pitches)
         .and(&mut mags)
-        .and(&shift)
-        .and(&dskew);
+        .and(&avg)
+        .and(&shift);
+
 
     // TODO if becomes slow, then zip spectrum.slice[..-2, ..] together with
     // spectrum.slice[1..-1, ..] and spectrum.slice[2, ..], do stuff regarding i + 1
     // instead and work separately on the last column.
-    zipped.apply(|(i, j), elem, pitch, mag, shift, dskew| {
+    zipped.apply(|(i, j), elem, pitch, mag, avg, shift| {
         if i != 0
             && freq_mask[i]
             && *elem > ref_value[j]
@@ -440,7 +440,7 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<
             && spectrum[[i - 1, j]] < *elem
         {
             *pitch = (i as f64 + *shift) * f64::from(sample_rate) / n_fft as f64;
-            *mag = *elem + *dskew;
+            *mag = *elem + 0.5 * *avg * *shift;
         }
     });
 
