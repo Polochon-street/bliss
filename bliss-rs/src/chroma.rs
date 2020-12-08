@@ -304,7 +304,7 @@ fn analysis_template_match(
 // All the functions below are more than heavily inspired from
 // librosa"s code: https://github.com/librosa/librosa/blob/main/librosa/feature/spectral.py#L1165
 // chroma(22050, n_fft=5, n_chroma=12)
-fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
+pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
     let ctroct = 5.0;
     let octwidth = 2;
 
