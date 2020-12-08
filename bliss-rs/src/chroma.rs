@@ -379,7 +379,7 @@ fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> 
     wts.slice_move(s![.., ..non_aliased])
 }
 
-fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<f64>, Array2<f64>) {
+pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<f64>, Array2<f64>) {
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(f64::from(sample_rate) / 2.0);
     let threshold = 0.1;

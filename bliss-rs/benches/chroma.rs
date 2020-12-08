@@ -28,4 +28,14 @@ mod test {
             pitch_tuning(&mut pitch.to_owned(), 0.05, 12);
         });
     }
+
+    #[bench]
+    fn bench_pip_track(b: &mut Bencher) {
+        let file = File::open("data/spectrum-chroma.npy").unwrap();
+        let spectrum = Array2::<f64>::read_npy(file).unwrap();
+
+        b.iter(|| {
+            pip_track(22050, &spectrum, 2048);
+        });
+    }
 }
