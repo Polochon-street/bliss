@@ -8,7 +8,7 @@ extern crate aubio_lib;
 extern crate noisy_float;
 
 use crate::analyze::stft;
-use crate::utils::{convolve, hz_to_octs, TEMPLATES_MAJMIN};
+use crate::utils::{convolve, hz_to_octs, hz_to_octs_inplace, TEMPLATES_MAJMIN};
 use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, RemoveAxis, Zip};
 use ndarray_stats::interpolate::Midpoint;
 use ndarray_stats::QuantileExt;
@@ -452,7 +452,9 @@ pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_oct
     if frequencies.is_empty() {
         return 0.0;
     }
-    *frequencies = f64::from(bins_per_octave) * hz_to_octs(frequencies, 0.0, 12) % 1.0;
+    // todo make it return a ref to frequencies
+    hz_to_octs_inplace(frequencies, 0.0, 12);
+    frequencies.mapv_inplace(|x| f64::from(bins_per_octave) * x  % 1.0);
 
     // Put everything between -0.5 and 0.5.
     frequencies.mapv_inplace(|x| if x >= 0.5 { x - 1. } else { x });

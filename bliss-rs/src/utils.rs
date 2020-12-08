@@ -1,4 +1,3 @@
-
 extern crate rustfft;
 use ndarray::{arr1, s, Array, Array1};
 use rustfft::num_complex::Complex;
@@ -77,6 +76,18 @@ pub fn hz_to_octs(frequencies: &Array1<f64>, tuning: f64, bins_per_octave: u32) 
     let a440 = 440.0 * (2_f64.powf(tuning / f64::from(bins_per_octave)) as f64);
 
     (frequencies / (a440 / 16.)).mapv(f64::log2)
+}
+
+pub fn hz_to_octs_inplace(
+    frequencies: &mut Array1<f64>,
+    tuning: f64,
+    bins_per_octave: u32,
+) -> &mut Array1<f64> {
+    let a440 = 440.0 * (2_f64.powf(tuning / f64::from(bins_per_octave)) as f64);
+
+    *frequencies /= a440 / 16.;
+    frequencies.mapv_inplace(f64::log2);
+    frequencies
 }
 
 pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
@@ -161,6 +172,17 @@ mod tests {
 
         let octs = hz_to_octs(&frequencies, 0.5, 10);
         octs.iter()
+            .zip(expected.iter())
+            .for_each(|(x, y)| assert!(0.0001 > (x - y).abs()));
+    }
+
+    #[test]
+    fn test_hz_to_octs_inplace() {
+        let mut frequencies = arr1(&[32., 64., 128., 256.]);
+        let expected = arr1(&[0.16864029, 1.16864029, 2.16864029, 3.16864029]);
+
+        hz_to_octs_inplace(&mut frequencies, 0.5, 10)
+            .iter()
             .zip(expected.iter())
             .for_each(|(x, y)| assert!(0.0001 > (x - y).abs()));
     }
