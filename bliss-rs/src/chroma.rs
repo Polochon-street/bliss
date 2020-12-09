@@ -286,10 +286,6 @@ pub fn analysis_template_match(
     templates: &Array2<f64>,
     normalize: bool,
 ) -> Array2<f64> {
-    if chroma.shape()[0] != 12 || templates.shape()[0] != 12 {
-        panic!("Wrong size for input");
-    }
-
     let chroma_normalized = normalize_feature_sequence(chroma);
     let templates_normalized = normalize_feature_sequence(templates);
 
