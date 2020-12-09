@@ -1,5 +1,5 @@
 extern crate rustfft;
-use ndarray::{arr1, s, Array, Array1};
+use ndarray::{s, Array, Array1};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FFTplanner;
@@ -90,6 +90,8 @@ pub fn hz_to_octs_inplace(
     frequencies
 }
 
+// TODO try to make this FFT real only
+// TODO have less buffers - technically, we probably only need two
 pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let common_length = input.len() + kernel.len() - 1;
     let input = input.mapv(|x| Complex::new(x, 0.));
@@ -99,34 +101,26 @@ pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let mut padded_kernel = Array::zeros(common_length);
     padded_kernel.slice_mut(s![..kernel.len()]).assign(&kernel);
 
-    let mut input_fft: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
-    let mut kernel_fft: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
+    let mut input_fft = Array::from_elem(common_length, Complex::zero());
+    let mut kernel_fft = Array::from_elem(common_length, Complex::zero());
 
     let mut planner = FFTplanner::new(false);
     let fft = planner.plan_fft(common_length);
-    fft.process(&mut padded_input.to_vec(), &mut input_fft);
-    fft.process(&mut padded_kernel.to_vec(), &mut kernel_fft);
+    fft.process(padded_input.as_slice_mut().unwrap(), input_fft.as_slice_mut().unwrap());
+    fft.process(padded_kernel.as_slice_mut().unwrap(), kernel_fft.as_slice_mut().unwrap());
 
-    let mut multiplication = input_fft
-        .iter()
-        .zip(kernel_fft)
-        .map(|(x, y)| x * y)
-        .collect::<Vec<Complex<f64>>>();
+    let mut multiplication = input_fft * kernel_fft;
 
     let mut planner = FFTplanner::new(true);
-    let mut output: Vec<Complex<f64>> = vec![Complex::zero(); common_length];
+    let mut output = Array::from_elem(common_length, Complex::zero());
     let fft = planner.plan_fft(common_length);
-    fft.process(&mut multiplication, &mut output);
+    fft.process(multiplication.as_slice_mut().unwrap(), output.as_slice_mut().unwrap());
 
-    let output = arr1(
-        &output
-            .iter()
-            .map(|x| x.re / output.len() as f64)
-            .collect::<Vec<f64>>(),
-    );
-    output.slice_move(s![
+    let output_length = output.len() as f64;
+    let output = output.slice_move(s![
         (common_length - input.len()) / 2..(common_length - input.len()) / 2 + input.len()
-    ])
+    ]);
+    output.mapv(|x| x.re / output_length)
 }
 
 #[cfg(test)]
