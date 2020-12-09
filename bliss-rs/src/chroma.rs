@@ -281,7 +281,7 @@ fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     normalized_sequence
 }
 
-fn analysis_template_match(
+pub fn analysis_template_match(
     chroma: &Array2<f64>,
     templates: &Array2<f64>,
     normalize: bool,
