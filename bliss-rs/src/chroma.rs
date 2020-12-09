@@ -266,7 +266,7 @@ fn smooth_downsample_feature_sequence(
     output / filter_length as f64
 }
 
-fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
+pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     let mut normalized_sequence = Array::zeros(feature.raw_dim());
     Zip::from(feature.gencolumns())
         .and(normalized_sequence.gencolumns_mut())
