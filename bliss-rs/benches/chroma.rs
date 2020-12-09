@@ -38,4 +38,14 @@ mod test {
             pip_track(22050, &spectrum, 2048);
         });
     }
+
+    #[bench]
+    fn bench_chroma_filter(b: &mut Bencher) {
+        let file = File::open("data/chroma-filter.npy").unwrap();
+        let expected_filter = Array2::<f64>::read_npy(file).unwrap();
+
+        b.iter(|| {
+            chroma_filter(22050, 2048, 12, -0.1);
+        });
+    }
 }
