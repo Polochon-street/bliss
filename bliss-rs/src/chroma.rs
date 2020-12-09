@@ -281,15 +281,11 @@ fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     normalized_sequence
 }
 
-fn analysis_template_match(
+pub fn analysis_template_match(
     chroma: &Array2<f64>,
     templates: &Array2<f64>,
     normalize: bool,
 ) -> Array2<f64> {
-    if chroma.shape()[0] != 12 || templates.shape()[0] != 12 {
-        panic!("Wrong size for input");
-    }
-
     let chroma_normalized = normalize_feature_sequence(chroma);
     let templates_normalized = normalize_feature_sequence(templates);
 

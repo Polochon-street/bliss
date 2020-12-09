@@ -5,7 +5,8 @@
 mod test {
     extern crate test;
     use bliss_rs::chroma::*;
-    use ndarray::{Array1, Array2};
+    use bliss_rs::utils::TEMPLATES_MAJMIN;
+    use ndarray::{Array, Array1, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
     use test::Bencher;
@@ -43,6 +44,17 @@ mod test {
     fn bench_chroma_filter(b: &mut Bencher) {
         b.iter(|| {
             chroma_filter(22050, 2048, 12, -0.1);
+        });
+    }
+
+    #[bench]
+    fn bench_analysis_template_match(b: &mut Bencher) {
+        let file = File::open("data/chroma.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
+
+        let templates = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
+        b.iter(|| {
+            analysis_template_match(&chroma, &templates, true);
         });
     }
 }
