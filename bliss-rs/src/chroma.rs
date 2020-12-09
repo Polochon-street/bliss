@@ -267,16 +267,14 @@ fn smooth_downsample_feature_sequence(
 }
 
 pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
-    let mut normalized_sequence = Array::zeros(feature.raw_dim());
-    Zip::from(feature.gencolumns())
-        .and(normalized_sequence.gencolumns_mut())
-        .apply(|col, mut norm_col| {
-            let mut sum = (&col * &col).sum().sqrt();
-            if sum < 0.0001 {
-                sum = 1.;
-            }
-            norm_col.assign(&(&col / sum));
-        });
+    let mut normalized_sequence = feature.to_owned();
+    for mut column in normalized_sequence.gencolumns_mut() {
+        let mut sum = column.mapv(|x| x.powf(2.0)).sum().sqrt();
+        if sum < 0.0001 {
+            sum = 1.;
+        }
+        column /= sum;
+    }
 
     normalized_sequence
 }
