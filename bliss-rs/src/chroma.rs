@@ -8,7 +8,7 @@ extern crate aubio_lib;
 extern crate noisy_float;
 
 use crate::analyze::stft;
-use crate::utils::{convolve, hz_to_octs, hz_to_octs_inplace, TEMPLATES_MAJMIN};
+use crate::utils::{convolve, hz_to_octs_inplace, TEMPLATES_MAJMIN};
 use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, RemoveAxis, Zip};
 use ndarray_stats::interpolate::Midpoint;
 use ndarray_stats::QuantileExt;
@@ -303,20 +303,21 @@ fn analysis_template_match(
 
 // All the functions below are more than heavily inspired from
 // librosa"s code: https://github.com/librosa/librosa/blob/main/librosa/feature/spectral.py#L1165
+// TODO maybe hardcode it? Since it doesn't need to be recomputed every time
 // chroma(22050, n_fft=5, n_chroma=12)
 pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
     let ctroct = 5.0;
-    let octwidth = 2;
+    let octwidth = 2.;
+    let n_chroma_float = f64::from(n_chroma);
+    let n_chroma2 = (n_chroma_float / 2.0).round() as u32;
+    let n_chroma2_float = f64::from(n_chroma2);
 
     let frequencies = Array::linspace(0., f64::from(sample_rate), (n_fft + 1) as usize);
-    let length = frequencies.len();
-    let frequencies = frequencies.slice_move(s![1..length - 1]);
 
-    let mut freq_bins = Array::zeros(frequencies.raw_dim() + 1);
-    freq_bins
-        .slice_mut(s![1..frequencies.len() + 1])
-        .assign(&(f64::from(n_chroma) * hz_to_octs(&frequencies, tuning, n_chroma)));
-    freq_bins[0] = freq_bins[1] - 1.5 * f64::from(n_chroma);
+    let mut freq_bins = frequencies;
+    hz_to_octs_inplace(&mut freq_bins, tuning, n_chroma);
+    freq_bins.mapv_inplace(|x| x * n_chroma_float);
+    freq_bins[0] = freq_bins[1] - 1.5 * n_chroma_float;
 
     let mut binwidth_bins = Array::ones(freq_bins.raw_dim());
     binwidth_bins.slice_mut(s![0..freq_bins.len() - 1]).assign(
@@ -328,42 +329,32 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
             }
         }),
     );
-    binwidth_bins[freq_bins.len() - 1] = 1.;
 
-    let mut a: Array2<f64> = Array::zeros((n_chroma as usize, (&freq_bins).len()));
-    for (idx, mut row) in a.genrows_mut().into_iter().enumerate() {
+    let mut d: Array2<f64> = Array::zeros((n_chroma as usize, (&freq_bins).len()));
+    for (idx, mut row) in d.genrows_mut().into_iter().enumerate() {
         row.fill(idx as f64);
     }
-    let d = -a + &freq_bins;
-    let n_chroma2 = (f64::from(n_chroma) / 2.0).round() as u32;
+    d = -d + &freq_bins;
 
-    let d = (d + f64::from(n_chroma2) + 10. * f64::from(n_chroma)) % f64::from(n_chroma)
-        - f64::from(n_chroma2) as f64;
-    let mut a: Array2<f64> = Array::zeros((n_chroma as usize, binwidth_bins.len()));
-    for mut row in a.genrows_mut() {
-        row.assign(&binwidth_bins);
-    }
-    let mut wts = (-0.5 * (2. * d / a).mapv(|x| x.powf(2.))).mapv(f64::exp);
+    d.mapv_inplace(|x| {
+        (x + n_chroma2_float + 10. * n_chroma_float) % n_chroma_float - n_chroma2_float
+    });
+    d = d / binwidth_bins;
+    d.mapv_inplace(|x| (-0.5 * (2. * x).powf(2.)).exp());
+
+    let mut wts = d;
     // Normalize by computing the l2-norm over the columns
     for mut col in wts.gencolumns_mut() {
-        let mut sum = (&col * &col).sum().sqrt();
+        let mut sum = col.mapv(|x| x.powf(2.)).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
-        col.assign(&(&col / sum));
+        col /= sum;
     }
 
-    let mut scaling: Array2<f64> = Array::zeros((n_chroma as usize, freq_bins.len()));
-    for mut row in scaling.genrows_mut() {
-        row.assign(
-            &(-0.5
-                * ((&freq_bins / f64::from(n_chroma) - ctroct) / f64::from(octwidth))
-                    .mapv(|x| x.powf(2.)))
-            .mapv(f64::exp),
-        );
-    }
+    freq_bins.mapv_inplace(|x| (-0.5 * ((x / n_chroma_float - ctroct) / octwidth).powf(2.)).exp());
 
-    let wts = wts * scaling;
+    wts *= &freq_bins;
 
     // np.roll(), np bro
     let mut uninit: Vec<f64> = Vec::with_capacity((&wts).len());
@@ -374,12 +365,16 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
     b.slice_mut(s![-3.., ..]).assign(&wts.slice(s![..3, ..]));
     b.slice_mut(s![..-3, ..]).assign(&wts.slice(s![3.., ..]));
 
-    let wts = b;
+    wts = b;
     let non_aliased = (1 + n_fft / 2) as usize;
     wts.slice_move(s![.., ..non_aliased])
 }
 
-pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Array2<f64>, Array2<f64>) {
+pub fn pip_track(
+    sample_rate: u32,
+    spectrum: &Array2<f64>,
+    n_fft: usize,
+) -> (Array2<f64>, Array2<f64>) {
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(f64::from(sample_rate) / 2.0);
     let threshold = 0.1;
@@ -428,7 +423,6 @@ pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Arr
         .and(&avg)
         .and(&shift);
 
-
     // TODO if becomes slow, then zip spectrum.slice[..-2, ..] together with
     // spectrum.slice[1..-1, ..] and spectrum.slice[2, ..], do stuff regarding i + 1
     // instead and work separately on the last column.
@@ -454,7 +448,7 @@ pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_oct
     }
     // todo make it return a ref to frequencies
     hz_to_octs_inplace(frequencies, 0.0, 12);
-    frequencies.mapv_inplace(|x| f64::from(bins_per_octave) * x  % 1.0);
+    frequencies.mapv_inplace(|x| f64::from(bins_per_octave) * x % 1.0);
 
     // Put everything between -0.5 and 0.5.
     frequencies.mapv_inplace(|x| if x >= 0.5 { x - 1. } else { x });
