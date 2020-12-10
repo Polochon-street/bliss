@@ -254,15 +254,10 @@ pub fn smooth_downsample_feature_sequence(
         feature.dim().0,
         (feature.dim().1 as f64 / down_sampling as f64).ceil() as usize,
     ));
-    for (index, row) in feature.genrows().into_iter().enumerate() {
-        let smoothed = convolve(&row.to_owned(), &filter_kernel);
-        let smoothed: Array1<f64> = smoothed
-            .to_vec()
-            .into_iter()
-            .step_by(down_sampling as usize)
-            .collect::<Array1<f64>>();
-        output.slice_mut(s![index, ..]).assign(&smoothed);
-    }
+    Zip::from(feature.genrows()).and(output.genrows_mut()).apply(|f, mut o| {
+        let smoothed = convolve(&f.to_owned(), &filter_kernel);
+        o.assign(&smoothed.slice(s![..; down_sampling as usize]));
+    });
     output / filter_length as f64
 }
 
