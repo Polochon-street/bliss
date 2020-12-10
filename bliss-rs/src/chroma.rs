@@ -244,7 +244,7 @@ fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
     b
 }
 
-fn smooth_downsample_feature_sequence(
+pub fn smooth_downsample_feature_sequence(
     feature: &Array2<f64>,
     filter_length: u32,
     down_sampling: u32,
