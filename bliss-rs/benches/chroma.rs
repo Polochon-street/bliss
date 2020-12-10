@@ -6,7 +6,7 @@ mod test {
     extern crate test;
     use bliss_rs::chroma::*;
     use bliss_rs::utils::TEMPLATES_MAJMIN;
-    use ndarray::{Array, Array1, Array2};
+    use ndarray::{arr2, Array, Array1, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
     use test::Bencher;
@@ -55,6 +55,14 @@ mod test {
         let templates = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
         b.iter(|| {
             analysis_template_match(&chroma, &templates, true);
+        });
+    }
+
+    #[bench]
+    fn bench_normalize_feature_sequence(b: &mut Bencher) {
+        let array = arr2(&[[0.1, 0.3, 0.4], [1.1, 0.53, 1.01]]);
+        b.iter(|| {
+            normalize_feature_sequence(&array);
         });
     }
 }
