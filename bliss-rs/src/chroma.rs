@@ -221,7 +221,7 @@ fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
     output
 }
 
-fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
+pub fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
     let mut output = Array2::zeros((PERFECT_FIFTH_INDICES.len(), feature.dim().1));
     for (array_index, &index) in PERFECT_FIFTH_INDICES.iter().enumerate() {
         output
