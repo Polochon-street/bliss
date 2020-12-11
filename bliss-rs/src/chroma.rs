@@ -188,7 +188,7 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     (tone, mode)
 }
 
-fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
+pub fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
     let mut output = Array2::zeros((12, 12 * templates.dim().1));
 
     for shift in 0..12 as isize {
