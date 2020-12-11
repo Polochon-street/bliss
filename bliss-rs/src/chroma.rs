@@ -20,7 +20,7 @@ const CHORD_LABELS: [&str; 24] = [
     "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
 ];
 // Contains the sequence of fifths: CHORD_LABELS[0] = C, CHORD_LABELS[7] = G, etc.
-const PERFECT_FIFTH_INDICES: [u8; 12] = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+const PERFECT_FIFTH_INDICES: [u8; 12] = [5, 0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10];
 #[allow(dead_code)]
 const SCALE_LABELS_ABSOLUTE: [&str; 12] = [
     "0", "1#", "2#", "3#", "4#", "5#", "6#", "5b", "4b", "3b", "2b", "1b",
@@ -145,7 +145,7 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
 
     let chroma_filtered = smooth_downsample_feature_sequence(chroma, 45, 15);
     let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
-    let chroma_sorted = sort_by_fifths(&chroma_filtered, -1);
+    let chroma_sorted = sort_by_fifths(&chroma_filtered);
     let template_diatonic = arr2(&[
         [1.],
         [3.],
@@ -221,7 +221,7 @@ fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
     output
 }
 
-fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
+pub fn sort_by_fifths(feature: &Array2<f64>) -> Array2<f64> {
     let mut output = Array2::zeros((PERFECT_FIFTH_INDICES.len(), feature.dim().1));
     for (array_index, &index) in PERFECT_FIFTH_INDICES.iter().enumerate() {
         output
@@ -229,19 +229,7 @@ fn sort_by_fifths(feature: &Array2<f64>, offset: isize) -> Array2<f64> {
             .assign(&feature.index_axis(Axis(0), index as usize));
     }
 
-    // np.roll again TODO make a proper function
-    // np.roll(array, -offset)
-    let mut uninit: Vec<f64> = Vec::with_capacity((&output).len());
-    unsafe {
-        uninit.set_len(output.len());
-    }
-    let mut b = Array::from(uninit).into_shape(output.dim()).unwrap();
-    b.slice_mut(s![-offset.., ..])
-        .assign(&output.slice(s![..offset, ..]));
-    b.slice_mut(s![..-offset, ..])
-        .assign(&output.slice(s![offset.., ..]));
-
-    b
+    output
 }
 
 pub fn smooth_downsample_feature_sequence(
@@ -571,7 +559,7 @@ mod test {
         let file = File::open("data/sorted_features.npy").unwrap();
         let expected_sorted = Array2::<f64>::read_npy(file).unwrap();
 
-        let sorted = sort_by_fifths(&features, -1);
+        let sorted = sort_by_fifths(&features);
         for (expected, actual) in expected_sorted.iter().zip(sorted.iter()) {
             assert!(0.0000001 > (expected - actual).abs());
         }

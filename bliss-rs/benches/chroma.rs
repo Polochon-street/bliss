@@ -75,4 +75,14 @@ mod test {
             smooth_downsample_feature_sequence(&chroma, 45, 15);
         });
     }
+
+    #[bench]
+    fn bench_sort_by_fifths(b: &mut Bencher) {
+        let file = File::open("data/filtered_features.npy").unwrap();
+        let features = Array2::<f64>::read_npy(file).unwrap();
+
+        b.iter(|| {
+            sort_by_fifths(&features);
+        });
+    }
 }
