@@ -65,4 +65,14 @@ mod test {
             normalize_feature_sequence(&array);
         });
     }
+
+    #[bench]
+    fn bench_smooth_downsample_feature_sequence(b: &mut Bencher) {
+        let file = File::open("data/chroma.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
+
+        b.iter(|| {
+            smooth_downsample_feature_sequence(&chroma, 45, 15);
+        });
+    }
 }
