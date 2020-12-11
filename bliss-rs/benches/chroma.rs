@@ -82,7 +82,7 @@ mod test {
         let features = Array2::<f64>::read_npy(file).unwrap();
 
         b.iter(|| {
-            sort_by_fifths(&features, -1);
+            sort_by_fifths(&features);
         });
     }
 }
