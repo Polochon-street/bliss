@@ -29,6 +29,7 @@ git = "https://github.com/katyo/aubio-rs"
 git = "https://github.com/Polochon-street/aubio-rs"
 optional = true
 branch = "fix-python-version"
+features = ["with-fftw3"]
 
 [dependencies.ffmpeg4]
 # Like this until https://github.com/bacek/rust-ffmpeg4/pull/5 is merged

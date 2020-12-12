@@ -41,6 +41,7 @@ version = "0.1.3"
 source = "git+https://github.com/Polochon-street/aubio-rs?branch=fix-python-version#84240cae841cfdb616296c19d10215bb34db9bd5"
 dependencies = [
  "aubio-sys 0.1.3 (git+https://github.com/Polochon-street/aubio-rs?branch=fix-python-version)",
+ "cmake",
  "fetch_unroll",
 ]
 
@@ -245,6 +246,15 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
+]
+
+[[package]]
+name = "cmake"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb6210b637171dfba4cda12e579ac6dc73f5165ad56133e5d72ef3131f320855"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
