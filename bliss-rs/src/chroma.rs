@@ -114,7 +114,7 @@ impl ChromaDesc {
 
 // Functions below are Rust versions of python notebooks by AudioLabs Erlang
 // (https://www.audiolabs-erlangen.de/resources/MIR/FMP/C0/C0.html)
-fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
+pub fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     // Values here are in the same order as SCALE_LABELS_ABSOLUTES
     let scale_values: [(f32, f32); 12] = [
         (f32::cos(PI / 2.), f32::sin(PI / 2.)),

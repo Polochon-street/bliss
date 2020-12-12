@@ -107,4 +107,14 @@ mod test {
             generate_template_matrix(&templates);
         });
     }
+
+    #[bench]
+    fn bench_fifth_is_major(b: &mut Bencher) {
+        let file = File::open("data/chroma.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
+
+        b.iter(|| {
+            chroma_fifth_is_major(&chroma);
+        });
+    }
 }
