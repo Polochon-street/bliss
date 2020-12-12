@@ -344,34 +344,14 @@ pub fn pip_track(
     spectrum: &Array2<f64>,
     n_fft: usize,
 ) -> (Array2<f64>, Array2<f64>) {
+    let sample_rate_float = f64::from(sample_rate);
     let fmin = 150.0_f64;
-    let fmax = 4000.0_f64.min(f64::from(sample_rate) / 2.0);
+    let fmax = 4000.0_f64.min(sample_rate_float / 2.0);
     let threshold = 0.1;
 
-    let fft_freqs = Array::linspace(0., f64::from(sample_rate) / 2., 1 + n_fft / 2);
+    let fft_freqs = Array::linspace(0., sample_rate_float / 2., 1 + n_fft / 2);
 
     let length = spectrum.len_of(Axis(0));
-
-    let mut avg = Array::zeros(spectrum.raw_dim());
-    avg.slice_mut(s![1..length - 1, ..])
-        .assign(&(0.5 * (&spectrum.slice(s![2.., ..]) - &spectrum.slice(s![..-2, ..]))));
-
-    let mut shift = Array::zeros(spectrum.raw_dim());
-    shift.slice_mut(s![1..length - 1, ..]).assign(
-        &(2. * &spectrum.slice(s![1..length - 1, ..])
-            - spectrum.slice(s![2.., ..])
-            - spectrum.slice(s![0..length - 2, ..])),
-    );
-
-    // TODO find more optimal stuff
-    shift.mapv_inplace(|x| {
-        if x.abs() < f64::MIN_POSITIVE {
-            x + 1.
-        } else {
-            x
-        }
-    });
-    shift = &avg / &shift;
 
     let freq_mask = fft_freqs
         .iter()
@@ -388,22 +368,29 @@ pub fn pip_track(
 
     let zipped = Zip::indexed(spectrum)
         .and(&mut pitches)
-        .and(&mut mags)
-        .and(&avg)
-        .and(&shift);
+        .and(&mut mags);
 
     // TODO if becomes slow, then zip spectrum.slice[..-2, ..] together with
     // spectrum.slice[1..-1, ..] and spectrum.slice[2, ..], do stuff regarding i + 1
     // instead and work separately on the last column.
-    zipped.apply(|(i, j), elem, pitch, mag, avg, shift| {
+    // TODO 2 - actually ^ not so faster?
+    zipped.apply(|(i, j), &elem, pitch, mag| {
         if i != 0
             && freq_mask[i]
-            && *elem > ref_value[j]
-            && (i + 1 >= length || spectrum[[i + 1, j]] <= *elem)
-            && spectrum[[i - 1, j]] < *elem
+            && elem > ref_value[j]
+            && (i + 1 >= length || spectrum[[i + 1, j]] <= elem)
+            && spectrum[[i - 1, j]] < elem
         {
-            *pitch = (i as f64 + *shift) * f64::from(sample_rate) / n_fft as f64;
-            *mag = *elem + 0.5 * *avg * *shift;
+            let after_elem = spectrum[[i + 1, j]];
+            let before_elem = spectrum[[i - 1, j]];
+            let avg = 0.5 * (after_elem - before_elem);
+            let mut shift = 2. * elem - after_elem - before_elem;
+            if shift.abs() < f64::MIN_POSITIVE {
+                shift += 1.;
+            }
+            shift = avg / shift;
+            *pitch = (i as f64 + shift) * sample_rate_float / n_fft as f64;
+            *mag = elem + 0.5 * avg * shift;
         }
     });
 
