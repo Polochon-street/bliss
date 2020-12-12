@@ -188,34 +188,18 @@ fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     (tone, mode)
 }
 
-fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
+pub fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
     let mut output = Array2::zeros((12, 12 * templates.dim().1));
 
-    for shift in 0..12 as isize {
-        let mut uninit: Vec<f64> = Vec::with_capacity((&templates).len());
-        unsafe {
-            uninit.set_len(templates.len());
-        }
-        let mut rolled = Array::from(uninit).into_shape(templates.dim()).unwrap();
-        if shift != 0 {
-            rolled
-                .slice_mut(s![shift.., ..])
-                .assign(&templates.slice(s![..-shift, ..]));
-            rolled
-                .slice_mut(s![..shift, ..])
-                .assign(&templates.slice(s![-shift.., ..]));
-        } else {
-            rolled = templates.to_owned();
-        }
+    output.slice_mut(s![.., ..;12]).assign(&templates);
+
+    for shift in 1..12 as isize {
         output
-            .column_mut(shift as usize)
-            .assign(&rolled.index_axis(Axis(1), 0));
-        // TODO ugly hack; fixme
-        if templates.dim().1 > 1 {
-            output
-                .column_mut(shift as usize + 12)
-                .assign(&rolled.index_axis(Axis(1), 1));
-        }
+            .slice_mut(s![shift.., shift as usize..;12])
+            .assign(&templates.slice(s![..-shift, ..]));
+        output
+            .slice_mut(s![..shift, shift as usize..;12])
+            .assign(&templates.slice(s![-shift.., ..]));
     }
 
     output
@@ -242,10 +226,12 @@ pub fn smooth_downsample_feature_sequence(
         feature.dim().0,
         (feature.dim().1 as f64 / down_sampling as f64).ceil() as usize,
     ));
-    Zip::from(feature.genrows()).and(output.genrows_mut()).apply(|f, mut o| {
-        let smoothed = convolve(&f.to_owned(), &filter_kernel);
-        o.assign(&smoothed.slice(s![..; down_sampling as usize]));
-    });
+    Zip::from(feature.genrows())
+        .and(output.genrows_mut())
+        .apply(|f, mut o| {
+            let smoothed = convolve(&f.to_owned(), &filter_kernel);
+            o.assign(&smoothed.slice(s![..; down_sampling as usize]));
+        });
     output / filter_length as f64
 }
 

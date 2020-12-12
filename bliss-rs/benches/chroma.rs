@@ -85,4 +85,26 @@ mod test {
             sort_by_fifths(&features);
         });
     }
+
+
+    #[bench]
+    fn bench_generate_template_matrix(b: &mut Bencher) {
+        let templates = arr2(&[
+            [1., 1.],
+            [0., 0.],
+            [0., 0.],
+            [0., 1.],
+            [1., 0.],
+            [0., 0.],
+            [0., 0.],
+            [1., 1.],
+            [0., 0.],
+            [0., 0.],
+            [0., 0.],
+            [0., 0.],
+        ]);
+        b.iter(|| {
+            generate_template_matrix(&templates);
+        });
+    }
 }
