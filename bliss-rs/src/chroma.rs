@@ -114,6 +114,7 @@ impl ChromaDesc {
 
 // Functions below are Rust versions of python notebooks by AudioLabs Erlang
 // (https://www.audiolabs-erlangen.de/resources/MIR/FMP/C0/C0.html)
+// TODO maybe make functions like normalize, etc, in place
 pub fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     // Values here are in the same order as SCALE_LABELS_ABSOLUTES
     let scale_values: [(f32, f32); 12] = [
@@ -133,18 +134,17 @@ pub fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
 
     let templates_majmin = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
 
-    let chroma_filtered = smooth_downsample_feature_sequence(chroma, 15, 10);
-    let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
+    let chroma_filtered =
+        normalize_feature_sequence(&smooth_downsample_feature_sequence(chroma, 15, 10));
     let f_analysis_prefilt = analysis_template_match(&chroma_filtered, &templates_majmin, true);
-    let mut f_analysis_max_prefilt = Array::zeros((24, f_analysis_prefilt.dim().1));
-    for (i, column) in f_analysis_prefilt.gencolumns().into_iter().enumerate() {
-        let index = column.argmax().unwrap();
-        f_analysis_max_prefilt[[index, i]] = 1.;
+    let mut summed: Array1<f64> = Array::zeros(24);
+    for prefilt_column in f_analysis_prefilt.gencolumns() {
+        let index = prefilt_column.argmax().unwrap();
+        summed[[index]] += 1.;
     }
-    let summed = f_analysis_max_prefilt.sum_axis(Axis(1));
 
-    let chroma_filtered = smooth_downsample_feature_sequence(chroma, 45, 15);
-    let chroma_filtered = normalize_feature_sequence(&chroma_filtered);
+    let chroma_filtered =
+        normalize_feature_sequence(&smooth_downsample_feature_sequence(chroma, 45, 15));
     let chroma_sorted = sort_by_fifths(&chroma_filtered);
     let template_diatonic = arr2(&[
         [1.],
@@ -161,24 +161,30 @@ pub fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
         [0.],
     ]);
     let templates_scale = generate_template_matrix(&template_diatonic);
-    let f_analysis = analysis_template_match(&chroma_sorted, &templates_scale, false);
-    let f_analysis_norm = normalize_feature_sequence(&f_analysis);
-    let f_analysis_exp = (f_analysis_norm * 70.).mapv(f64::exp);
-    let f_analysis_rescaled = &f_analysis_exp / &f_analysis_exp.sum_axis(Axis(0));
+    let mut f_analysis = 70.
+        * normalize_feature_sequence(&analysis_template_match(
+            &chroma_sorted,
+            &templates_scale,
+            false,
+        ));
+    f_analysis.mapv_inplace(f64::exp);
+    f_analysis /= &f_analysis.sum_axis(Axis(0));
     // should this really be a mean?
-    let index = f_analysis_rescaled
+    // this basically gets the fifth with most occurences
+    let index = f_analysis
         .mean_axis(Axis(1))
         .unwrap()
         .argmax()
         .unwrap();
+
     let major_chord = CIRCLE_FIFTHS[index].0;
     let major_chord_index = CHORD_LABELS.iter().position(|&x| x == major_chord).unwrap();
     let minor_chord = format!("{}m", CIRCLE_FIFTHS[index].1);
     let minor_chord_index = CHORD_LABELS.iter().position(|&x| x == minor_chord).unwrap();
-
     let minor = summed[minor_chord_index];
     let major = summed[major_chord_index];
     let mode = scale_values[index];
+
     let tone_bool = major > minor;
     let mut tone = -1.;
     if tone_bool {
