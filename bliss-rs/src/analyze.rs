@@ -10,12 +10,12 @@ extern crate crossbeam;
 extern crate ndarray;
 extern crate ndarray_npy;
 
-use std::f64::consts::PI;
+use std::f32::consts::PI as PI;
 
-use aubio_rs::vec::CVec;
-use aubio_rs::FFT;
-use ndarray::ShapeBuilder;
-use ndarray::{arr1, s, Array, Array1, Array2};
+use ndarray::{arr1, s, Array, Array2};
+use rustfft::num_complex::Complex;
+use rustfft::num_traits::Zero;
+use rustfft::FFTplanner;
 
 use crate::chroma::ChromaDesc;
 use crate::decode::decode_song;
@@ -46,43 +46,40 @@ fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
 }
 
 pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f64> {
-    let mut fft = FFT::new(window_length).unwrap();
-
+    let mut stft = Array2::zeros((
+        window_length / 2 + 1,
+        (signal.len() as f32 / hop_length as f32).ceil() as usize,
+    ));
     let signal = reflect_pad(&signal, window_length / 2);
-    //let mut stft = Array2::zeros((window_length / 2 + 1, 0));
-    let mut stft: Vec<f32> = Vec::new();
 
     // TODO actually have it constant - no need to compute it everytime
     // Periodic, so window_size + 1
     let mut hann_window = Array::zeros(window_length + 1);
     for n in 0..window_length {
-        hann_window[[n]] = 0.5 - 0.5 * f64::cos(2. * n as f64 * PI / (window_length as f64));
+        hann_window[[n]] = 0.5 - 0.5 * f32::cos(2. * n as f32 * PI / (window_length as f32));
     }
-    // TODO no need for count
-    let mut count = 0;
     hann_window = hann_window.slice_move(s![0..window_length]);
-    for i in 1..signal.len() {
-        if i >= window_length && (i - window_length) % hop_length == 0 {
-            let beginning = i - window_length;
-            let end = i;
-            let mut fftgrain: Vec<f32> = vec![0.0; window_length + 2];
-            // TODO directly apply hann window maybe
-            let signal = (arr1(&signal[beginning..end]).mapv(f64::from) * &hann_window)
-                .mapv(|x| x as f32)
-                .to_vec();
-            fft.do_(&signal, fftgrain.as_mut_slice()).unwrap();
-            let cvec: CVec = fftgrain.as_slice().into();
-            let norm: Array1<f32> = arr1(&cvec.norm());
-            stft.append(&mut norm.to_vec());
-            count += 1;
-        }
+    let mut output_window = Array::from_elem(window_length, Complex::zero());
+    let mut planner = FFTplanner::new(false);
+    let fft = planner.plan_fft(window_length);
+
+    for (window, mut stft_col) in signal
+        .windows(window_length)
+        .step_by(hop_length)
+        .zip(stft.gencolumns_mut())
+    {
+        let mut signal = (arr1(&window) * &hann_window).mapv(|x| Complex::new(x as f32, 0.));
+        fft.process(
+            signal.as_slice_mut().unwrap(),
+            output_window.as_slice_mut().unwrap(),
+        );
+        stft_col.assign(
+            &output_window
+                .slice(s![..window_length / 2 + 1])
+                .mapv(|x| x.norm() as f64),
+        );
     }
-    let stft = Array::from_shape_vec(
-        (window_length / 2 + 1, count).strides((1, window_length / 2 + 1)),
-        stft,
-    )
-    .unwrap();
-    stft.mapv(f64::from)
+    stft
 }
 
 pub fn analyze(song: &Song) -> Analysis {
@@ -93,7 +90,7 @@ pub fn analyze(song: &Song) -> Analysis {
 
     thread::scope(|s| {
         let child = s.spawn(|_| {
-        let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
+            let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
             chroma_desc.do_(&song.sample_array);
             chroma_desc.get_values()
         });
@@ -122,7 +119,7 @@ pub fn analyze(song: &Song) -> Analysis {
         }
         // Non-streaming approach for that one
         let (is_major, fifth) = child.join().unwrap();
-        
+
         Analysis {
             tempo: tempo_desc.get_value(),
             spectral_centroid: spectral_desc.get_centroid(),
@@ -133,14 +130,15 @@ pub fn analyze(song: &Song) -> Analysis {
             is_major,
             fifth,
         }
-    }).unwrap()
+    })
+    .unwrap()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::decode::decode_song;
-    use ndarray::Array2;
+    use ndarray::{arr1, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::f32::consts::PI;
     use std::fs::File;
@@ -173,6 +171,14 @@ mod tests {
         assert!(!stft.is_empty() && !expected_stft.is_empty());
         for (expected, actual) in expected_stft.iter().zip(stft.iter()) {
             assert!(0.0001 > (expected - actual).abs());
+        }
+    }
+
+    #[test]
+    fn test_foo() {
+        let array = arr1(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        for w in array.windows(4).into_iter().step_by(2) {
+            println!("{:?}", w);
         }
     }
 }
