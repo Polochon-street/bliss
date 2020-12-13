@@ -10,7 +10,7 @@ extern crate crossbeam;
 extern crate ndarray;
 extern crate ndarray_npy;
 
-use std::f32::consts::PI as PI;
+use std::f32::consts::PI;
 
 use ndarray::{arr1, s, Array, Array2};
 use rustfft::num_complex::Complex;
@@ -83,50 +83,70 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
 }
 
 pub fn analyze(song: &Song) -> Analysis {
-    let mut spectral_desc = SpectralDesc::new(song.sample_rate);
-    let mut zcr_desc = ZeroCrossingRateDesc::default();
-    let mut tempo_desc = BPMDesc::new(song.sample_rate);
-    let mut loudness_desc = LoudnessDesc::default();
-
     thread::scope(|s| {
-        let child = s.spawn(|_| {
+        let child_chroma = s.spawn(|_| {
             let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
             chroma_desc.do_(&song.sample_array);
             chroma_desc.get_values()
         });
 
         // These descriptors can be streamed
-        for i in 1..song.sample_array.len() {
-            if (i % SpectralDesc::HOP_SIZE) == 0 {
-                let beginning = (i / SpectralDesc::HOP_SIZE - 1) * SpectralDesc::HOP_SIZE;
-                let end = i;
-                spectral_desc.do_(&song.sample_array[beginning..end]);
-                zcr_desc.do_(&song.sample_array[beginning..end]);
+        let child_timbral = s.spawn(|_| {
+            let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+            let mut zcr_desc = ZeroCrossingRateDesc::default();
+            let windows = song
+                .sample_array
+                .windows(SpectralDesc::WINDOW_SIZE)
+                .step_by(SpectralDesc::HOP_SIZE);
+            for window in windows {
+                spectral_desc.do_(&window);
+                zcr_desc.do_(&window);
             }
+            let centroid = spectral_desc.get_centroid();
+            let rolloff = spectral_desc.get_rolloff();
+            let flatness = spectral_desc.get_flatness();
+            let zcr = zcr_desc.get_value();
+            (centroid, rolloff, flatness, zcr)
+        });
 
-            if (i % BPMDesc::HOP_SIZE) == 0 {
-                let beginning = (i / BPMDesc::HOP_SIZE - 1) * BPMDesc::HOP_SIZE;
-                let end = i;
-                tempo_desc.do_(&song.sample_array[beginning..end]);
-            }
+        let child_tempo = s.spawn(|_| {
+            let mut tempo_desc = BPMDesc::new(song.sample_rate);
+            let windows = song
+                .sample_array
+                .windows(BPMDesc::WINDOW_SIZE)
+                .step_by(BPMDesc::HOP_SIZE);
 
-            // Contiguous windows, so WINDOW_SIZE here
-            if (i % LoudnessDesc::WINDOW_SIZE) == 0 {
-                let beginning = (i / LoudnessDesc::WINDOW_SIZE - 1) * LoudnessDesc::WINDOW_SIZE;
-                let end = i;
-                loudness_desc.do_(&song.sample_array[beginning..end]);
+            for window in windows {
+                tempo_desc.do_(&window);
             }
-        }
+            tempo_desc.get_value()
+        });
+
+        let child_loudness = s.spawn(|_| {
+            let mut loudness_desc = LoudnessDesc::default();
+            let windows = song
+                .sample_array
+                .chunks(LoudnessDesc::WINDOW_SIZE);
+
+            for window in windows {
+                loudness_desc.do_(&window);
+            }
+            loudness_desc.get_value()
+        });
+
         // Non-streaming approach for that one
-        let (is_major, fifth) = child.join().unwrap();
+        let (is_major, fifth) = child_chroma.join().unwrap();
+        let (centroid, rolloff, flatness, zcr) = child_timbral.join().unwrap();
+        let tempo = child_tempo.join().unwrap();
+        let loudness = child_loudness.join().unwrap();
 
         Analysis {
-            tempo: tempo_desc.get_value(),
-            spectral_centroid: spectral_desc.get_centroid(),
-            zero_crossing_rate: zcr_desc.get_value(),
-            spectral_rolloff: spectral_desc.get_rolloff(),
-            spectral_flatness: spectral_desc.get_flatness(),
-            loudness: loudness_desc.get_value(),
+            tempo,
+            spectral_centroid: centroid,
+            zero_crossing_rate: zcr,
+            spectral_rolloff: rolloff,
+            spectral_flatness: flatness,
+            loudness,
             is_major,
             fifth,
         }
