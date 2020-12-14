@@ -358,10 +358,10 @@ pub fn pip_track(
         .map(|&f| (fmin <= f) && (f < fmax))
         .collect::<Vec<bool>>();
 
-    let mut ref_value = Array::zeros(spectrum.raw_dim().remove_axis(Axis(0)));
-    for (i, row) in spectrum.axis_iter(Axis(1)).enumerate() {
-        ref_value[i] = threshold * *row.max().unwrap();
-    }
+    let mut ref_value: Array1<f64> = Array::zeros(spectrum.raw_dim().remove_axis(Axis(0)));
+    Zip::from(spectrum.gencolumns()).and(&mut ref_value).apply(|row, r| {
+        *r = threshold * *row.max_skipnan();
+    });
 
     let mut pitches = Array::zeros(spectrum.raw_dim());
     let mut mags = Array::zeros(spectrum.raw_dim());
@@ -448,7 +448,7 @@ pub fn estimate_tuning(
     pitch_tuning(&mut pitch, resolution, bins_per_octave)
 }
 
-fn chroma_stft(
+pub fn chroma_stft(
     sample_rate: u32,
     spectrum: &Array2<f64>,
     n_fft: usize,
