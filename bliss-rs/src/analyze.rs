@@ -16,6 +16,7 @@ use ndarray::{arr1, s, Array, Array2};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FFTplanner;
+use realfft::{ComplexToReal, RealToComplex};
 
 use crate::chroma::ChromaDesc;
 use crate::decode::decode_song;
@@ -59,20 +60,19 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
         hann_window[[n]] = 0.5 - 0.5 * f32::cos(2. * n as f32 * PI / (window_length as f32));
     }
     hann_window = hann_window.slice_move(s![0..window_length]);
-    let mut output_window = Array::from_elem(window_length, Complex::zero());
-    let mut planner = FFTplanner::new(false);
-    let fft = planner.plan_fft(window_length);
+    let mut output_window = Array::from_elem(window_length / 2 + 1, Complex::zero());
+    let mut r2c = RealToComplex::<f32>::new(window_length).unwrap();
 
     for (window, mut stft_col) in signal
         .windows(window_length)
         .step_by(hop_length)
         .zip(stft.gencolumns_mut())
     {
-        let mut signal = (arr1(&window) * &hann_window).mapv(|x| Complex::new(x as f32, 0.));
-        fft.process(
+        let mut signal = arr1(&window) * &hann_window;
+        r2c.process(
             signal.as_slice_mut().unwrap(),
             output_window.as_slice_mut().unwrap(),
-        );
+        ).unwrap();
         stft_col.assign(
             &output_window
                 .slice(s![..window_length / 2 + 1])

@@ -3,6 +3,7 @@ use ndarray::{s, Array, Array1};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FFTplanner;
+use realfft::{ComplexToReal, RealToComplex};
 
 // Until https://github.com/rust-ndarray/ndarray/issues/446 is solved
 pub const TEMPLATES_MAJMIN: [f64; 12 * 24] = [
@@ -87,34 +88,34 @@ pub fn hz_to_octs_inplace(
 // TODO try to make this FFT real only
 // TODO have less buffers - technically, we probably only need two
 pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
-    let common_length = input.len() + kernel.len() - 1;
-    let input = input.mapv(|x| Complex::new(x, 0.));
-    let kernel = kernel.mapv(|x| Complex::new(x, 0.));
-    let mut padded_input = Array::from_elem(common_length, Complex::new(0., 0.));
+    let mut common_length = input.len() + kernel.len();
+    if (common_length % 2) != 0 {
+        println!("coucou");
+        common_length -= 1;
+    }
+    let mut padded_input = Array::zeros(common_length);
     padded_input.slice_mut(s![..input.len()]).assign(&input);
     let mut padded_kernel = Array::zeros(common_length);
     padded_kernel.slice_mut(s![..kernel.len()]).assign(&kernel);
 
-    let mut input_fft = Array::from_elem(common_length, Complex::zero());
-    let mut kernel_fft = Array::from_elem(common_length, Complex::zero());
+    let mut input_fft = Array::from_elem(common_length / 2 + 1, Complex::zero());
+    let mut kernel_fft = Array::from_elem(common_length / 2 + 1, Complex::zero());
 
-    let mut planner = FFTplanner::new(false);
-    let fft = planner.plan_fft(common_length);
-    fft.process(padded_input.as_slice_mut().unwrap(), input_fft.as_slice_mut().unwrap());
-    fft.process(padded_kernel.as_slice_mut().unwrap(), kernel_fft.as_slice_mut().unwrap());
+    let mut r2c = RealToComplex::<f64>::new(common_length).unwrap();
+    r2c.process(padded_input.as_slice_mut().unwrap(), input_fft.as_slice_mut().unwrap()).unwrap();
+    r2c.process(padded_kernel.as_slice_mut().unwrap(), kernel_fft.as_slice_mut().unwrap()).unwrap();
 
     let mut multiplication = input_fft * kernel_fft;
 
-    let mut planner = FFTplanner::new(true);
-    let mut output = Array::from_elem(common_length, Complex::zero());
-    let fft = planner.plan_fft(common_length);
-    fft.process(multiplication.as_slice_mut().unwrap(), output.as_slice_mut().unwrap());
+    let mut c2r = ComplexToReal::<f64>::new(common_length).unwrap();
+    let mut output = Array::zeros(common_length);
+    c2r.process(multiplication.as_slice_mut().unwrap(), output.as_slice_mut().unwrap()).unwrap();
 
     let output_length = output.len() as f64;
     let output = output.slice_move(s![
-        (common_length - input.len()) / 2..(common_length - input.len()) / 2 + input.len()
+        (kernel.len() - 1) / 2..(kernel.len() - 1) / 2 + input.len()
     ]);
-    output.mapv(|x| x.re / output_length)
+    output / (output_length / 2.)
 }
 
 #[cfg(test)]
@@ -132,7 +133,16 @@ mod tests {
         let kernel: Array1<f64> = Array::ones(100);
 
         let output = convolve(&input, &kernel);
+        for (expected, actual) in expected_convolve.iter().zip(output.iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
 
+        let input: Array1<f64> = Array::range(0., 1000., 0.5);
+        let file = File::open("data/convolve_odd.npy").unwrap();
+        let expected_convolve = Array1::<f64>::read_npy(file).unwrap();
+        let kernel: Array1<f64> = Array::ones(99);
+
+        let output = convolve(&input, &kernel);
         for (expected, actual) in expected_convolve.iter().zip(output.iter()) {
             assert!(0.0000001 > (expected - actual).abs());
         }
