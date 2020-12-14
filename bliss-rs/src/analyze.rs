@@ -15,8 +15,7 @@ use std::f32::consts::PI;
 use ndarray::{arr1, s, Array, Array2};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
-use rustfft::FFTplanner;
-use realfft::{ComplexToReal, RealToComplex};
+use realfft::RealToComplex;
 
 use crate::chroma::ChromaDesc;
 use crate::decode::decode_song;

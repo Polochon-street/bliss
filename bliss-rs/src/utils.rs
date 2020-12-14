@@ -2,7 +2,6 @@ extern crate rustfft;
 use ndarray::{s, Array, Array1};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
-use rustfft::FFTplanner;
 use realfft::{ComplexToReal, RealToComplex};
 
 // Until https://github.com/rust-ndarray/ndarray/issues/446 is solved
@@ -90,7 +89,6 @@ pub fn hz_to_octs_inplace(
 pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let mut common_length = input.len() + kernel.len();
     if (common_length % 2) != 0 {
-        println!("coucou");
         common_length -= 1;
     }
     let mut padded_input = Array::zeros(common_length);
