@@ -9,7 +9,7 @@ extern crate noisy_float;
 
 use crate::analyze::stft;
 use crate::utils::{convolve, hz_to_octs_inplace, TEMPLATES_MAJMIN};
-use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, RemoveAxis, Zip};
+use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, Zip};
 use ndarray_stats::interpolate::Midpoint;
 use ndarray_stats::QuantileExt;
 use noisy_float::prelude::*;
@@ -358,10 +358,7 @@ pub fn pip_track(
         .map(|&f| (fmin <= f) && (f < fmax))
         .collect::<Vec<bool>>();
 
-    let mut ref_value: Array1<f64> = Array::zeros(spectrum.raw_dim().remove_axis(Axis(0)));
-    Zip::from(spectrum.gencolumns()).and(&mut ref_value).apply(|row, r| {
-        *r = threshold * *row.max_skipnan();
-    });
+    let ref_value = spectrum.map_axis(Axis(0), |x| threshold * *x.max_skipnan());
 
     let mut pitches = Array::zeros(spectrum.raw_dim());
     let mut mags = Array::zeros(spectrum.raw_dim());

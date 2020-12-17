@@ -33,7 +33,7 @@ pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
     Ok(song)
 }
 
-fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
+pub fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
     let mut prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();
     let suffix = array[(array.len() - 2) - pad + 1..array.len() - 1]
         .iter()
@@ -157,7 +157,7 @@ pub fn analyze(song: &Song) -> Analysis {
 mod tests {
     use super::*;
     use crate::decode::decode_song;
-    use ndarray::{arr1, Array2};
+    use ndarray::Array2;
     use ndarray_npy::ReadNpyExt;
     use std::f32::consts::PI;
     use std::fs::File;
@@ -194,10 +194,12 @@ mod tests {
     }
 
     #[test]
-    fn test_foo() {
-        let array = arr1(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-        for w in array.windows(4).into_iter().step_by(2) {
-            println!("{:?}", w);
-        }
+    fn test_reflect_pad() {
+        let array = Array::range(0., 100000., 1.);
+
+        let output = reflect_pad(array.as_slice().unwrap(), 3);
+        assert_eq!(&output[..4], &[3.0, 2.0, 1.0, 0.]);
+        assert_eq!(&output[3..100003], array.to_vec());
+        assert_eq!(&output[100003..100006], &[99998.0, 99997.0, 99996.0]);
     }
 }

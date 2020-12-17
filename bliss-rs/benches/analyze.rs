@@ -6,6 +6,7 @@ mod test {
     extern crate test;
     use bliss_rs::analyze::*;
     use bliss_rs::decode::decode_song;
+    use ndarray::Array;
     use test::Bencher;
 
     #[bench]
@@ -14,6 +15,15 @@ mod test {
 
         b.iter(|| {
             stft(&song.sample_array, 2048, 512);
+        });
+    }
+
+    #[bench]
+    fn bench_reflect_pad(b: &mut Bencher) {
+        let array = Array::range(0., 100000., 1.);
+
+        b.iter(|| {
+            reflect_pad(array.as_slice().unwrap(), 3);
         });
     }
 }
