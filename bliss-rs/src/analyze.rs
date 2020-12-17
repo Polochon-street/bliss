@@ -34,15 +34,18 @@ pub fn decode_and_analyze(path: &str) -> Result<Song, String> {
 }
 
 pub fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
-    let mut prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();
+    let prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();
     let suffix = array[(array.len() - 2) - pad + 1..array.len() - 1]
         .iter()
         .rev()
         .copied()
         .collect::<Vec<f32>>();
-    prefix.extend(array);
-    prefix.extend(suffix);
-    prefix
+    let mut output = Vec::with_capacity(prefix.len() + array.len() + suffix.len());
+
+    output.extend(prefix);
+    output.extend(array);
+    output.extend(suffix);
+    output
 }
 
 pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f64> {

@@ -20,7 +20,7 @@ mod test {
 
     #[bench]
     fn bench_reflect_pad(b: &mut Bencher) {
-        let array = Array::range(0., 100000., 1.);
+        let array = Array::range(0., 1000000., 1.);
 
         b.iter(|| {
             reflect_pad(array.as_slice().unwrap(), 3);
