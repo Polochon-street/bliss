@@ -13,9 +13,9 @@ extern crate ndarray_npy;
 use std::f32::consts::PI;
 
 use ndarray::{arr1, s, Array, Array2};
+use realfft::RealToComplex;
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
-use realfft::RealToComplex;
 
 use crate::chroma::ChromaDesc;
 use crate::decode::decode_song;
@@ -49,9 +49,11 @@ pub fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
 }
 
 pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f64> {
+    // Take advantage of raw-major order to have contiguous window for the
+    // `assign`, reversing the axes to have the expected shape at the end only.
     let mut stft = Array2::zeros((
-        window_length / 2 + 1,
         (signal.len() as f32 / hop_length as f32).ceil() as usize,
+        window_length / 2 + 1,
     ));
     let signal = reflect_pad(&signal, window_length / 2);
 
@@ -68,20 +70,21 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
     for (window, mut stft_col) in signal
         .windows(window_length)
         .step_by(hop_length)
-        .zip(stft.gencolumns_mut())
+        .zip(stft.genrows_mut())
     {
         let mut signal = arr1(&window) * &hann_window;
         r2c.process(
             signal.as_slice_mut().unwrap(),
             output_window.as_slice_mut().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         stft_col.assign(
             &output_window
                 .slice(s![..window_length / 2 + 1])
-                .mapv(|x| x.norm() as f64),
+                .mapv(|x| (x.re * x.re + x.im * x.im).sqrt() as f64),
         );
     }
-    stft
+    stft.permuted_axes((1, 0))
 }
 
 pub fn analyze(song: &Song) -> Analysis {
@@ -126,9 +129,7 @@ pub fn analyze(song: &Song) -> Analysis {
 
         let child_loudness = s.spawn(|_| {
             let mut loudness_desc = LoudnessDesc::default();
-            let windows = song
-                .sample_array
-                .chunks(LoudnessDesc::WINDOW_SIZE);
+            let windows = song.sample_array.chunks(LoudnessDesc::WINDOW_SIZE);
 
             for window in windows {
                 loudness_desc.do_(&window);
