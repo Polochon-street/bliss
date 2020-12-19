@@ -55,11 +55,11 @@ impl Normalize for LoudnessDesc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decode::decode_song;
+    use crate::Song;
 
     #[test]
     fn test_loudness() {
-        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut loudness_desc = LoudnessDesc::default();
         for chunk in song.sample_array.chunks_exact(LoudnessDesc::WINDOW_SIZE) {
             loudness_desc.do_(&chunk);

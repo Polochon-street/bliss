@@ -7,7 +7,7 @@
 extern crate aubio_lib;
 extern crate noisy_float;
 
-use crate::analyze::stft;
+use crate::utils::stft;
 use crate::utils::{convolve, hz_to_octs_inplace, TEMPLATES_MAJMIN};
 use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, Zip};
 use ndarray_stats::interpolate::Midpoint;
@@ -471,8 +471,8 @@ pub fn chroma_stft(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::analyze::stft;
-    use crate::decode::decode_song;
+    use crate::utils::stft;
+    use crate::Song;
     use ndarray::{arr1, arr2, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
@@ -596,7 +596,7 @@ mod test {
 
     #[test]
     fn test_chroma_desc() {
-        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
         chroma_desc.do_(&song.sample_array);
         assert_eq!(
@@ -607,7 +607,7 @@ mod test {
 
     #[test]
     fn test_chroma_stft_decode() {
-        let signal = decode_song("data/s16_mono_22_5kHz.flac")
+        let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
             .sample_array;
         let stft = stft(&signal, 8192, 2205);
@@ -635,7 +635,7 @@ mod test {
 
     #[test]
     fn test_estimate_tuning_decode() {
-        let signal = decode_song("data/s16_mono_22_5kHz.flac")
+        let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
             .sample_array;
         let stft = stft(&signal, 8192, 2205);

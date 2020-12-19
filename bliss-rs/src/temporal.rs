@@ -73,11 +73,11 @@ impl Normalize for BPMDesc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decode::decode_song;
+    use crate::Song;
 
     #[test]
     fn test_tempo_real() {
-        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut tempo_desc = BPMDesc::new(song.sample_rate);
         for chunk in song.sample_array.chunks_exact(BPMDesc::HOP_SIZE) {
             tempo_desc.do_(&chunk);

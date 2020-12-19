@@ -1,5 +1,5 @@
-use bliss_rs::analyze::decode_and_analyze;
 use std::env;
+use bliss_rs::Song;
 
 /**
  * Simple utility to print the result or the field of an Analysis.
@@ -10,7 +10,7 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     for path in &args {
-        match decode_and_analyze(&path) {
+        match Song::new(&path) {
             Ok(song) => println!(
                 "{}: {}",
                 path, song.analysis.tempo,
