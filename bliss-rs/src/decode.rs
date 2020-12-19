@@ -33,10 +33,9 @@ pub fn decode_song(path: &str) -> Result<Song, String> {
 
     let mut song = Song::default();
     song.path = path.to_string();
-    let mut sample_array: Vec<f32> = Vec::new();
     let mut format = ffmpeg::format::input(&path)
         .map_err(|e| format!("FFmpeg error while opening format: {:?}.", e))?;
-    let (mut codec, stream) = {
+    let (mut codec, stream, duration) = {
         let stream = format
             .streams()
             .find(|s| s.codec().medium() == ffmpeg::media::Type::Audio)
@@ -47,9 +46,9 @@ pub fn decode_song(path: &str) -> Result<Song, String> {
             .decoder()
             .audio()
             .map_err(|e| format!("FFmpeg error when finding codec: {:?}.", e))?;
-
-        (codec, stream.index())
+        (codec, stream.index(), stream.duration())
     };
+    let mut sample_array: Vec<f32> = Vec::with_capacity(duration as usize);
 
     if let Some(title) = format.metadata().get("title") {
         song.title = title.to_string();
