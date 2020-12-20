@@ -1,11 +1,10 @@
 // temporarily pub
-pub mod analyze;
 pub mod chroma;
-pub mod decode;
 pub mod misc;
 pub mod temporal;
 pub mod timbral;
 pub mod utils;
+pub mod song;
 
 pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;

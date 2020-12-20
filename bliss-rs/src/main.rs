@@ -1,5 +1,5 @@
-use bliss_rs::decode::decode_song;
+use bliss_rs::Song;
 
 fn main() {
-    decode_song("data/s16_stereo_22_5kHz.flac").unwrap();
+    Song::new("data/s16_stereo_22_5kHz.flac").unwrap();
 }
