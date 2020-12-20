@@ -6,8 +6,8 @@ mod test {
     extern crate test;
     use bliss_rs::chroma::*;
     use bliss_rs::utils::TEMPLATES_MAJMIN;
-    use bliss_rs::analyze::stft;
-    use bliss_rs::decode::decode_song;
+    use bliss_rs::utils::stft;
+    use bliss_rs::Song;
     use ndarray::{arr2, Array, Array1, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
@@ -122,7 +122,7 @@ mod test {
 
     #[bench]
     fn bench_chroma_desc(b: &mut Bencher) {
-        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
         b.iter(|| {
             chroma_desc.do_(&song.sample_array);
@@ -132,7 +132,7 @@ mod test {
 
     #[bench]
     fn bench_chroma_stft(b: &mut Bencher) {
-        let song = decode_song("data/s16_mono_22_5kHz.flac").unwrap();
+        let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
         b.iter(|| {
             chroma_desc.do_(&song.sample_array);
@@ -142,7 +142,7 @@ mod test {
 
     #[bench]
     fn bench_chroma_stft_decode(b: &mut Bencher) {
-        let signal = decode_song("data/s16_mono_22_5kHz.flac")
+        let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
             .sample_array;
         let stft = stft(&signal, 8192, 2205);
