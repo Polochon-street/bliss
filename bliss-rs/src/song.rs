@@ -7,19 +7,46 @@
 extern crate aubio_lib;
 
 extern crate crossbeam;
+extern crate ffmpeg4 as ffmpeg;
 extern crate ndarray;
 extern crate ndarray_npy;
-extern crate ffmpeg4 as ffmpeg;
 
+use super::CHANNELS;
 use crate::chroma::ChromaDesc;
-use crate::SAMPLE_RATE;
-use crate::utils::push_to_sample_array;
 use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
+use crate::SAMPLE_RATE;
 use crate::{Analysis, Song};
 use crossbeam::thread;
+use ffmpeg::codec::threading::Config;
+use ffmpeg::codec::threading::Type::Frame;
+use ffmpeg::util;
 use ffmpeg::util::format::sample::{Sample, Type};
+use std::sync::mpsc;
+use std::thread as std_thread;
+
+pub fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
+    if frame.samples() == 0 {
+        return;
+    }
+    // Account for the padding
+    let actual_size = util::format::sample::Buffer::size(
+        Sample::F32(Type::Packed),
+        CHANNELS,
+        frame.samples(),
+        false,
+    );
+    let f32_frame: Vec<f32> = frame.data(0)[..actual_size]
+        .chunks_exact(4)
+        .map(|x| {
+            let mut a: [u8; 4] = [0; 4];
+            a.copy_from_slice(x);
+            f32::from_le_bytes(a)
+        })
+        .collect();
+    sample_array.extend_from_slice(&f32_frame);
+}
 
 impl Song {
     pub fn new(path: &str) -> Result<Self, String> {
@@ -42,7 +69,7 @@ impl Song {
             let child_timbral = s.spawn(|_| {
                 let mut spectral_desc = SpectralDesc::new(self.sample_rate);
                 let mut zcr_desc = ZeroCrossingRateDesc::default();
-                let windows = self 
+                let windows = self
                     .sample_array
                     .windows(SpectralDesc::WINDOW_SIZE)
                     .step_by(SpectralDesc::HOP_SIZE);
@@ -59,7 +86,7 @@ impl Song {
 
             let child_tempo = s.spawn(|_| {
                 let mut tempo_desc = BPMDesc::new(self.sample_rate);
-                let windows = self 
+                let windows = self
                     .sample_array
                     .windows(BPMDesc::WINDOW_SIZE)
                     .step_by(BPMDesc::HOP_SIZE);
@@ -96,7 +123,8 @@ impl Song {
                 is_major,
                 fifth,
             }
-        }).unwrap()
+        })
+        .unwrap()
     }
 
     pub fn decode(path: &str) -> Result<Song, String> {
@@ -119,6 +147,11 @@ impl Song {
                 .map_err(|e| format!("FFmpeg error when finding codec: {:?}.", e))?;
             (codec, stream.index(), stream.duration())
         };
+        codec.set_threading(Config {
+            kind: Frame,
+            count: 0,
+            safe: true,
+        });
         let mut sample_array: Vec<f32> = Vec::with_capacity(duration as usize);
 
         if let Some(title) = format.metadata().get("title") {
@@ -152,7 +185,32 @@ impl Song {
                 e
             )
         })?;
+        let (tx, rx) = mpsc::channel();
+        let child = std_thread::spawn(move || -> Result<Vec<f32>, String> {
+            let mut resampled = ffmpeg::frame::Audio::empty();
+            for decoded in rx.iter() {
+                resample_context
+                    .run(&decoded, &mut resampled)
+                    .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?;
+                push_to_sample_array(&resampled, &mut sample_array);
+            }
 
+            loop {
+                match resample_context
+                    .flush(&mut resampled)
+                    .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?
+                {
+                    Some(_) => {
+                        push_to_sample_array(&resampled, &mut sample_array);
+                    }
+                    None => {
+                        push_to_sample_array(&resampled, &mut sample_array);
+                        break;
+                    }
+                };
+            }
+            Ok(sample_array)
+        });
         let mut decoded = ffmpeg::frame::Audio::empty();
         for (s, packet) in format.packets() {
             if s.index() != stream {
@@ -161,11 +219,12 @@ impl Song {
 
             match codec.decode(&packet, &mut decoded) {
                 Ok(true) => {
-                    let mut resampled = ffmpeg::frame::Audio::empty();
-                    resample_context
-                        .run(&decoded, &mut resampled)
-                        .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?;
-                    push_to_sample_array(resampled, &mut sample_array);
+                    tx.send(decoded.clone()).map_err(|e| {
+                        format!(
+                            "Error while sending decoded frame to the resampling thread: {:?}",
+                            e
+                        )
+                    })?;
                 }
                 Ok(false) => (),
                 Err(error) => println!("Could not decode packet: {}", error),
@@ -177,33 +236,20 @@ impl Song {
         loop {
             match codec.decode(&packet, &mut decoded) {
                 Ok(true) => {
-                    let mut resampled = ffmpeg::frame::Audio::empty();
-                    resample_context
-                        .run(&decoded, &mut resampled)
-                        .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?;
-                    push_to_sample_array(resampled, &mut sample_array);
+                    tx.send(decoded.clone()).map_err(|e| {
+                        format!(
+                            "Error while sending decoded frame to the resampling thread: {:?}",
+                            e
+                        )
+                    })?;
                 }
                 Ok(false) => break,
                 Err(error) => println!("Could not decode packet: {}", error),
             };
         }
 
-        loop {
-            let mut resampled = ffmpeg::frame::Audio::empty();
-            match resample_context
-                .flush(&mut resampled)
-                .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?
-            {
-                Some(_) => {
-                    push_to_sample_array(resampled, &mut sample_array);
-                }
-                None => {
-                    push_to_sample_array(resampled, &mut sample_array);
-                    break;
-                }
-            };
-        }
-        song.sample_array = sample_array;
+        drop(tx);
+        song.sample_array = child.join().unwrap()?;
         song.sample_rate = SAMPLE_RATE;
         Ok(song)
     }
@@ -212,8 +258,8 @@ impl Song {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f32::consts::PI;
     use ripemd160::{Digest, Ripemd160};
+    use std::f32::consts::PI;
 
     #[test]
     fn test_analyze() {
@@ -230,7 +276,6 @@ mod tests {
         };
         assert!(expected_analysis.approx_eq(&song.analyze()));
     }
-
 
     fn _test_decode(path: &str, expected_hash: &[u8]) {
         let song = Song::decode(path).unwrap();
@@ -284,5 +329,4 @@ mod tests {
         ];
         _test_decode(&path, &expected_hash);
     }
-
 }
