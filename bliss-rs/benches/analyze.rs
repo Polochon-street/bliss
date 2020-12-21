@@ -4,14 +4,14 @@
 #[cfg(test)]
 mod test {
     extern crate test;
-    use bliss_rs::analyze::*;
-    use bliss_rs::decode::decode_song;
+    use bliss_rs::Song;
+    use bliss_rs::utils::*;
     use ndarray::Array;
     use test::Bencher;
 
     #[bench]
     fn bench_compute_stft(b: &mut Bencher) {
-        let song = decode_song("data/piano.flac").unwrap();
+        let song = Song::decode("data/piano.flac").unwrap();
 
         b.iter(|| {
             stft(&song.sample_array, 2048, 512);
