@@ -3,10 +3,7 @@ use ndarray::{s, arr1, Array, Array1, Array2};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use realfft::{ComplexToReal, RealToComplex};
-use super::CHANNELS;
 extern crate ffmpeg4 as ffmpeg;
-use ffmpeg::util;
-use ffmpeg::util::format::sample::{Sample, Type};
 use std::f32::consts::PI;
 
 // Until https://github.com/rust-ndarray/ndarray/issues/446 is solved
@@ -77,28 +74,6 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
         );
     }
     stft.permuted_axes((1, 0))
-}
-
-pub fn push_to_sample_array(frame: ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
-    if frame.samples() == 0 {
-        return
-    }
-    // Account for the padding
-    let actual_size = util::format::sample::Buffer::size(
-        Sample::F32(Type::Packed),
-        CHANNELS,
-        frame.samples(),
-        false,
-    );
-    let f32_frame: Vec<f32> = frame.data(0)[..actual_size]
-        .chunks_exact(4)
-        .map(|x| {
-            let mut a: [u8; 4] = [0; 4];
-            a.copy_from_slice(x);
-            f32::from_le_bytes(a)
-        })
-        .collect();
-    sample_array.extend_from_slice(&f32_frame);
 }
 
 pub fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
