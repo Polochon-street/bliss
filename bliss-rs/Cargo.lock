@@ -133,7 +133,6 @@ dependencies = [
  "noisy_float",
  "num-complex 0.3.0",
  "rayon",
- "realfft",
  "ripemd160",
  "rustfft",
 ]
@@ -855,6 +854,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c36fa947111f5c62a733b652544dd0016a43ce89619538a8ef92724a6f501a20"
 
 [[package]]
+name = "primal-check"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01419cee72c1a1ca944554e23d83e483e1bccf378753344e881de28b5487511d"
+dependencies = [
+ "num-integer",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -973,15 +981,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "realfft"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29a38036df3019137318614d1bbaa0c04459f51b8640c6c475f5435509f128cf"
-dependencies = [
- "rustfft",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1045,13 +1044,14 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustfft"
-version = "4.0.0"
+version = "5.0.0-experimental.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b422f7370bf3092b1a5f10b68f7b4719c964879836a4bd026a410f11dde2ad0d"
+checksum = "f89418eeeedbb2b7dc7fd9d032a065efc5eeaf68619d697945e2990f3038ad92"
 dependencies = [
  "num-complex 0.3.0",
  "num-integer",
  "num-traits",
+ "primal-check",
  "strength_reduce",
  "transpose",
 ]
