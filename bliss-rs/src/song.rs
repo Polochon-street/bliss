@@ -7,7 +7,7 @@
 extern crate aubio_lib;
 
 extern crate crossbeam;
-extern crate ffmpeg4 as ffmpeg;
+extern crate ffmpeg_next as ffmpeg;
 extern crate ndarray;
 extern crate ndarray_npy;
 
@@ -19,8 +19,6 @@ use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::SAMPLE_RATE;
 use crate::{Analysis, Song};
 use crossbeam::thread;
-use ffmpeg::codec::threading::Config;
-use ffmpeg::codec::threading::Type::Frame;
 use ffmpeg::util;
 use ffmpeg::util::format::sample::{Sample, Type};
 use std::sync::mpsc;
@@ -147,11 +145,6 @@ impl Song {
                 .map_err(|e| format!("FFmpeg error when finding codec: {:?}.", e))?;
             (codec, stream.index(), stream.duration())
         };
-        codec.set_threading(Config {
-            kind: Frame,
-            count: 0,
-            safe: true,
-        });
         let mut sample_array: Vec<f32> = Vec::with_capacity(duration as usize);
 
         if let Some(title) = format.metadata().get("title") {
@@ -185,6 +178,7 @@ impl Song {
                 e
             )
         })?;
+
         let (tx, rx) = mpsc::channel();
         let child = std_thread::spawn(move || -> Result<Vec<f32>, String> {
             let mut resampled = ffmpeg::frame::Audio::empty();
@@ -216,36 +210,31 @@ impl Song {
             if s.index() != stream {
                 continue;
             }
-
-            match codec.decode(&packet, &mut decoded) {
-                Ok(true) => {
-                    tx.send(decoded.clone()).map_err(|e| {
-                        format!(
-                            "Error while sending decoded frame to the resampling thread: {:?}",
-                            e
-                        )
-                    })?;
-                }
-                Ok(false) => (),
-                Err(error) => println!("Could not decode packet: {}", error),
+            codec.send_packet(&packet).unwrap();
+            while codec.receive_frame(&mut decoded).is_ok() {
+                tx.send(decoded.clone()).map_err(|e| {
+                    format!(
+                        "Error while sending decoded frame to the resampling thread: {:?}",
+                        e
+                    )
+                })?;
             }
         }
 
         // Flush the stream
+        // TODO check that it's still how to do this
         let packet = ffmpeg::codec::packet::Packet::empty();
         loop {
-            match codec.decode(&packet, &mut decoded) {
-                Ok(true) => {
-                    tx.send(decoded.clone()).map_err(|e| {
-                        format!(
-                            "Error while sending decoded frame to the resampling thread: {:?}",
-                            e
-                        )
-                    })?;
-                }
-                Ok(false) => break,
-                Err(error) => println!("Could not decode packet: {}", error),
-            };
+            codec.send_packet(&packet).unwrap();
+            while codec.receive_frame(&mut decoded).is_ok() {
+                tx.send(decoded.clone()).map_err(|e| {
+                    format!(
+                        "Error while sending decoded frame to the resampling thread: {:?}",
+                        e
+                    )
+                })?;
+            }
+            break;
         }
 
         drop(tx);
