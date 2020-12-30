@@ -3,7 +3,7 @@ use ndarray::{s, arr1, Array, Array1, Array2};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FftPlanner;
-extern crate ffmpeg4 as ffmpeg;
+extern crate ffmpeg_next as ffmpeg;
 use std::f32::consts::PI;
 
 // Until https://github.com/rust-ndarray/ndarray/issues/446 is solved
