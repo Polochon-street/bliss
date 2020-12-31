@@ -353,6 +353,7 @@ pub fn pip_track(
 
     let length = spectrum.len_of(Axis(0));
 
+    // TODO this could be a bitvec
     let freq_mask = fft_freqs
         .iter()
         .map(|&f| (fmin <= f) && (f < fmax))
@@ -374,16 +375,18 @@ pub fn pip_track(
     let mut pitches = Vec::with_capacity(taken_columns * length);
     let mut mags = Vec::with_capacity(taken_columns * length);
 
-    let zipped = Zip::indexed(spectrum.slice(s![..-2, ..]))
-        .and(spectrum.slice(s![1..-1, ..]))
-        .and(spectrum.slice(s![2.., ..]));
+    let beginning = freq_mask.iter().position(|&b| b).unwrap();
+    let end = freq_mask.iter().rposition(|&b| b).unwrap();
+
+    let zipped = Zip::indexed(spectrum.slice(s![beginning..end - 3, ..]))
+        .and(spectrum.slice(s![beginning + 1..end - 2, ..]))
+        .and(spectrum.slice(s![beginning + 2..end - 1, ..]));
 
     // No need to handle the last column, since freq_mask[length - 1] is
     // always going to be `false` for 22.5kHz
     zipped.apply(|(i, j), &before_elem, &elem, &after_elem| {
         if 
-            freq_mask[i + 1]
-            && elem > ref_value[j]
+            elem > ref_value[j]
             && after_elem <= elem
             && before_elem < elem
         {
@@ -393,7 +396,7 @@ pub fn pip_track(
                 shift += 1.;
             }
             shift = avg / shift;
-            pitches.push(((i + 1) as f64 + shift) * sample_rate_float / n_fft as f64);
+            pitches.push(((i + beginning + 1) as f64 + shift) * sample_rate_float / n_fft as f64);
             mags.push(elem + 0.5 * avg * shift);
         }
     });
