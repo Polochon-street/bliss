@@ -348,7 +348,9 @@ dependencies = [
 
 [[package]]
 name = "ffmpeg-next"
-version = "4.4.0-dev"
+version = "4.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3186d58788057973c658e1fa13a26ea1340718a8a131d5e1996d06e2b08befc"
 dependencies = [
  "bitflags",
  "ffmpeg-sys-next",

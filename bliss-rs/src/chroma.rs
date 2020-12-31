@@ -244,7 +244,7 @@ pub fn smooth_downsample_feature_sequence(
 pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     let mut normalized_sequence = feature.to_owned();
     for mut column in normalized_sequence.gencolumns_mut() {
-        let mut sum = column.mapv(|x| x.powf(2.0)).sum().sqrt();
+        let mut sum = column.mapv(|x| x.powi(2)).sum().sqrt();
         if sum < 0.0001 {
             sum = 1.;
         }
@@ -309,19 +309,19 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
         (x + n_chroma2_float + 10. * n_chroma_float) % n_chroma_float - n_chroma2_float
     });
     d = d / binwidth_bins;
-    d.mapv_inplace(|x| (-0.5 * (2. * x).powf(2.)).exp());
+    d.mapv_inplace(|x| (-0.5 * (2. * x).powi(2)).exp());
 
     let mut wts = d;
     // Normalize by computing the l2-norm over the columns
     for mut col in wts.gencolumns_mut() {
-        let mut sum = col.mapv(|x| x.powf(2.)).sum().sqrt();
+        let mut sum = col.mapv(|x| x.powi(2)).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
         col /= sum;
     }
 
-    freq_bins.mapv_inplace(|x| (-0.5 * ((x / n_chroma_float - ctroct) / octwidth).powf(2.)).exp());
+    freq_bins.mapv_inplace(|x| (-0.5 * ((x / n_chroma_float - ctroct) / octwidth).powi(2)).exp());
 
     wts *= &freq_bins;
 
@@ -343,7 +343,7 @@ pub fn pip_track(
     sample_rate: u32,
     spectrum: &Array2<f64>,
     n_fft: usize,
-) -> (Array2<f64>, Array2<f64>) {
+) -> (Vec<f64>, Vec<f64>) {
     let sample_rate_float = f64::from(sample_rate);
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(sample_rate_float / 2.0);
@@ -353,41 +353,51 @@ pub fn pip_track(
 
     let length = spectrum.len_of(Axis(0));
 
+    // TODO this could be a bitvec
     let freq_mask = fft_freqs
         .iter()
         .map(|&f| (fmin <= f) && (f < fmax))
         .collect::<Vec<bool>>();
 
-    let ref_value = spectrum.map_axis(Axis(0), |x| threshold * *x.max_skipnan());
+    let ref_value = spectrum.map_axis(Axis(0), |x| {
+        let first: f64 = *x.first().unwrap();
+        let max = x.fold(first, |acc, &elem| {
+            if acc > elem {
+                acc
+            }
+            else { elem }
+        });
+        threshold * max
+    });
 
-    let mut pitches = Array::zeros(spectrum.raw_dim());
-    let mut mags = Array::zeros(spectrum.raw_dim());
+    // There will be at most taken_columns * length elements in pitches / mags
+    let taken_columns = freq_mask.iter().fold(0, |acc, &x| if x { acc + 1 } else { acc });
+    let mut pitches = Vec::with_capacity(taken_columns * length);
+    let mut mags = Vec::with_capacity(taken_columns * length);
 
-    let zipped = Zip::indexed(spectrum)
-        .and(&mut pitches)
-        .and(&mut mags);
+    let beginning = freq_mask.iter().position(|&b| b).unwrap();
+    let end = freq_mask.iter().rposition(|&b| b).unwrap();
 
-    // TODO if becomes slow, then zip spectrum.slice[..-2, ..] together with
-    // spectrum.slice[1..-1, ..] and spectrum.slice[2, ..], do stuff regarding i + 1
-    // instead and work separately on the last column.
-    // TODO 2 - actually ^ not so faster?
-    zipped.apply(|(i, j), &elem, pitch, mag| {
-        if i != 0
-            && freq_mask[i]
-            && elem > ref_value[j]
-            && (i + 1 >= length || spectrum[[i + 1, j]] <= elem)
-            && spectrum[[i - 1, j]] < elem
+    let zipped = Zip::indexed(spectrum.slice(s![beginning..end - 3, ..]))
+        .and(spectrum.slice(s![beginning + 1..end - 2, ..]))
+        .and(spectrum.slice(s![beginning + 2..end - 1, ..]));
+
+    // No need to handle the last column, since freq_mask[length - 1] is
+    // always going to be `false` for 22.5kHz
+    zipped.apply(|(i, j), &before_elem, &elem, &after_elem| {
+        if 
+            elem > ref_value[j]
+            && after_elem <= elem
+            && before_elem < elem
         {
-            let after_elem = spectrum[[i + 1, j]];
-            let before_elem = spectrum[[i - 1, j]];
             let avg = 0.5 * (after_elem - before_elem);
             let mut shift = 2. * elem - after_elem - before_elem;
             if shift.abs() < f64::MIN_POSITIVE {
                 shift += 1.;
             }
             shift = avg / shift;
-            *pitch = (i as f64 + shift) * sample_rate_float / n_fft as f64;
-            *mag = elem + 0.5 * avg * shift;
+            pitches.push(((i + beginning + 1) as f64 + shift) * sample_rate_float / n_fft as f64);
+            mags.push(elem + 0.5 * avg * shift);
         }
     });
 
@@ -454,12 +464,12 @@ pub fn chroma_stft(
 ) -> Array2<f64> {
     let tuning =
         tuning.unwrap_or_else(|| estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma));
-    let spectrum = &spectrum.mapv(|x| x.powf(2.));
+    let spectrum = &spectrum.mapv(|x| x.powi(2));
     let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning);
 
     raw_chroma = raw_chroma.dot(spectrum);
     for mut row in raw_chroma.gencolumns_mut() {
-        let mut sum = row.mapv(|x| x.powf(2.)).sum().sqrt();
+        let mut sum = row.mapv(|x| x.powi(2)).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
@@ -641,6 +651,7 @@ mod test {
         let stft = stft(&signal, 8192, 2205);
 
         let tuning = estimate_tuning(22050, &stft, 8192, 0.01, 12);
+        println!("{:?}", tuning);
         assert!(0.000001 > (-0.04999999999999999 - tuning).abs());
     }
 
@@ -664,12 +675,14 @@ mod test {
         let spectrum = Array2::<f64>::read_npy(file).unwrap();
 
         let mags_file = File::open("data/spectrum-chroma-mags.npy").unwrap();
-        let expected_mags = Array2::<f64>::read_npy(mags_file).unwrap();
+        let expected_mags = Array1::<f64>::read_npy(mags_file).unwrap();
 
         let pitches_file = File::open("data/spectrum-chroma-pitches.npy").unwrap();
-        let expected_pitches = Array2::<f64>::read_npy(pitches_file).unwrap();
+        let expected_pitches = Array1::<f64>::read_npy(pitches_file).unwrap();
 
-        let (pitches, mags) = pip_track(22050, &spectrum, 2048);
+        let (mut pitches, mut mags) = pip_track(22050, &spectrum, 2048);
+        pitches.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        mags.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         for (expected_pitches, actual_pitches) in expected_pitches.iter().zip(pitches.iter()) {
             assert!(0.00000001 > (expected_pitches - actual_pitches).abs());
