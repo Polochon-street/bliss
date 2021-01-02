@@ -19,6 +19,7 @@ use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::SAMPLE_RATE;
 use crate::{Analysis, Song};
 use crossbeam::thread;
+use ffmpeg::codec::threading::{Config, Type as ThreadingType};
 use ffmpeg::util;
 use ffmpeg::util::format::sample::{Sample, Type};
 use std::sync::mpsc;
@@ -125,6 +126,7 @@ impl Song {
         .unwrap()
     }
 
+    // TODO set av_logs to quiet
     pub fn decode(path: &str) -> Result<Song, String> {
         ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
 
@@ -137,6 +139,11 @@ impl Song {
                 .streams()
                 .find(|s| s.codec().medium() == ffmpeg::media::Type::Audio)
                 .ok_or("No audio stream found.")?;
+            stream.codec().set_threading(Config {
+                kind: ThreadingType::Frame,
+                count: 0,
+                safe: true,
+            });
             let codec = stream
                 .codec()
                 .decoder()
