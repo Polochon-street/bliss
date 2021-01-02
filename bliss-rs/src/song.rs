@@ -132,20 +132,22 @@ impl Song {
         song.path = path.to_string();
         let mut format = ffmpeg::format::input(&path)
             .map_err(|e| format!("FFmpeg error while opening format: {:?}.", e))?;
-        let (mut codec, stream, duration) = {
+        let (mut codec, stream, expected_sample_number) = {
             let stream = format
                 .streams()
                 .find(|s| s.codec().medium() == ffmpeg::media::Type::Audio)
                 .ok_or("No audio stream found.")?;
-
             let codec = stream
                 .codec()
                 .decoder()
                 .audio()
                 .map_err(|e| format!("FFmpeg error when finding codec: {:?}.", e))?;
-            (codec, stream.index(), stream.duration())
+            let expected_sample_number = (SAMPLE_RATE as f32 * stream.duration() as f32
+                / stream.time_base().denominator() as f32)
+                .ceil();
+            (codec, stream.index(), expected_sample_number)
         };
-        let mut sample_array: Vec<f32> = Vec::with_capacity(duration as usize);
+        let mut sample_array: Vec<f32> = Vec::with_capacity(expected_sample_number as usize);
 
         if let Some(title) = format.metadata().get("title") {
             song.title = title.to_string();
@@ -317,5 +319,23 @@ mod tests {
             0x5b, 0x45, 0x98, 0xb4, 0xf3, 0xb4,
         ];
         _test_decode(&path, &expected_hash);
+    }
+
+    #[test]
+    fn test_decode_right_capacity_vec() {
+        let path = String::from("data/s16_mono_22_5kHz.flac");
+        let song = Song::decode(&path).unwrap();
+        assert_eq!(song.sample_array.len(), song.sample_array.capacity());
+
+        let path = String::from("data/s32_stereo_44_1_kHz.flac");
+        let song = Song::decode(&path).unwrap();
+        assert_eq!(song.sample_array.len(), song.sample_array.capacity());
+
+        // Not 100% sure that the number of samples for ogg is known
+        // precisely in advance
+        let path = String::from("data/capacity_fix.ogg");
+        let song = Song::decode(&path).unwrap();
+        assert!(song.sample_array.len() as f32 / song.sample_array.capacity() as f32 > 0.95);
+        assert!(song.sample_array.len() as f32 / (song.sample_array.capacity() as f32) < 1.);
     }
 }
