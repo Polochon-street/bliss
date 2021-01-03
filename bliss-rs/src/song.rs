@@ -214,19 +214,24 @@ impl Song {
             }
             Ok(sample_array)
         });
-        let mut decoded = ffmpeg::frame::Audio::empty();
         for (s, packet) in format.packets() {
             if s.index() != stream {
                 continue;
             }
             codec.send_packet(&packet).unwrap();
-            while codec.receive_frame(&mut decoded).is_ok() {
-                tx.send(decoded.clone()).map_err(|e| {
-                    format!(
-                        "Error while sending decoded frame to the resampling thread: {:?}",
-                        e
-                    )
-                })?;
+            loop {
+                let mut decoded = ffmpeg::frame::Audio::empty();
+                match codec.receive_frame(&mut decoded) {
+                    Ok(_) => {
+                        tx.send(decoded).map_err(|e| {
+                            format!(
+                                "Error while sending decoded frame to the resampling thread: {:?}",
+                                e
+                            )
+                        })?;
+                    },
+                    Err(_) => break,
+                }
             }
         }
 
@@ -235,13 +240,19 @@ impl Song {
         let packet = ffmpeg::codec::packet::Packet::empty();
         loop {
             codec.send_packet(&packet).unwrap();
-            while codec.receive_frame(&mut decoded).is_ok() {
-                tx.send(decoded.clone()).map_err(|e| {
-                    format!(
-                        "Error while sending decoded frame to the resampling thread: {:?}",
-                        e
-                    )
-                })?;
+            loop {
+                let mut decoded = ffmpeg::frame::Audio::empty();
+                match codec.receive_frame(&mut decoded) {
+                    Ok(_) => {
+                        tx.send(decoded).map_err(|e| {
+                            format!(
+                                "Error while sending decoded frame to the resampling thread: {:?}",
+                                e
+                            )
+                        })?;
+                    },
+                    Err(_) => break,
+                }
             }
             break;
         }
