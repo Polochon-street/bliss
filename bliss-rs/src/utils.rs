@@ -1,5 +1,5 @@
 extern crate rustfft;
-use ndarray::{s, arr1, Array, Array1, Array2};
+use ndarray::{arr1, s, Array, Array1, Array2};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FftPlanner;
@@ -108,14 +108,36 @@ pub fn number_crossings(input: &[f32]) -> u32 {
     crossings
 }
 
+// logapprox courtesy of
+// https://github.com/jhjourdan/SIMD-math-prims/blob/master/simd_math_prims.h#L110
+#[inline]
+pub fn logapprox(val: f32) -> f32 {
+    #[repr(C)]
+    union Valu {
+        f: f32,
+        i: i32,
+    }
+    let mut valu = Valu { f: val };
+    let exp = unsafe { (valu.i >> 23) as f32 };
+    let addcst = if val > 0. { -89.970756366 } else { -f32::NAN };
+    valu.i = unsafe { (valu.i & 0x7FFFFF) | 0x3F800000 };
+    let x = unsafe { valu.f };
+
+    return x
+        * (3.529304993
+            + x * (-2.461222105 + x * (1.130626167 + x * (-0.288739945 + x * 3.110401639e-2))))
+        + (addcst + 0.6931471805 * exp);
+}
+
+// TODO make 100% sure that chunks are always be of size 256
 pub fn geometric_mean(input: &[f32]) -> f32 {
     let mut mean = 0.0;
-    println!("{:?}", input);
-    for &sample in input {
+    for sample in input.chunks_exact(4) {
+        let sample = sample[0] * sample[1] * sample[2] * sample[3];
         if sample == 0.0 {
             return 0.0;
         }
-        mean += sample.ln();
+        mean += logapprox(sample);
     }
     mean /= input.len() as f32;
     mean.exp()
@@ -141,41 +163,55 @@ pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
         common_length -= 1;
     }
     let mut padded_input = Array::from_elem(common_length, Complex::zero());
-    padded_input.slice_mut(s![..input.len()]).assign(&input.mapv(|x| Complex::new(x, 0.)));
+    padded_input
+        .slice_mut(s![..input.len()])
+        .assign(&input.mapv(|x| Complex::new(x, 0.)));
     let mut padded_kernel = Array::from_elem(common_length, Complex::zero());
-    padded_kernel.slice_mut(s![..kernel.len()]).assign(&kernel.mapv(|x| Complex::new(x, 0.)));
+    padded_kernel
+        .slice_mut(s![..kernel.len()])
+        .assign(&kernel.mapv(|x| Complex::new(x, 0.)));
 
     let mut input_fft = Array::from_elem(common_length, Complex::zero());
     let mut kernel_fft = Array::from_elem(common_length, Complex::zero());
 
     let mut planner = FftPlanner::new(false);
     let forward = planner.plan_fft(common_length);
-    forward.process(padded_input.as_slice_mut().unwrap(), input_fft.as_slice_mut().unwrap());
-    forward.process(padded_kernel.as_slice_mut().unwrap(), kernel_fft.as_slice_mut().unwrap());
+    forward.process(
+        padded_input.as_slice_mut().unwrap(),
+        input_fft.as_slice_mut().unwrap(),
+    );
+    forward.process(
+        padded_kernel.as_slice_mut().unwrap(),
+        kernel_fft.as_slice_mut().unwrap(),
+    );
 
     let mut multiplication = input_fft * kernel_fft;
 
     let mut planner = FftPlanner::new(true);
     let back = planner.plan_fft(common_length);
     let mut output = Array::zeros(common_length);
-    back.process(multiplication.as_slice_mut().unwrap(), output.as_slice_mut().unwrap());
+    back.process(
+        multiplication.as_slice_mut().unwrap(),
+        output.as_slice_mut().unwrap(),
+    );
 
     let output_length = output.len() as f64;
-    let output = output.slice_move(s![
-        (kernel.len() - 1) / 2..(kernel.len() - 1) / 2 + input.len()
-    ]).mapv(|x| x.re);
+    let output = output
+        .slice_move(s![
+            (kernel.len() - 1) / 2..(kernel.len() - 1) / 2 + input.len()
+        ])
+        .mapv(|x| x.re);
     output / output_length
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Song;
+    use ndarray::Array2;
     use ndarray::{arr1, Array};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
-    use crate::Song;
-    use ndarray::Array2;
-
 
     #[test]
     fn test_convolve() {
@@ -208,11 +244,11 @@ mod tests {
 
     #[test]
     fn test_geometric_mean() {
-        let numbers = vec![0.0, 1.0, 2.0, 3.0];
+        let numbers = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
         assert_eq!(0.0, geometric_mean(&numbers));
 
         let numbers = vec![4.0, 1.0, 0.03125, 0.03125];
-        assert_eq!(0.25, geometric_mean(&numbers));
+        assert!(0.0001 > (0.25 - geometric_mean(&numbers)).abs());
 
         let input = [
             0.024454033,
@@ -510,5 +546,4 @@ mod tests {
         assert_eq!(&output[3..100003], array.to_vec());
         assert_eq!(&output[100003..100006], &[99998.0, 99997.0, 99996.0]);
     }
-
 }
