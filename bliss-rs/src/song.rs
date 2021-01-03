@@ -67,22 +67,30 @@ impl Song {
             // These descriptors can be streamed
             let child_timbral = s.spawn(|_| {
                 let mut spectral_desc = SpectralDesc::new(self.sample_rate);
-                let mut zcr_desc = ZeroCrossingRateDesc::default();
                 let windows = self
                     .sample_array
                     .windows(SpectralDesc::WINDOW_SIZE)
                     .step_by(SpectralDesc::HOP_SIZE);
                 for window in windows {
                     spectral_desc.do_(&window);
-                    zcr_desc.do_(&window);
                 }
                 let centroid = spectral_desc.get_centroid();
                 let rolloff = spectral_desc.get_rolloff();
                 let flatness = spectral_desc.get_flatness();
-                let zcr = zcr_desc.get_value();
-                (centroid, rolloff, flatness, zcr)
+                (centroid, rolloff, flatness)
             });
 
+            let child_zcr = s.spawn(|_| {
+                let mut zcr_desc = ZeroCrossingRateDesc::default();
+                let windows = self
+                    .sample_array
+                    .windows(SpectralDesc::WINDOW_SIZE)
+                    .step_by(SpectralDesc::HOP_SIZE);
+                for window in windows {
+                    zcr_desc.do_(&window);
+                }
+                zcr_desc.get_value()
+            });
             let child_tempo = s.spawn(|_| {
                 let mut tempo_desc = BPMDesc::new(self.sample_rate);
                 let windows = self
@@ -108,9 +116,10 @@ impl Song {
 
             // Non-streaming approach for that one
             let (is_major, fifth) = child_chroma.join().unwrap();
-            let (centroid, rolloff, flatness, zcr) = child_timbral.join().unwrap();
+            let (centroid, rolloff, flatness) = child_timbral.join().unwrap();
             let tempo = child_tempo.join().unwrap();
             let loudness = child_loudness.join().unwrap();
+            let zcr = child_zcr.join().unwrap();
 
             Analysis {
                 tempo,
