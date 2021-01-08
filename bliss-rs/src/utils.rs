@@ -53,9 +53,8 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
         hann_window[[n]] = 0.5 - 0.5 * f32::cos(2. * n as f32 * PI / (window_length as f32));
     }
     hann_window = hann_window.slice_move(s![0..window_length]);
-    let mut output_window = Array::from_elem(window_length, Complex::zero());
-    let mut planner = FftPlanner::new(false);
-    let fft = planner.plan_fft(window_length);
+    let mut planner = FftPlanner::new();
+    let fft = planner.plan_fft_forward(window_length);
 
     for (window, mut stft_col) in signal
         .windows(window_length)
@@ -63,12 +62,9 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
         .zip(stft.genrows_mut())
     {
         let mut signal = (arr1(&window) * &hann_window).mapv(|x| Complex::new(x, 0.));
-        fft.process(
-            signal.as_slice_mut().unwrap(),
-            output_window.as_slice_mut().unwrap(),
-        );
+        fft.process(signal.as_slice_mut().unwrap());
         stft_col.assign(
-            &output_window
+            &signal
                 .slice(s![..window_length / 2 + 1])
                 .mapv(|x| (x.re * x.re + x.im * x.im).sqrt() as f64),
         );
@@ -171,37 +167,24 @@ pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
         .slice_mut(s![..kernel.len()])
         .assign(&kernel.mapv(|x| Complex::new(x, 0.)));
 
-    let mut input_fft = Array::from_elem(common_length, Complex::zero());
-    let mut kernel_fft = Array::from_elem(common_length, Complex::zero());
+    let mut planner = FftPlanner::new();
+    let forward = planner.plan_fft_forward(common_length);
+    forward.process(padded_input.as_slice_mut().unwrap());
+    forward.process(padded_kernel.as_slice_mut().unwrap());
 
-    let mut planner = FftPlanner::new(false);
-    let forward = planner.plan_fft(common_length);
-    forward.process(
-        padded_input.as_slice_mut().unwrap(),
-        input_fft.as_slice_mut().unwrap(),
-    );
-    forward.process(
-        padded_kernel.as_slice_mut().unwrap(),
-        kernel_fft.as_slice_mut().unwrap(),
-    );
+    let mut multiplication = padded_input * padded_kernel;
 
-    let mut multiplication = input_fft * kernel_fft;
+    let mut planner = FftPlanner::new();
+    let back = planner.plan_fft_inverse(common_length);
+    back.process(multiplication.as_slice_mut().unwrap());
 
-    let mut planner = FftPlanner::new(true);
-    let back = planner.plan_fft(common_length);
-    let mut output = Array::zeros(common_length);
-    back.process(
-        multiplication.as_slice_mut().unwrap(),
-        output.as_slice_mut().unwrap(),
-    );
-
-    let output_length = output.len() as f64;
-    let output = output
+    let multiplication_length = multiplication.len() as f64;
+    let multiplication = multiplication
         .slice_move(s![
             (kernel.len() - 1) / 2..(kernel.len() - 1) / 2 + input.len()
         ])
         .mapv(|x| x.re);
-    output / output_length
+    multiplication / multiplication_length
 }
 
 #[cfg(test)]
