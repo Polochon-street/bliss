@@ -976,9 +976,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustfft"
-version = "5.0.0-experimental.2"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f89418eeeedbb2b7dc7fd9d032a065efc5eeaf68619d697945e2990f3038ad92"
+checksum = "615fb8169a56470f08d8c51b4754c6f34bf515fc0129549e8d40dac733e141bd"
 dependencies = [
  "num-complex 0.3.0",
  "num-integer",
