@@ -104,40 +104,24 @@ pub fn number_crossings(input: &[f32]) -> u32 {
     crossings
 }
 
-// logapprox courtesy of
-// https://github.com/jhjourdan/SIMD-math-prims/blob/master/simd_math_prims.h#L110
-// Values are deemed to be positive and not zero (see geometric mean)
-pub fn logapprox(val: f32) -> f32 {
-    // Get mantissa and exponent
-    let (x, exp) = (
-        f32::from_bits((val.to_bits() & 0x7FFFFF) | 0x3F800000),
-        val.to_bits() >> 23,
-    );
-    return x.mul_add(
-        x.mul_add(
-            x.mul_add(
-                x.mul_add(x.mul_add(3.110401639e-2, -0.288739945), 1.130626167),
-                -2.461222105,
-            ),
-            3.529304993,
-        ),
-        0.6931471805_f32.mul_add(exp as f32, -89.970756366),
-    );
-}
-
-// TODO make 100% sure that chunks are always be of size 256
-// TODO use logapprox when SIMD available and ln otherwise
 pub fn geometric_mean(input: &[f32]) -> f32 {
-    let mut mean = 0.0;
-    for sample in input.chunks_exact(4) {
-        let sample = sample[0] * sample[1] * sample[2] * sample[3];
-        if sample < f32::MIN_POSITIVE {
-            return 0.0;
+    let mut exponents: i32 = 0;
+    let mut mantissas: f64 = 1.;
+    for ch in input.chunks_exact(8) {
+        let m = (ch[0] as f64 * ch[1] as f64) * (ch[2] as f64 * ch[3] as f64) *
+               ((ch[4] as f64 * ch[5] as f64) * (ch[6] as f64 * ch[7] as f64));
+        if m < f64::MIN_POSITIVE {
+            // TODO : is this really what we want?
+            return 0.
         }
-        mean += logapprox(sample);
+
+        exponents += (m.to_bits() >> 52) as i32;
+        mantissas *= f64::from_bits((m.to_bits() & 0xFFFFFFFFFFFFF)
+                                    | 0x3FF0000000000000);
     }
-    mean /= input.len() as f32;
-    mean.exp()
+
+    let n = input.len() as u32;
+    ((((mantissas as f32).log2() + exponents as f32) as f32) / n as f32 - 1023./8.).exp2()
 }
 
 pub fn hz_to_octs_inplace(
@@ -231,8 +215,8 @@ mod tests {
         let numbers = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
         assert_eq!(0.0, geometric_mean(&numbers));
 
-        let numbers = vec![4.0, 1.0, 0.03125, 0.03125];
-        assert!(0.0001 > (0.25 - geometric_mean(&numbers)).abs());
+        let numbers = vec![4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0, 2.0];
+        assert!(0.0001 > (2.0 - geometric_mean(&numbers)).abs());
 
         let input = [
             0.024454033,
