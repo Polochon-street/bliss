@@ -106,31 +106,32 @@ pub fn number_crossings(input: &[f32]) -> u32 {
 
 // logapprox courtesy of
 // https://github.com/jhjourdan/SIMD-math-prims/blob/master/simd_math_prims.h#L110
-#[inline]
+// Values are deemed to be positive and not zero (see geometric mean)
 pub fn logapprox(val: f32) -> f32 {
-    #[repr(C)]
-    union Valu {
-        f: f32,
-        i: i32,
-    }
-    let mut valu = Valu { f: val };
-    let exp = unsafe { (valu.i >> 23) as f32 };
-    let addcst = if val > 0. { -89.970756366 } else { -f32::NAN };
-    valu.i = unsafe { (valu.i & 0x7FFFFF) | 0x3F800000 };
-    let x = unsafe { valu.f };
-
-    return x
-        * (3.529304993
-            + x * (-2.461222105 + x * (1.130626167 + x * (-0.288739945 + x * 3.110401639e-2))))
-        + (addcst + 0.6931471805 * exp);
+    // Get mantissa and exponent
+    let (x, exp) = (
+        f32::from_bits((val.to_bits() & 0x7FFFFF) | 0x3F800000),
+        val.to_bits() >> 23,
+    );
+    return x.mul_add(
+        x.mul_add(
+            x.mul_add(
+                x.mul_add(x.mul_add(3.110401639e-2, -0.288739945), 1.130626167),
+                -2.461222105,
+            ),
+            3.529304993,
+        ),
+        0.6931471805_f32.mul_add(exp as f32, -89.970756366),
+    );
 }
 
 // TODO make 100% sure that chunks are always be of size 256
+// TODO use logapprox when SIMD available and ln otherwise
 pub fn geometric_mean(input: &[f32]) -> f32 {
     let mut mean = 0.0;
     for sample in input.chunks_exact(4) {
         let sample = sample[0] * sample[1] * sample[2] * sample[3];
-        if sample == 0.0 {
+        if sample < f32::MIN_POSITIVE {
             return 0.0;
         }
         mean += logapprox(sample);
