@@ -104,24 +104,28 @@ pub fn number_crossings(input: &[f32]) -> u32 {
     crossings
 }
 
+// Only works for >= 0 input of size 256 (or at least of size a multiple
+// of 8)
+// This finely optimized geometric mean courtesy of
+// Jacques-Henri Jourdan (https://jhjourdan.mketjh.fr/)
 pub fn geometric_mean(input: &[f32]) -> f32 {
     let mut exponents: i32 = 0;
     let mut mantissas: f64 = 1.;
     for ch in input.chunks_exact(8) {
-        let m = (ch[0] as f64 * ch[1] as f64)
-            * (ch[2] as f64 * ch[3] as f64)
-            * ((ch[4] as f64 * ch[5] as f64) * (ch[6] as f64 * ch[7] as f64));
-        if m < f64::MIN_POSITIVE {
-            // TODO : is this really what we want?
+        let mut m;
+        m = (ch[0] as f64 * ch[1] as f64) * (ch[2] as f64 * ch[3] as f64);
+        m *= 3.27339060789614187e150; // 2^500 : avoid underflows and denormals
+        m *= (ch[4] as f64 * ch[5] as f64) * (ch[6] as f64 * ch[7] as f64);
+        if m == 0. {
             return 0.;
         }
-
         exponents += (m.to_bits() >> 52) as i32;
         mantissas *= f64::from_bits((m.to_bits() & 0xFFFFFFFFFFFFF) | 0x3FF0000000000000);
     }
 
     let n = input.len() as u32;
-    ((((mantissas as f32).log2() + exponents as f32) as f32) / n as f32 - 1023. / 8.).exp2()
+    ((((mantissas as f32).log2() + exponents as f32) as f32) / n as f32 - (1023. + 500.) / 8.)
+        .exp2()
 }
 
 pub fn hz_to_octs_inplace(
@@ -217,6 +221,14 @@ mod tests {
 
         let numbers = vec![4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0, 2.0];
         assert!(0.0001 > (2.0 - geometric_mean(&numbers)).abs());
+
+        // never going to happen, but just in case
+        let numbers = vec![256., 4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0];
+        assert!(0.0001 > (3.668016172818685 - geometric_mean(&numbers)).abs());
+
+
+        let subnormal = vec![4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0, 1.0e-40_f32];
+        assert!(0.0001 > (1.8340080864093417e-05 - geometric_mean(&subnormal)).abs());
 
         let input = [
             0.024454033,
