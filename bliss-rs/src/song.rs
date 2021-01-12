@@ -56,6 +56,7 @@ impl Song {
         Ok(song)
     }
 
+    // TODO write down somewhere that this can be done windows by windows
     pub fn analyze(&self) -> Analysis {
         thread::scope(|s| {
             let child_chroma = s.spawn(|_| {
@@ -82,13 +83,7 @@ impl Song {
 
             let child_zcr = s.spawn(|_| {
                 let mut zcr_desc = ZeroCrossingRateDesc::default();
-                let windows = self
-                    .sample_array
-                    .windows(SpectralDesc::WINDOW_SIZE)
-                    .step_by(SpectralDesc::HOP_SIZE);
-                for window in windows {
-                    zcr_desc.do_(&window);
-                }
+                zcr_desc.do_(&self.sample_array);
                 zcr_desc.get_value()
             });
             let child_tempo = s.spawn(|_| {
