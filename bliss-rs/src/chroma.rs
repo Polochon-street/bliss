@@ -77,7 +77,7 @@ impl ChromaDesc {
      * song will greatly improve accuracy.
      */
     pub fn do_(&mut self, signal: &[f32]) {
-        let stft = stft(signal, 8192, 2205);
+        let mut stft = stft(signal, 8192, 2205);
         let tuning = estimate_tuning(
             self.sample_rate as u32,
             &stft,
@@ -87,10 +87,10 @@ impl ChromaDesc {
         );
         let chroma = chroma_stft(
             self.sample_rate,
-            &stft,
+            &mut stft,
             ChromaDesc::WINDOW_SIZE,
             self.n_chroma,
-            Some(tuning),
+            tuning,
         );
         self.values_chroma = concatenate![Axis(1), self.values_chroma, chroma];
     }
@@ -244,7 +244,7 @@ pub fn smooth_downsample_feature_sequence(
 pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     let mut normalized_sequence = feature.to_owned();
     for mut column in normalized_sequence.gencolumns_mut() {
-        let mut sum = column.mapv(|x| x.powi(2)).sum().sqrt();
+        let mut sum = column.mapv(|x| x * x).sum().sqrt();
         if sum < 0.0001 {
             sum = 1.;
         }
@@ -309,12 +309,12 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
         (x + n_chroma2_float + 10. * n_chroma_float) % n_chroma_float - n_chroma2_float
     });
     d = d / binwidth_bins;
-    d.mapv_inplace(|x| (-0.5 * (2. * x).powi(2)).exp());
+    d.mapv_inplace(|x| (-0.5 * (2. * x) * (2. * x)).exp());
 
     let mut wts = d;
     // Normalize by computing the l2-norm over the columns
     for mut col in wts.gencolumns_mut() {
-        let mut sum = col.mapv(|x| x.powi(2)).sum().sqrt();
+        let mut sum = col.mapv(|x| x* x).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
@@ -457,19 +457,17 @@ pub fn estimate_tuning(
 
 pub fn chroma_stft(
     sample_rate: u32,
-    spectrum: &Array2<f64>,
+    spectrum: &mut Array2<f64>,
     n_fft: usize,
     n_chroma: u32,
-    tuning: Option<f64>,
+    tuning: f64,
 ) -> Array2<f64> {
-    let tuning =
-        tuning.unwrap_or_else(|| estimate_tuning(sample_rate, &spectrum, n_fft, 0.01, n_chroma));
-    let spectrum = &spectrum.mapv(|x| x.powi(2));
+    spectrum.par_mapv_inplace(|x| x * x);
     let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning);
 
     raw_chroma = raw_chroma.dot(spectrum);
     for mut row in raw_chroma.gencolumns_mut() {
-        let mut sum = row.mapv(|x| x.powi(2)).sum().sqrt();
+        let mut sum = row.mapv(|x| x * x).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
@@ -620,12 +618,12 @@ mod test {
         let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
             .sample_array;
-        let stft = stft(&signal, 8192, 2205);
+        let mut stft = stft(&signal, 8192, 2205);
 
         let file = File::open("data/chroma.npy").unwrap();
         let expected_chroma = Array2::<f64>::read_npy(file).unwrap();
 
-        let chroma = chroma_stft(22050, &stft, 8192, 12, Some(-0.04999999999999999));
+        let chroma = chroma_stft(22050, &mut stft, 8192, 12, -0.04999999999999999);
 
         assert!(!chroma.is_empty() && !expected_chroma.is_empty());
 
