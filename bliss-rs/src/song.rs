@@ -59,13 +59,25 @@ impl Song {
     // TODO write down somewhere that this can be done windows by windows
     pub fn analyze(&self) -> Analysis {
         thread::scope(|s| {
+            let child_tempo = s.spawn(|_| {
+                let mut tempo_desc = BPMDesc::new(self.sample_rate);
+                let windows = self
+                    .sample_array
+                    .windows(BPMDesc::WINDOW_SIZE)
+                    .step_by(BPMDesc::HOP_SIZE);
+
+                for window in windows {
+                    tempo_desc.do_(&window);
+                }
+                tempo_desc.get_value()
+            });
+
             let child_chroma = s.spawn(|_| {
                 let mut chroma_desc = ChromaDesc::new(self.sample_rate, 12);
                 chroma_desc.do_(&self.sample_array);
                 chroma_desc.get_values()
             });
 
-            // These descriptors can be streamed
             let child_timbral = s.spawn(|_| {
                 let mut spectral_desc = SpectralDesc::new(self.sample_rate);
                 let windows = self
@@ -86,18 +98,6 @@ impl Song {
                 zcr_desc.do_(&self.sample_array);
                 zcr_desc.get_value()
             });
-            let child_tempo = s.spawn(|_| {
-                let mut tempo_desc = BPMDesc::new(self.sample_rate);
-                let windows = self
-                    .sample_array
-                    .windows(BPMDesc::WINDOW_SIZE)
-                    .step_by(BPMDesc::HOP_SIZE);
-
-                for window in windows {
-                    tempo_desc.do_(&window);
-                }
-                tempo_desc.get_value()
-            });
 
             let child_loudness = s.spawn(|_| {
                 let mut loudness_desc = LoudnessDesc::default();
@@ -110,9 +110,9 @@ impl Song {
             });
 
             // Non-streaming approach for that one
+            let tempo = child_tempo.join().unwrap();
             let (is_major, fifth) = child_chroma.join().unwrap();
             let (centroid, rolloff, flatness) = child_timbral.join().unwrap();
-            let tempo = child_tempo.join().unwrap();
             let loudness = child_loudness.join().unwrap();
             let zcr = child_zcr.join().unwrap();
 

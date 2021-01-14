@@ -145,10 +145,10 @@ mod test {
         let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
             .sample_array;
-        let stft = stft(&signal, 8192, 2205);
+        let mut stft = stft(&signal, 8192, 2205);
 
         b.iter(|| {
-            chroma_stft(22050, &stft, 8192, 12, Some(-0.04999999999999999));
+            chroma_stft(22050, &mut stft, 8192, 12, -0.04999999999999999);
         });
     }
 }
