@@ -104,8 +104,8 @@ pub fn number_crossings(input: &[f32]) -> u32 {
     crossings
 }
 
-// Only works for >= 0 input of size 256 (or at least of size a multiple
-// of 8)
+// Only works for input of size 256 (or at least of size a multiple
+// of 8), with values belonging to [0; 2^65].
 // This finely optimized geometric mean courtesy of
 // Jacques-Henri Jourdan (https://jhjourdan.mketjh.fr/)
 pub fn geometric_mean(input: &[f32]) -> f32 {
@@ -229,6 +229,9 @@ mod tests {
 
         let subnormal = vec![4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0, 1.0e-40_f32];
         assert!(0.0001 > (1.8340080864093417e-05 - geometric_mean(&subnormal)).abs());
+
+        let maximum = vec![2_f32.powi(65); 256];
+        assert!(0.0001 > (2_f32.powi(65) - geometric_mean(&maximum).abs()));
 
         let input = [
             0.024454033,
