@@ -22,8 +22,11 @@ use crossbeam::thread;
 use ffmpeg::codec::threading::{Config, Type as ThreadingType};
 use ffmpeg::util;
 use ffmpeg::util::format::sample::{Sample, Type};
+use ffmpeg_next::util::channel_layout::ChannelLayout;
 use ffmpeg_next::util::error::Error;
 use ffmpeg_next::util::error::EINVAL;
+use ffmpeg_next::util::log;
+use ffmpeg_next::util::log::level::Level;
 use std::sync::mpsc;
 use std::thread as std_thread;
 
@@ -132,11 +135,10 @@ impl Song {
         .unwrap()
     }
 
-    // TODO set av_logs to quiet
     // TODO DRY me
     pub fn decode(path: &str) -> Result<Song, String> {
         ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
-
+        log::set_level(Level::Quiet);
         let mut song = Song::default();
         song.path = path.to_string();
         let mut format = ffmpeg::format::input(&path)
@@ -178,11 +180,17 @@ impl Song {
         if let Some(track_number) = format.metadata().get("track") {
             song.track_number = track_number.to_string();
         };
-
-        // TODO handle WAV without a channel layout set (cf bruiblan.wav)
+        let in_channel_layout = {
+            if codec.channel_layout() == ChannelLayout::empty() {
+                ChannelLayout::default(codec.channels().into())
+            } else {
+                codec.channel_layout()
+            }
+        };
+        codec.set_channel_layout(in_channel_layout);
         let mut resample_context = ffmpeg::software::resampling::context::Context::get(
             codec.format(),
-            codec.channel_layout(),
+            in_channel_layout,
             codec.rate(),
             Sample::F32(Type::Packed),
             ffmpeg::util::channel_layout::ChannelLayout::MONO,
@@ -374,6 +382,12 @@ mod tests {
             0x5b, 0x45, 0x98, 0xb4, 0xf3, 0xb4,
         ];
         _test_decode(&path, &expected_hash);
+    }
+
+    #[test]
+    fn test_dont_panic_no_channel_layout() {
+        let path = String::from("data/no_channel.wav");
+        Song::decode(&path).unwrap();
     }
 
     #[test]
