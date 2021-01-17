@@ -22,6 +22,8 @@ use crossbeam::thread;
 use ffmpeg::codec::threading::{Config, Type as ThreadingType};
 use ffmpeg::util;
 use ffmpeg::util::format::sample::{Sample, Type};
+use ffmpeg_next::util::error::Error;
+use ffmpeg_next::util::error::EINVAL;
 use std::sync::mpsc;
 use std::thread as std_thread;
 
@@ -131,6 +133,7 @@ impl Song {
     }
 
     // TODO set av_logs to quiet
+    // TODO DRY me
     pub fn decode(path: &str) -> Result<Song, String> {
         ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
 
@@ -222,7 +225,22 @@ impl Song {
             if s.index() != stream {
                 continue;
             }
-            codec.send_packet(&packet).unwrap();
+            match codec.send_packet(&packet) {
+                Ok(_) => (),
+                Err(Error::Other { errno: EINVAL }) => {
+                    return Err(String::from("Wrong codec opened."))
+                }
+                Err(Error::Eof) => {
+                    println!("Premature EOF reached while decoding.");
+                    drop(tx);
+                    song.sample_array = child.join().unwrap()?;
+                    song.sample_rate = SAMPLE_RATE;
+                    return Ok(song);
+                }
+                // Silently fail on decoding errors; pray for the best
+                Err(_) => (),
+            };
+
             loop {
                 let mut decoded = ffmpeg::frame::Audio::empty();
                 match codec.receive_frame(&mut decoded) {
@@ -233,7 +251,7 @@ impl Song {
                                 e
                             )
                         })?;
-                    },
+                    }
                     Err(_) => break,
                 }
             }
@@ -243,7 +261,22 @@ impl Song {
         // TODO check that it's still how to do this
         let packet = ffmpeg::codec::packet::Packet::empty();
         loop {
-            codec.send_packet(&packet).unwrap();
+            match codec.send_packet(&packet) {
+                Ok(_) => (),
+                Err(Error::Other { errno: EINVAL }) => {
+                    return Err(String::from("Wrong codec opened."))
+                }
+                Err(Error::Eof) => {
+                    println!("Premature EOF reached while decoding.");
+                    drop(tx);
+                    song.sample_array = child.join().unwrap()?;
+                    song.sample_rate = SAMPLE_RATE;
+                    return Ok(song);
+                }
+                // Silently fail on decoding errors; pray for the best
+                Err(_) => (),
+            };
+
             loop {
                 let mut decoded = ffmpeg::frame::Audio::empty();
                 match codec.receive_frame(&mut decoded) {
@@ -254,7 +287,7 @@ impl Song {
                                 e
                             )
                         })?;
-                    },
+                    }
                     Err(_) => break,
                 }
             }

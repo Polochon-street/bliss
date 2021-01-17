@@ -1,10 +1,12 @@
 // temporarily pub
+// TODO get pub stuff right
+// TODO use proper logging system instead of just printlns
 pub mod chroma;
 pub mod misc;
+pub mod song;
 pub mod temporal;
 pub mod timbral;
 pub mod utils;
-pub mod song;
 
 pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;
@@ -37,14 +39,14 @@ pub struct Analysis {
 impl Analysis {
     #[allow(dead_code)]
     fn approx_eq(&self, other: &Self) -> bool {
-        0.01 > (self.tempo - other.tempo).abs() &&
-        0.01 > (self.spectral_centroid - other.spectral_centroid).abs() &&
-        0.01 > (self.zero_crossing_rate - other.zero_crossing_rate).abs() &&
-        0.01 > (self.spectral_rolloff - other.spectral_rolloff).abs() &&
-        0.01 > (self.spectral_flatness - other.spectral_flatness).abs() &&
-        0.01 > (self.loudness - other.loudness).abs() &&
-        0.01 > (self.fifth.0 - other.fifth.0).abs() &&
-        0.01 > (self.fifth.1 - other.fifth.1).abs() &&
-        self.fifth == other.fifth
+        0.01 > (self.tempo - other.tempo).abs()
+            && 0.01 > (self.spectral_centroid - other.spectral_centroid).abs()
+            && 0.01 > (self.zero_crossing_rate - other.zero_crossing_rate).abs()
+            && 0.01 > (self.spectral_rolloff - other.spectral_rolloff).abs()
+            && 0.01 > (self.spectral_flatness - other.spectral_flatness).abs()
+            && 0.01 > (self.loudness - other.loudness).abs()
+            && 0.01 > (self.fifth.0 - other.fifth.0).abs()
+            && 0.01 > (self.fifth.1 - other.fifth.1).abs()
+            && self.fifth == other.fifth
     }
 }
