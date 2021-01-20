@@ -16,7 +16,7 @@ ndarray-npy = "0.7.0"
 ndarray = { version = "0.14.0", features = ["rayon"] }
 ndarray-stats = { git = "https://github.com/rust-ndarray/ndarray-stats" }
 rustfft = "5.0.1"
-num-complex = "0.3.0"
+lazy_static = "1.4.0"
 rayon = "*"
 crossbeam = "*"
 noisy_float = "0.1.13"
