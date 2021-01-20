@@ -57,7 +57,7 @@ impl BPMDesc {
      *
      * - `song` Song to compute score from
      */
-    // TODO analyze a whole library and check that this is not > 1.
+    // TODO analyse a whole library and check that this is not > 1.
     pub fn get_value(&mut self) -> f32 {
         self.normalize(self.aubio_obj.get_bpm())
     }

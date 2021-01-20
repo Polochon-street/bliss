@@ -145,6 +145,16 @@ pub struct Analysis {
     pub fifth: (f32, f32),
 }
 
+pub fn bulk_analyse(paths: Vec<String>) -> Vec<Song> {
+    let songs = Vec::with_capacity(paths.len());
+
+    for path in paths {
+        // TODO unwrap
+        let song = Song::new(&path).unwrap();
+        songs.push(song);
+    }
+}
+
 impl Analysis {
     #[allow(dead_code)]
     fn approx_eq(&self, other: &Self) -> bool {
