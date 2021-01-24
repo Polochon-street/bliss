@@ -124,7 +124,8 @@ lazy_static! {
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Song {
-    pub sample_array: Vec<f32>,
+    // TODO make private
+    pub sample_array: Option<Vec<f32>>,
     pub sample_rate: u32,
     pub path: String,
     pub artist: String,

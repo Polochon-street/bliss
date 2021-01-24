@@ -78,7 +78,7 @@ mod tests {
     fn test_tempo_real() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut tempo_desc = BPMDesc::new(song.sample_rate);
-        for chunk in song.sample_array.chunks_exact(BPMDesc::HOP_SIZE) {
+        for chunk in song.sample_array.unwrap().chunks_exact(BPMDesc::HOP_SIZE) {
             tempo_desc.do_(&chunk);
         }
         assert!(0.01 > (0.378605 - tempo_desc.get_value()).abs());

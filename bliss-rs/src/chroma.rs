@@ -591,7 +591,7 @@ mod test {
     fn test_chroma_desc() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
-        chroma_desc.do_(&song.sample_array);
+        chroma_desc.do_(&song.sample_array.unwrap());
         assert_eq!(
             chroma_desc.get_values(),
             (-1., (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
@@ -602,7 +602,8 @@ mod test {
     fn test_chroma_stft_decode() {
         let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
-            .sample_array;
+            .sample_array
+            .unwrap();
         let mut stft = stft(&signal, 8192, 2205);
 
         let file = File::open("data/chroma.npy").unwrap();
@@ -630,7 +631,8 @@ mod test {
     fn test_estimate_tuning_decode() {
         let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
-            .sample_array;
+            .sample_array
+            .unwrap();
         let stft = stft(&signal, 8192, 2205);
 
         let tuning = estimate_tuning(22050, &stft, 8192, 0.01, 12);
