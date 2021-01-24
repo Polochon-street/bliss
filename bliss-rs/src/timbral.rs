@@ -261,7 +261,6 @@ mod tests {
         }
         // White noise - as close to 1 as possible
         assert!(0.001 > (0.6706717 - spectral_desc.get_flatness()).abs());
-
     }
 
     #[test]

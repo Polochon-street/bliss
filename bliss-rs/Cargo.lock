@@ -100,6 +100,7 @@ dependencies = [
  "ndarray-npy",
  "ndarray-stats",
  "noisy_float",
+ "num_cpus",
  "rayon",
  "ripemd160",
  "rustfft",

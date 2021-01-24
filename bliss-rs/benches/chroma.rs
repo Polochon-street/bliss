@@ -5,8 +5,8 @@
 mod test {
     extern crate test;
     use bliss_rs::chroma::*;
-    use bliss_rs::utils::TEMPLATES_MAJMIN;
     use bliss_rs::utils::stft;
+    use bliss_rs::utils::TEMPLATES_MAJMIN;
     use bliss_rs::Song;
     use ndarray::{arr2, Array, Array1, Array2};
     use ndarray_npy::ReadNpyExt;
@@ -87,7 +87,6 @@ mod test {
             sort_by_fifths(&features);
         });
     }
-
 
     #[bench]
     fn bench_generate_template_matrix(b: &mut Bencher) {

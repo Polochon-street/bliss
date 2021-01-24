@@ -5,9 +5,8 @@
 #[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
-use aubio_rs::{OnsetMode, Tempo};
 use crate::utils::Normalize;
-
+use aubio_rs::{OnsetMode, Tempo};
 
 /**
  * Beats per minutes ([BPM](https://en.wikipedia.org/wiki/Tempo#Measurement))
@@ -23,7 +22,7 @@ use crate::utils::Normalize;
  *
  * Ranges from 0 (theoretically...) to 206 BPM. (Even though aubio apparently
  * has trouble to identify tempo > 190 BPM - did not investigate too much)
- * 
+ *
  */
 pub struct BPMDesc {
     aubio_obj: Tempo,
@@ -57,7 +56,7 @@ impl BPMDesc {
      *
      * - `song` Song to compute score from
      */
-    // TODO analyze a whole library and check that this is not > 1.
+    // TODO analyse a whole library and check that this is not > 1.
     pub fn get_value(&mut self) -> f32 {
         self.normalize(self.aubio_obj.get_bpm())
     }
@@ -91,7 +90,11 @@ mod tests {
         // This gives one beat every second, so 60 BPM
         let mut one_chunk = vec![0.; 22000];
         one_chunk.append(&mut vec![1.; 100]);
-        let chunks = std::iter::repeat(one_chunk.iter()).take(100).flatten().cloned().collect::<Vec<f32>>();
+        let chunks = std::iter::repeat(one_chunk.iter())
+            .take(100)
+            .flatten()
+            .cloned()
+            .collect::<Vec<f32>>();
         for chunk in chunks.chunks_exact(BPMDesc::HOP_SIZE) {
             tempo_desc.do_(&chunk);
         }
@@ -112,7 +115,11 @@ mod tests {
         // apparently the higher bound is 206 BPM, but here I found ~189 BPM.
         let mut one_chunk = vec![0.; 6989];
         one_chunk.append(&mut vec![1.; 100]);
-        let chunks = std::iter::repeat(one_chunk.iter()).take(500).flatten().cloned().collect::<Vec<f32>>();
+        let chunks = std::iter::repeat(one_chunk.iter())
+            .take(500)
+            .flatten()
+            .cloned()
+            .collect::<Vec<f32>>();
         for chunk in chunks.chunks_exact(BPMDesc::HOP_SIZE) {
             tempo_desc.do_(&chunk);
         }

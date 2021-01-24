@@ -9,6 +9,8 @@ pub mod timbral;
 pub mod utils;
 #[macro_use]
 extern crate lazy_static;
+extern crate crossbeam;
+extern crate num_cpus;
 use ndarray::{arr1, arr2, Array1, Array2};
 
 pub const CHANNELS: u16 = 1;
@@ -120,7 +122,7 @@ lazy_static! {
     ]);
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq)]
 pub struct Song {
     pub sample_array: Vec<f32>,
     pub sample_rate: u32,
@@ -143,6 +145,33 @@ pub struct Analysis {
     pub loudness: f32,
     pub is_major: f32,
     pub fifth: (f32, f32),
+}
+
+pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, String>> {
+    let mut songs = Vec::with_capacity(paths.len());
+    let num_cpus = num_cpus::get();
+
+    crossbeam::scope(|s| {
+        let mut handles = Vec::with_capacity(paths.len() / num_cpus);
+        for chunk in paths.chunks(paths.len() / num_cpus) {
+            handles.push(s.spawn(move |_| {
+                let mut result = Vec::with_capacity(chunk.len());
+                for path in chunk {
+                    println!("Analyzing path {}", path);
+                    let song = Song::new(&path);
+                    result.push(song);
+                }
+                result
+            }));
+        }
+
+        for handle in handles {
+            songs.extend(handle.join().unwrap());
+        }
+    })
+    .unwrap();
+
+    songs
 }
 
 impl Analysis {
@@ -255,5 +284,51 @@ mod tests {
         };
 
         assert_eq!(a.distance(&a), 0.)
+    }
+
+    #[test]
+    fn test_bulk_analyse() {
+        let results = bulk_analyse(vec![
+            String::from("data/s16_mono_22_5kHz.flac"),
+            String::from("data/s16_mono_22_5kHz.flac"),
+            String::from("nonexistent"),
+            String::from("data/s16_stereo_22_5kHz.flac"),
+            String::from("nonexistent"),
+            String::from("nonexistent"),
+            String::from("nonexistent"),
+            String::from("nonexistent"),
+            String::from("nonexistent"),
+            String::from("nonexistent"),
+            String::from("nonexistent"),
+        ]);
+        let mut errored_songs: Vec<String> = results
+            .iter()
+            .filter_map(|x| x.as_ref().err().cloned())
+            .collect();
+        errored_songs.sort_by(|a, b| a.cmp(b));
+
+        let mut analysed_songs: Vec<String> = results
+            .iter()
+            .filter_map(|x| x.as_ref().ok().map(|x| x.path.to_string()))
+            .collect();
+        analysed_songs.sort_by(|a, b| a.cmp(b));
+
+        assert_eq!(
+            vec![
+                String::from(
+                    "FFmpeg error while opening format: ffmpeg::Error(2: No such file or directory)."
+                );
+                8
+            ],
+            errored_songs
+        );
+        assert_eq!(
+            vec![
+                String::from("data/s16_mono_22_5kHz.flac"),
+                String::from("data/s16_mono_22_5kHz.flac"),
+                String::from("data/s16_stereo_22_5kHz.flac"),
+            ],
+            analysed_songs,
+        );
     }
 }

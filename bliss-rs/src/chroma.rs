@@ -171,11 +171,7 @@ pub fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
     f_analysis /= &f_analysis.sum_axis(Axis(0));
     // should this really be a mean?
     // this basically gets the fifth with most occurences
-    let index = f_analysis
-        .mean_axis(Axis(1))
-        .unwrap()
-        .argmax()
-        .unwrap();
+    let index = f_analysis.mean_axis(Axis(1)).unwrap().argmax().unwrap();
 
     let major_chord = CIRCLE_FIFTHS[index].0;
     let major_chord_index = CHORD_LABELS.iter().position(|&x| x == major_chord).unwrap();
@@ -314,7 +310,7 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
     let mut wts = d;
     // Normalize by computing the l2-norm over the columns
     for mut col in wts.gencolumns_mut() {
-        let mut sum = col.mapv(|x| x* x).sum().sqrt();
+        let mut sum = col.mapv(|x| x * x).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
@@ -339,11 +335,7 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
     wts.slice_move(s![.., ..non_aliased])
 }
 
-pub fn pip_track(
-    sample_rate: u32,
-    spectrum: &Array2<f64>,
-    n_fft: usize,
-) -> (Vec<f64>, Vec<f64>) {
+pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64>, Vec<f64>) {
     let sample_rate_float = f64::from(sample_rate);
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(sample_rate_float / 2.0);
@@ -361,17 +353,14 @@ pub fn pip_track(
 
     let ref_value = spectrum.map_axis(Axis(0), |x| {
         let first: f64 = *x.first().unwrap();
-        let max = x.fold(first, |acc, &elem| {
-            if acc > elem {
-                acc
-            }
-            else { elem }
-        });
+        let max = x.fold(first, |acc, &elem| if acc > elem { acc } else { elem });
         threshold * max
     });
 
     // There will be at most taken_columns * length elements in pitches / mags
-    let taken_columns = freq_mask.iter().fold(0, |acc, &x| if x { acc + 1 } else { acc });
+    let taken_columns = freq_mask
+        .iter()
+        .fold(0, |acc, &x| if x { acc + 1 } else { acc });
     let mut pitches = Vec::with_capacity(taken_columns * length);
     let mut mags = Vec::with_capacity(taken_columns * length);
 
@@ -385,11 +374,7 @@ pub fn pip_track(
     // No need to handle the last column, since freq_mask[length - 1] is
     // always going to be `false` for 22.5kHz
     zipped.apply(|(i, j), &before_elem, &elem, &after_elem| {
-        if 
-            elem > ref_value[j]
-            && after_elem <= elem
-            && before_elem < elem
-        {
+        if elem > ref_value[j] && after_elem <= elem && before_elem < elem {
             let avg = 0.5 * (after_elem - before_elem);
             let mut shift = 2. * elem - after_elem - before_elem;
             if shift.abs() < f64::MIN_POSITIVE {

@@ -57,12 +57,13 @@ impl Song {
         // TODO error handling here
         let mut song = Song::decode(&path)?;
 
-        song.analysis = (&song).analyze();
+        song.analysis = (&song).analyse();
+        song.sample_array = vec![];
         Ok(song)
     }
 
     // TODO write down somewhere that this can be done windows by windows
-    pub fn analyze(&self) -> Analysis {
+    pub fn analyse(&self) -> Analysis {
         thread::scope(|s| {
             let child_tempo = s.spawn(|_| {
                 let mut tempo_desc = BPMDesc::new(self.sample_rate);
@@ -316,7 +317,7 @@ mod tests {
     use std::f32::consts::PI;
 
     #[test]
-    fn test_analyze() {
+    fn test_analyse() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let expected_analysis = Analysis {
             tempo: 0.37860596,
@@ -328,7 +329,7 @@ mod tests {
             is_major: -1.,
             fifth: (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
         };
-        assert!(expected_analysis.approx_eq(&song.analyze()));
+        assert!(expected_analysis.approx_eq(&song.analyse()));
     }
 
     fn _test_decode(path: &str, expected_hash: &[u8]) {
