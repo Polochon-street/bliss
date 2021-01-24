@@ -240,7 +240,11 @@ mod tests {
     fn test_zcr() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut zcr_desc = ZeroCrossingRateDesc::default();
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             zcr_desc.do_(&chunk);
         }
         assert!(0.001 > (-0.85036 - zcr_desc.get_value()).abs());
@@ -256,7 +260,11 @@ mod tests {
 
         let song = Song::decode("data/white_noise.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(22050);
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             spectral_desc.do_(&chunk);
         }
         // White noise - as close to 1 as possible
@@ -267,7 +275,11 @@ mod tests {
     fn test_spectral_flatness() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(song.sample_rate);
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             spectral_desc.do_(&chunk);
         }
         // Spectral flatness value computed here with phase vocoder before normalization: 0.111949615
@@ -285,7 +297,11 @@ mod tests {
 
         let song = Song::decode("data/tone_11080Hz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(song.sample_rate);
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             spectral_desc.do_(&chunk);
         }
         assert!(0.01 > (0.9967681 - spectral_desc.get_rolloff()).abs());
@@ -295,7 +311,11 @@ mod tests {
     fn test_spectral_roll_off() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(song.sample_rate);
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             spectral_desc.do_(&chunk);
         }
         // Roll-off value computed here with phase vocoder before normalization: 2026.7644
@@ -307,7 +327,11 @@ mod tests {
     fn test_spectral_centroid() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(song.sample_rate);
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             spectral_desc.do_(&chunk);
         }
         // Spectral centroid value computed here with phase vocoder before normalization: 1354.2273
@@ -325,7 +349,11 @@ mod tests {
 
         let song = Song::decode("data/tone_11080Hz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(song.sample_rate);
-        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(SpectralDesc::HOP_SIZE)
+        {
             spectral_desc.do_(&chunk);
         }
         assert!(0.01 > (0.97266 - spectral_desc.get_centroid()).abs());

@@ -63,7 +63,11 @@ mod tests {
     fn test_loudness() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut loudness_desc = LoudnessDesc::default();
-        for chunk in song.sample_array.chunks_exact(LoudnessDesc::WINDOW_SIZE) {
+        for chunk in song
+            .sample_array
+            .unwrap()
+            .chunks_exact(LoudnessDesc::WINDOW_SIZE)
+        {
             loudness_desc.do_(&chunk);
         }
         assert!(0.01 > (0.271263 - loudness_desc.get_value()).abs());

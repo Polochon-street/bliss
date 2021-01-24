@@ -511,7 +511,7 @@ mod tests {
 
         let song = Song::decode("data/piano.flac").unwrap();
 
-        let stft = stft(&song.sample_array, 2048, 512);
+        let stft = stft(&song.sample_array.unwrap(), 2048, 512);
 
         assert!(!stft.is_empty() && !expected_stft.is_empty());
         for (expected, actual) in expected_stft.iter().zip(stft.iter()) {
