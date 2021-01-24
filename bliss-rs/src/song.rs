@@ -58,6 +58,7 @@ impl Song {
         let mut song = Song::decode(&path)?;
 
         song.analysis = (&song).analyse();
+        song.sample_array = vec![];
         Ok(song)
     }
 

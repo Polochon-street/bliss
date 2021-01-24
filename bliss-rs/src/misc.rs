@@ -1,5 +1,5 @@
 //! Miscellaneous feature extraction module.
-//! 
+//!
 //! Contains various descriptors that don't fit in one of the
 //! existing categories.
 #[cfg(feature = "aubio-lib")]
@@ -42,7 +42,9 @@ impl LoudnessDesc {
     pub fn get_value(&mut self) -> f32 {
         let mut mean_values = mean(&self.values);
         // Make sure the dB don't go less than -90dB
-        if mean_values < 1e-9 { mean_values = 1e-9 };
+        if mean_values < 1e-9 {
+            mean_values = 1e-9
+        };
         self.normalize(10.0 * mean_values.log10())
     }
 }

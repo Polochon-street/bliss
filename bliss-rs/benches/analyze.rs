@@ -4,8 +4,8 @@
 #[cfg(test)]
 mod test {
     extern crate test;
-    use bliss_rs::Song;
     use bliss_rs::utils::*;
+    use bliss_rs::Song;
     use ndarray::Array;
     use test::Bencher;
 

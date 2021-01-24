@@ -226,7 +226,6 @@ mod tests {
         let numbers = vec![256., 4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0];
         assert!(0.0001 > (3.668016172818685 - geometric_mean(&numbers)).abs());
 
-
         let subnormal = vec![4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 2.0, 1.0e-40_f32];
         assert!(0.0001 > (1.8340080864093417e-05 - geometric_mean(&subnormal)).abs());
 

@@ -1,5 +1,5 @@
-use std::env;
 use bliss_rs::Song;
+use std::env;
 
 /**
  * Simple utility to print distance between two songs according to bliss.
@@ -16,6 +16,11 @@ fn main() -> Result<(), String> {
     let song1 = Song::new(&first_path)?;
     let song2 = Song::new(&second_path)?;
 
-    println!("d({}, {}) = {}", song1.path, song2.path, song1.analysis.distance(&song2.analysis));
+    println!(
+        "d({}, {}) = {}",
+        song1.path,
+        song2.path,
+        song1.analysis.distance(&song2.analysis)
+    );
     Ok(())
 }

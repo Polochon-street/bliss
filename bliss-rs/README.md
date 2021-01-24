@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.com/Polochon-street/bliss.svg?branch=master)](https://travis-ci.com/Polochon-street/bliss)
 
-# Bliss music analyzer - Rust version
+# Bliss music analyser - Rust version
 Bliss-rs the Rust improvement of the first iteration of Bliss. The data it
 outputs is not compatible with the ones used by Bliss, since it uses
 different, more accurate features, based on actual literature this time.
