@@ -20,7 +20,7 @@ fn main() -> Result<(), String> {
         "d({}, {}) = {}",
         song1.path,
         song2.path,
-        song1.analysis.distance(&song2.analysis)
+        song1.distance(&song2)
     );
     Ok(())
 }
