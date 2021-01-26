@@ -17,7 +17,7 @@ use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::SAMPLE_RATE;
-use crate::{Analysis, Song};
+use crate::{Song, M};
 use crossbeam::thread;
 use ffmpeg::codec::threading::{Config, Type as ThreadingType};
 use ffmpeg::util;
@@ -27,6 +27,7 @@ use ffmpeg_next::util::error::Error;
 use ffmpeg_next::util::error::EINVAL;
 use ffmpeg_next::util::log;
 use ffmpeg_next::util::log::level::Level;
+use ndarray::{arr1, Array1};
 use std::sync::mpsc;
 use std::thread as std_thread;
 
@@ -53,6 +54,14 @@ pub fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec
 }
 
 impl Song {
+    #[allow(dead_code)]
+    pub fn distance(&self, other: &Self) -> f32 {
+        let a1: &Array1<f32> = &arr1(&self.analysis);
+        let a2: &Array1<f32> = &arr1(&other.analysis);
+
+        M.dot(&(a1 - a2)).dot(&(a1 - a2))
+    }
+
     pub fn new(path: &str) -> Result<Self, String> {
         // TODO error handling here
         let mut song = Song::decode(&path)?;
@@ -63,7 +72,7 @@ impl Song {
     }
 
     // TODO write down somewhere that this can be done windows by windows
-    pub fn analyse(&self) -> Result<Analysis, String> {
+    pub fn analyse(&self) -> Result<Vec<f32>, String> {
         thread::scope(|s| {
             let child_tempo: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
                 let sample_array = self
@@ -142,16 +151,17 @@ impl Song {
             let loudness = child_loudness.join().unwrap()?;
             let zcr = child_zcr.join().unwrap()?;
 
-            Ok(Analysis {
+            Ok(vec![
                 tempo,
-                spectral_centroid: centroid,
-                zero_crossing_rate: zcr,
-                spectral_rolloff: rolloff,
-                spectral_flatness: flatness,
+                centroid,
+                zcr,
+                rolloff,
+                flatness,
                 loudness,
                 is_major,
-                fifth,
-            })
+                fifth.0,
+                fifth.1,
+            ])
         })
         .unwrap()
     }
@@ -339,17 +349,20 @@ mod tests {
     #[test]
     fn test_analyse() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
-        let expected_analysis = Analysis {
-            tempo: 0.37860596,
-            spectral_centroid: -0.75483,
-            zero_crossing_rate: -0.85036564,
-            spectral_rolloff: -0.6326486,
-            spectral_flatness: -0.77610075,
-            loudness: 0.27126348,
-            is_major: -1.,
-            fifth: (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
-        };
-        assert!(expected_analysis.approx_eq(&song.analyse().unwrap()));
+        let expected_analysis = vec![
+            0.37860596,
+            -0.75483,
+            -0.85036564,
+            -0.6326486,
+            -0.77610075,
+            0.27126348,
+            -1.,
+            f32::cos(5. * PI / 3.),
+            f32::sin(5. * PI / 3.),
+        ];
+        for (x, y) in song.analysis.iter().zip(expected_analysis) {
+            assert!(0.01 > (x - y).abs());
+        }
     }
 
     fn _test_decode(path: &str, expected_hash: &[u8]) {
@@ -430,5 +443,53 @@ mod tests {
         let sample_array = song.sample_array.unwrap();
         assert!(sample_array.len() as f32 / sample_array.capacity() as f32 > 0.95);
         assert!(sample_array.len() as f32 / (sample_array.capacity() as f32) < 1.);
+    }
+
+    #[test]
+    fn test_analysis_distance() {
+        let mut a = Song::default();
+        a.analysis = vec![
+            0.37860596,
+            -0.75483,
+            -0.85036564,
+            -0.6326486,
+            -0.77610075,
+            0.27126348,
+            -1.,
+            0.,
+            1.,
+        ];
+
+        let mut b = Song::default();
+        b.analysis = vec![
+            0.31255,
+            0.15483,
+            -0.15036564,
+            -0.0326486,
+            -0.87610075,
+            -0.27126348,
+            1.,
+            0.,
+            1.,
+        ];
+        assert_eq!(a.distance(&b), 0.69275045,)
+    }
+
+    #[test]
+    fn test_analysis_distance_indiscernible() {
+        let mut a = Song::default();
+        a.analysis = vec![
+            0.37860596,
+            -0.75483,
+            -0.85036564,
+            -0.6326486,
+            -0.77610075,
+            0.27126348,
+            -1.,
+            0.,
+            1.,
+        ];
+
+        assert_eq!(a.distance(&a), 0.)
     }
 }

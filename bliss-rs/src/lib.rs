@@ -11,7 +11,7 @@ pub mod utils;
 extern crate lazy_static;
 extern crate crossbeam;
 extern crate num_cpus;
-use ndarray::{arr1, arr2, Array1, Array2};
+use ndarray::{arr2, Array2};
 
 pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;
@@ -133,19 +133,10 @@ pub struct Song {
     pub album: String,
     pub track_number: String,
     pub genre: String,
-    pub analysis: Analysis,
-}
-
-#[derive(Default, Debug, PartialEq)]
-pub struct Analysis {
-    pub tempo: f32,
-    pub spectral_centroid: f32,
-    pub zero_crossing_rate: f32,
-    pub spectral_rolloff: f32,
-    pub spectral_flatness: f32,
-    pub loudness: f32,
-    pub is_major: f32,
-    pub fifth: (f32, f32),
+    /// Vec containing analysis, in order: tempo, spectral_centroid,
+    /// zero_crossing_rate, spectral_rolloff, spectral_flatness, loudness,
+    /// is_major, fifth_0, fifth_1
+    pub analysis: Vec<f32>,
 }
 
 pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, String>> {
@@ -175,117 +166,9 @@ pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, String>> {
     songs
 }
 
-impl Analysis {
-    #[allow(dead_code)]
-    fn approx_eq(&self, other: &Self) -> bool {
-        0.01 > (self.tempo - other.tempo).abs()
-            && 0.01 > (self.spectral_centroid - other.spectral_centroid).abs()
-            && 0.01 > (self.zero_crossing_rate - other.zero_crossing_rate).abs()
-            && 0.01 > (self.spectral_rolloff - other.spectral_rolloff).abs()
-            && 0.01 > (self.spectral_flatness - other.spectral_flatness).abs()
-            && 0.01 > (self.loudness - other.loudness).abs()
-            && 0.01 > (self.fifth.0 - other.fifth.0).abs()
-            && 0.01 > (self.fifth.1 - other.fifth.1).abs()
-            && self.fifth == other.fifth
-    }
-
-    pub fn to_vec(&self) -> Vec<f32> {
-        vec![
-            self.tempo,
-            self.spectral_centroid,
-            self.zero_crossing_rate,
-            self.spectral_rolloff,
-            self.spectral_flatness,
-            self.loudness,
-            self.is_major,
-            self.fifth.0,
-            self.fifth.1,
-        ]
-    }
-
-    #[allow(dead_code)]
-    pub fn distance(&self, other: &Self) -> f32 {
-        let a1: &Array1<f32> = &arr1(&self.to_vec());
-        let a2: &Array1<f32> = &arr1(&other.to_vec());
-
-        M.dot(&(a1 - a2)).dot(&(a1 - a2))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_analysis_to_vec() {
-        let analysis = Analysis {
-            tempo: 0.37860596,
-            spectral_centroid: -0.75483,
-            zero_crossing_rate: -0.85036564,
-            spectral_rolloff: -0.6326486,
-            spectral_flatness: -0.77610075,
-            loudness: 0.27126348,
-            is_major: -1.,
-            fifth: (0., 1.),
-        };
-
-        assert_eq!(
-            vec![
-                0.37860596,
-                -0.75483,
-                -0.85036564,
-                -0.6326486,
-                -0.77610075,
-                0.27126348,
-                -1.,
-                0.,
-                1.
-            ],
-            analysis.to_vec(),
-        );
-    }
-
-    #[test]
-    fn test_analysis_distance() {
-        let a = Analysis {
-            tempo: 0.37860596,
-            spectral_centroid: -0.75483,
-            zero_crossing_rate: -0.85036564,
-            spectral_rolloff: -0.6326486,
-            spectral_flatness: -0.77610075,
-            loudness: 0.27126348,
-            is_major: -1.,
-            fifth: (0., 1.),
-        };
-
-        let b = Analysis {
-            tempo: 0.31255,
-            spectral_centroid: 0.15483,
-            zero_crossing_rate: -0.15036564,
-            spectral_rolloff: -0.0326486,
-            spectral_flatness: -0.87610075,
-            loudness: -0.27126348,
-            is_major: 1.,
-            fifth: (0., 1.),
-        };
-        assert_eq!(a.distance(&b), 0.69275045,)
-    }
-
-    #[test]
-    fn test_analysis_distance_indiscernible() {
-        let a = Analysis {
-            tempo: 0.37860596,
-            spectral_centroid: -0.75483,
-            zero_crossing_rate: -0.85036564,
-            spectral_rolloff: -0.6326486,
-            spectral_flatness: -0.77610075,
-            loudness: 0.27126348,
-            is_major: -1.,
-            fifth: (0., 1.),
-        };
-
-        assert_eq!(a.distance(&a), 0.)
-    }
 
     #[test]
     fn test_bulk_analyse() {
