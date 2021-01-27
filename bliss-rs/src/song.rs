@@ -105,24 +105,26 @@ impl Song {
                     Ok(chroma_desc.get_values())
                 });
 
-            let child_timbral: thread::ScopedJoinHandle<'_, Result<(f32, f32, f32), String>> = s
-                .spawn(|_| {
-                    let sample_array = self
-                        .sample_array
-                        .as_ref()
-                        .ok_or("Error: tried to analyse an empty song.")?;
-                    let mut spectral_desc = SpectralDesc::new(self.sample_rate);
-                    let windows = sample_array
-                        .windows(SpectralDesc::WINDOW_SIZE)
-                        .step_by(SpectralDesc::HOP_SIZE);
-                    for window in windows {
-                        spectral_desc.do_(&window);
-                    }
-                    let centroid = spectral_desc.get_centroid();
-                    let rolloff = spectral_desc.get_rolloff();
-                    let flatness = spectral_desc.get_flatness();
-                    Ok((centroid, rolloff, flatness))
-                });
+            let child_timbral: thread::ScopedJoinHandle<
+                '_,
+                Result<(Vec<f32>, Vec<f32>, Vec<f32>), String>,
+            > = s.spawn(|_| {
+                let sample_array = self
+                    .sample_array
+                    .as_ref()
+                    .ok_or("Error: tried to analyse an empty song.")?;
+                let mut spectral_desc = SpectralDesc::new(self.sample_rate);
+                let windows = sample_array
+                    .windows(SpectralDesc::WINDOW_SIZE)
+                    .step_by(SpectralDesc::HOP_SIZE);
+                for window in windows {
+                    spectral_desc.do_(&window);
+                }
+                let centroid = spectral_desc.get_centroid();
+                let rolloff = spectral_desc.get_rolloff();
+                let flatness = spectral_desc.get_flatness();
+                Ok((centroid, rolloff, flatness))
+            });
 
             let child_zcr: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
                 let sample_array = self
@@ -134,19 +136,20 @@ impl Song {
                 Ok(zcr_desc.get_value())
             });
 
-            let child_loudness: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
-                let mut loudness_desc = LoudnessDesc::default();
-                let sample_array = self
-                    .sample_array
-                    .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.")?;
-                let windows = sample_array.chunks(LoudnessDesc::WINDOW_SIZE);
+            let child_loudness: thread::ScopedJoinHandle<'_, Result<Vec<f32>, String>> =
+                s.spawn(|_| {
+                    let mut loudness_desc = LoudnessDesc::default();
+                    let sample_array = self
+                        .sample_array
+                        .as_ref()
+                        .ok_or("Error: tried to analyse an empty song.")?;
+                    let windows = sample_array.chunks(LoudnessDesc::WINDOW_SIZE);
 
-                for window in windows {
-                    loudness_desc.do_(&window);
-                }
-                Ok(loudness_desc.get_value())
-            });
+                    for window in windows {
+                        loudness_desc.do_(&window);
+                    }
+                    Ok(loudness_desc.get_value())
+                });
 
             // Non-streaming approach for that one
             let tempo = child_tempo.join().unwrap()?;
@@ -155,7 +158,11 @@ impl Song {
             let loudness = child_loudness.join().unwrap()?;
             let zcr = child_zcr.join().unwrap()?;
 
-            let mut result = vec![tempo, centroid, zcr, rolloff, flatness, loudness];
+            let mut result = vec![tempo, zcr];
+            result.extend_from_slice(&centroid);
+            result.extend_from_slice(&rolloff);
+            result.extend_from_slice(&flatness);
+            result.extend_from_slice(&loudness);
             result.extend_from_slice(&chroma);
             Ok(result)
         })
@@ -341,13 +348,18 @@ mod tests {
     #[test]
     fn test_analyse() {
         let song = Song::new("data/s16_mono_22_5kHz.flac").unwrap();
+        println!("{:?}", song.analysis);
         let expected_analysis = vec![
-            0.37860596,
-            -0.75483,
-            -0.85036564,
-            -0.6326486,
-            -0.77610075,
-            0.27126348,
+            0.3709823,
+            -0.849141,
+            -0.75481045,
+            -0.8790748,
+            -0.63258266,
+            -0.7258959,
+            -0.775738,
+            -0.8146726,
+            0.2716726,
+            0.25779057,
             -0.35661936,
             -0.63578653,
             -0.29593682,

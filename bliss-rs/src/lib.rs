@@ -26,8 +26,11 @@ pub struct Song {
     pub album: String,
     pub track_number: String,
     pub genre: String,
-    /// Vec containing analysis, in order: tempo, spectral_centroid,
-    /// zero_crossing_rate, spectral_rolloff, spectral_flatness, loudness,
+    /// Vec containing analysis, in order: tempo, zero-crossing rate, 
+    /// mean spectral centroid, std deviation spectral centroid,
+    /// mean spectral rolloff, std deviation spectral rolloff
+    /// mean spectral_flatness, std deviation spectral flatness,
+    /// mean loudness, std deviation loudness
     /// chroma interval feature 1 to 10
     pub analysis: Vec<f32>,
 }
