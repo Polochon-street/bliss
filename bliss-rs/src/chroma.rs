@@ -8,45 +8,17 @@ extern crate aubio_lib;
 extern crate noisy_float;
 
 use crate::utils::stft;
-use crate::utils::{convolve, hz_to_octs_inplace, TEMPLATES_MAJMIN};
-use ndarray::{arr2, concatenate, s, Array, Array1, Array2, Axis, Zip};
+use crate::utils::{hz_to_octs_inplace, Normalize};
+use ndarray::{arr1, arr2, concatenate, s, Array, Array1, Array2, Axis, Zip};
 use ndarray_stats::interpolate::Midpoint;
 use ndarray_stats::QuantileExt;
 use noisy_float::prelude::*;
-use std::f32::consts::PI;
-
-const CHORD_LABELS: [&str; 24] = [
-    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m",
-    "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
-];
-// Contains the sequence of fifths: CHORD_LABELS[0] = C, CHORD_LABELS[7] = G, etc.
-const PERFECT_FIFTH_INDICES: [u8; 12] = [5, 0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10];
-#[allow(dead_code)]
-const SCALE_LABELS_ABSOLUTE: [&str; 12] = [
-    "0", "1#", "2#", "3#", "4#", "5#", "6#", "5b", "4b", "3b", "2b", "1b",
-];
-// In order https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg
-// 0 = C / A, 1# = G / E etc
-const CIRCLE_FIFTHS: [(&str, &str); 12] = [
-    ("C", "A"),
-    ("G", "E"),
-    ("D", "B"),
-    ("A", "F#"),
-    ("E", "C#"),
-    ("B", "G#"),
-    ("F#", "D#"),
-    ("C#", "A#"),
-    ("G#", "F"),
-    ("D#", "C"),
-    ("A#", "G"),
-    ("F", "D"),
-];
 
 /**
  * General object holding the chroma descriptor.
  *
- * Current chroma descriptors are the tone and the mode, see the [circle of
- * fifths](https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg).
+ * Current chroma descriptors are interval features (see
+ * https://speech.di.uoa.gr/ICMC-SMC-2014/images/VOL_2/1461.pdf).
  *
  * Contrary to the other descriptors that can be used with streaming
  * without consequences, this one performs better if the full song is used at
@@ -56,6 +28,11 @@ pub struct ChromaDesc {
     sample_rate: u32,
     n_chroma: u32,
     values_chroma: Array2<f64>,
+}
+
+impl Normalize for ChromaDesc {
+    const MAX_VALUE: f32 = 0.12;
+    const MIN_VALUE: f32 = 0.;
 }
 
 impl ChromaDesc {
@@ -96,151 +73,68 @@ impl ChromaDesc {
     }
 
     /**
-     * Get the song's mode (minor / major) and its tone.
+     * Get the song's interval features.
      *
-     * The song's tone is made of the projection of
-     * https://en.wikipedia.org/wiki/Circle_of_fifths#/media/File:Circle_of_fifths_deluxe_4.svg
-     * into a trigonometric circle: for example 1# is at pi/3, #2 pi/6, etc.
-     * While it may not make a lot of sense conceptually, it's a good way to
-     * convert the tone in a set of usable / comparable features.
+     * Return the 6 pitch class set categories, as well as the major, minor,
+     * diminished and augmented triads.
+     *
+     * See this paper https://speech.di.uoa.gr/ICMC-SMC-2014/images/VOL_2/1461.pdf
+     * for more information ("Timbre-invariant Audio Features for Style Analysis of Classical
+     * Music").
      */
-    // TODO maybe split this into `get_mode` and `get_is_major`?
-    // Also either change `get_value()` everywhere to a `Result`,
-    // or to return another struct that has a `continue()` and a `get_value`
-    pub fn get_values(&mut self) -> (f32, (f32, f32)) {
-        chroma_fifth_is_major(&self.values_chroma)
+    pub fn get_values(&mut self) -> Vec<f32> {
+        chroma_interval_features(&self.values_chroma)
+            .mapv(|x| self.normalize(x as f32))
+            .to_vec()
     }
 }
 
 // Functions below are Rust versions of python notebooks by AudioLabs Erlang
 // (https://www.audiolabs-erlangen.de/resources/MIR/FMP/C0/C0.html)
-// TODO maybe make functions like normalize, etc, in place
-pub fn chroma_fifth_is_major(chroma: &Array2<f64>) -> (f32, (f32, f32)) {
-    // Values here are in the same order as SCALE_LABELS_ABSOLUTES
-    let scale_values: [(f32, f32); 12] = [
-        (f32::cos(PI / 2.), f32::sin(PI / 2.)),
-        (f32::cos(PI / 3.), f32::sin(PI / 3.)),
-        (f32::cos(PI / 6.), f32::sin(PI / 6.)),
-        (f32::cos(0.), f32::sin(0.)),
-        (f32::cos(11. * PI / 6.), f32::sin(11. * PI / 6.)),
-        (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)),
-        (f32::cos(3. * PI / 2.), f32::sin(3. * PI / 2.)),
-        (f32::cos(4. * PI / 3.), f32::sin(4. * PI / 3.)),
-        (f32::cos(7. * PI / 6.), f32::sin(7. * PI / 6.)),
-        (f32::cos(PI), f32::sin(PI)),
-        (f32::cos(5. * PI / 6.), f32::sin(5. * PI / 6.)),
-        (f32::cos(2. * PI / 3.), f32::sin(2. * PI / 3.)),
-    ];
-
-    let templates_majmin = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
-
-    let chroma_filtered =
-        normalize_feature_sequence(&smooth_downsample_feature_sequence(chroma, 15, 10));
-    let f_analysis_prefilt = analysis_template_match(&chroma_filtered, &templates_majmin, true);
-    let mut summed: Array1<f64> = Array::zeros(24);
-    for prefilt_column in f_analysis_prefilt.gencolumns() {
-        let index = prefilt_column.argmax().unwrap();
-        summed[[index]] += 1.;
-    }
-
-    let chroma_filtered =
-        normalize_feature_sequence(&smooth_downsample_feature_sequence(chroma, 45, 15));
-    let chroma_sorted = sort_by_fifths(&chroma_filtered);
-    let template_diatonic = arr2(&[
-        [1.],
-        [3.],
-        [2.],
-        [1.],
-        [2.],
-        [3.],
-        [1.],
-        [0.],
-        [0.],
-        [0.],
-        [0.],
-        [0.],
+pub fn chroma_interval_features(chroma: &Array2<f64>) -> Array1<f64> {
+    let chroma = normalize_feature_sequence(&chroma.mapv(|x| (x * 15.).exp()));
+    let templates = arr2(&[
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0, 1, 1, 0],
+        [0, 0, 0, 1, 0, 0, 1, 0, 0, 1],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 0, 0, 1, 0],
+        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ]);
-    let templates_scale = generate_template_matrix(&template_diatonic);
-    let mut f_analysis = 70.
-        * normalize_feature_sequence(&analysis_template_match(
-            &chroma_sorted,
-            &templates_scale,
-            false,
-        ));
-    f_analysis.mapv_inplace(f64::exp);
-    f_analysis /= &f_analysis.sum_axis(Axis(0));
-    // should this really be a mean?
-    // this basically gets the fifth with most occurences
-    let index = f_analysis.mean_axis(Axis(1)).unwrap().argmax().unwrap();
-
-    let major_chord = CIRCLE_FIFTHS[index].0;
-    let major_chord_index = CHORD_LABELS.iter().position(|&x| x == major_chord).unwrap();
-    let minor_chord = format!("{}m", CIRCLE_FIFTHS[index].1);
-    let minor_chord_index = CHORD_LABELS.iter().position(|&x| x == minor_chord).unwrap();
-    let minor = summed[minor_chord_index];
-    let major = summed[major_chord_index];
-    let mode = scale_values[index];
-
-    let tone_bool = major > minor;
-    let mut tone = -1.;
-    if tone_bool {
-        tone = 1.
-    };
-    // No normalization needed since `mode` is on the unit circle
-    (tone, mode)
+    let interval_feature_matrix = extract_interval_features(&chroma, &templates);
+    interval_feature_matrix.mean_axis(Axis(1)).unwrap()
 }
 
-pub fn generate_template_matrix(templates: &Array2<f64>) -> Array2<f64> {
-    let mut output = Array2::zeros((12, 12 * templates.dim().1));
-
-    output.slice_mut(s![.., ..;12]).assign(&templates);
-
-    for shift in 1..12 as isize {
-        output
-            .slice_mut(s![shift.., shift as usize..;12])
-            .assign(&templates.slice(s![..-shift, ..]));
-        output
-            .slice_mut(s![..shift, shift as usize..;12])
-            .assign(&templates.slice(s![-shift.., ..]));
+pub fn extract_interval_features(chroma: &Array2<f64>, templates: &Array2<i32>) -> Array2<f64> {
+    let mut f_intervals: Array2<f64> = Array::zeros((chroma.shape()[1], templates.shape()[1]));
+    for (template, mut f_interval) in templates
+        .axis_iter(Axis(1))
+        .zip(f_intervals.axis_iter_mut(Axis(1)))
+    {
+        for shift in 0..12 {
+            let mut vec: Vec<i32> = template.to_vec();
+            vec.rotate_right(shift);
+            let rolled = arr1(&vec);
+            let power = Zip::from(chroma.t())
+                .and_broadcast(&rolled)
+                .apply_collect(|&f, &s| f.powi(s))
+                .map_axis_mut(Axis(1), |x| x.product());
+            f_interval += &power;
+        }
     }
-
-    output
-}
-
-pub fn sort_by_fifths(feature: &Array2<f64>) -> Array2<f64> {
-    let mut output = Array2::zeros((PERFECT_FIFTH_INDICES.len(), feature.dim().1));
-    for (array_index, &index) in PERFECT_FIFTH_INDICES.iter().enumerate() {
-        output
-            .slice_mut(s![array_index as usize, ..])
-            .assign(&feature.index_axis(Axis(0), index as usize));
-    }
-
-    output
-}
-
-pub fn smooth_downsample_feature_sequence(
-    feature: &Array2<f64>,
-    filter_length: u32,
-    down_sampling: u32,
-) -> Array2<f64> {
-    let filter_kernel = Array::ones(filter_length as usize);
-    let mut output = Array2::zeros((
-        feature.dim().0,
-        (feature.dim().1 as f64 / down_sampling as f64).ceil() as usize,
-    ));
-    Zip::from(feature.genrows())
-        .and(output.genrows_mut())
-        .apply(|f, mut o| {
-            let smoothed = convolve(&f.to_owned(), &filter_kernel);
-            o.assign(&smoothed.slice(s![..; down_sampling as usize]));
-        });
-    output / filter_length as f64
+    f_intervals.t().to_owned()
 }
 
 pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     let mut normalized_sequence = feature.to_owned();
     for mut column in normalized_sequence.gencolumns_mut() {
-        let mut sum = column.mapv(|x| x * x).sum().sqrt();
+        let mut sum = column.mapv(|x| x.abs()).sum();
         if sum < 0.0001 {
             sum = 1.;
         }
@@ -248,22 +142,6 @@ pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     }
 
     normalized_sequence
-}
-
-pub fn analysis_template_match(
-    chroma: &Array2<f64>,
-    templates: &Array2<f64>,
-    normalize: bool,
-) -> Array2<f64> {
-    let chroma_normalized = normalize_feature_sequence(chroma);
-    let templates_normalized = normalize_feature_sequence(templates);
-
-    let f_analysis = templates_normalized.t().dot(&chroma_normalized);
-    if normalize {
-        normalize_feature_sequence(&f_analysis)
-    } else {
-        f_analysis
-    }
 }
 
 // All the functions below are more than heavily inspired from
@@ -452,7 +330,7 @@ pub fn chroma_stft(
 
     raw_chroma = raw_chroma.dot(spectrum);
     for mut row in raw_chroma.gencolumns_mut() {
-        let mut sum = row.mapv(|x| x * x).sum().sqrt();
+        let mut sum = row.mapv(|x| x.abs()).sum();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
         }
@@ -471,101 +349,46 @@ mod test {
     use std::fs::File;
 
     #[test]
-    fn test_fifth_is_major() {
+    fn test_chroma_interval_features() {
         let file = File::open("data/chroma.npy").unwrap();
         let chroma = Array2::<f64>::read_npy(file).unwrap();
-
-        let fifth_is_major = chroma_fifth_is_major(&chroma);
-        assert_eq!(
-            fifth_is_major,
-            (-1., (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
-        );
+        let features = chroma_interval_features(&chroma);
+        let expected_features = arr1(&[
+            0.03860284, 0.02185281, 0.04224379, 0.06385278, 0.07311148, 0.02512566, 0.00319899,
+            0.00311308, 0.00107433, 0.00241861,
+        ]);
+        for (expected, actual) in expected_features.iter().zip(&features) {
+            assert!(0.00000001 > (expected - actual.abs()));
+        }
     }
 
     #[test]
-    fn test_generate_template_matrix() {
+    fn test_extract_interval_features() {
+        let file = File::open("data/chroma-interval.npy").unwrap();
+        let chroma = Array2::<f64>::read_npy(file).unwrap();
         let templates = arr2(&[
-            [1., 1.],
-            [0., 0.],
-            [0., 0.],
-            [0., 1.],
-            [1., 0.],
-            [0., 0.],
-            [0., 0.],
-            [1., 1.],
-            [0., 0.],
-            [0., 0.],
-            [0., 0.],
-            [0., 0.],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 1, 0, 0, 1, 0, 0, 1],
+            [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ]);
 
-        let expected_template = [
-            1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1.,
-            0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.,
-            0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0.,
-            0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1., 1., 0., 0., 1.,
-            0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1.,
-            0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.,
-            0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0.,
-            0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 1., 1., 0., 0., 1., 0., 0., 0., 1.,
-            0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0.,
-            0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0.,
-            0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0.,
-            0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 0., 1., 0.,
-            0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0.,
-            0., 1.,
-        ];
-        let expected_template =
-            Array::from_shape_vec((12, 24), expected_template.to_vec()).unwrap();
-        let template_matrix = generate_template_matrix(&templates);
-        assert_eq!(template_matrix, expected_template);
-    }
+        let file = File::open("data/interval-feature-matrix.npy").unwrap();
+        let expected_interval_features = Array2::<f64>::read_npy(file).unwrap();
 
-    #[test]
-    fn test_sort_by_fifths() {
-        let file = File::open("data/filtered_features.npy").unwrap();
-        let features = Array2::<f64>::read_npy(file).unwrap();
-        let file = File::open("data/sorted_features.npy").unwrap();
-        let expected_sorted = Array2::<f64>::read_npy(file).unwrap();
-
-        let sorted = sort_by_fifths(&features);
-        for (expected, actual) in expected_sorted.iter().zip(sorted.iter()) {
-            assert!(0.0000001 > (expected - actual).abs());
-        }
-    }
-
-    #[test]
-    fn test_smooth_downsample_feature_sequence() {
-        let file = File::open("data/chroma.npy").unwrap();
-        let chroma = Array2::<f64>::read_npy(file).unwrap();
-        let file = File::open("data/downsampled.npy").unwrap();
-        let expected_downsampled = Array2::<f64>::read_npy(file).unwrap();
-
-        let downsampled = smooth_downsample_feature_sequence(&chroma, 45, 15);
-        for (expected, actual) in expected_downsampled.iter().zip(downsampled.iter()) {
-            assert!(0.0000001 > (expected - actual).abs());
-        }
-    }
-
-    #[test]
-    fn test_analysis_template_match() {
-        let file = File::open("data/f_analysis_normalized.npy").unwrap();
-        let expected_analysis = Array2::<f64>::read_npy(file).unwrap();
-
-        let file = File::open("data/chroma.npy").unwrap();
-        let chroma = Array2::<f64>::read_npy(file).unwrap();
-
-        let templates = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
-        let analysis = analysis_template_match(&chroma, &templates, true);
-
-        for (expected, actual) in expected_analysis.iter().zip(analysis.iter()) {
-            assert!(0.0000001 > (expected - actual).abs());
-        }
-
-        let analysis = analysis_template_match(&chroma, &templates, false);
-        let file = File::open("data/f_analysis.npy").unwrap();
-        let expected_analysis = Array2::<f64>::read_npy(file).unwrap();
-        for (expected, actual) in expected_analysis.iter().zip(analysis.iter()) {
+        let interval_features = extract_interval_features(&chroma, &templates);
+        for (expected, actual) in expected_interval_features
+            .iter()
+            .zip(interval_features.iter())
+        {
             assert!(0.0000001 > (expected - actual).abs());
         }
     }
@@ -574,8 +397,8 @@ mod test {
     fn test_normalize_feature_sequence() {
         let array = arr2(&[[0.1, 0.3, 0.4], [1.1, 0.53, 1.01]]);
         let expected_array = arr2(&[
-            [0.09053575, 0.49259822, 0.36821425],
-            [0.99589321, 0.87025686, 0.92974097],
+            [0.08333333, 0.36144578, 0.28368794],
+            [0.91666667, 0.63855422, 0.71631206],
         ]);
 
         let normalized_array = normalize_feature_sequence(&array);
@@ -592,10 +415,22 @@ mod test {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
         chroma_desc.do_(&song.sample_array.unwrap());
-        assert_eq!(
-            chroma_desc.get_values(),
-            (-1., (f32::cos(5. * PI / 3.), f32::sin(5. * PI / 3.)))
-        );
+        let expected_values = vec![
+            -0.35661936,
+            -0.63578653,
+            -0.29593682,
+            0.06421304,
+            0.21852458,
+            -0.581239,
+            -0.9466835,
+            -0.9481153,
+            -0.9820945,
+            -0.95968974,
+        ];
+        println!("{:?}", chroma_desc.get_values());
+        for (expected, actual) in expected_values.iter().zip(chroma_desc.get_values().iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
     }
 
     #[test]

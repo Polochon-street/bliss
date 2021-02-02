@@ -78,7 +78,7 @@ impl Song {
                 let sample_array = self
                     .sample_array
                     .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.".to_string())?;
+                    .ok_or_else(|| "Error: tried to analyse an empty song.".to_string())?;
                 let mut tempo_desc = BPMDesc::new(self.sample_rate);
                 let windows = sample_array
                     .windows(BPMDesc::WINDOW_SIZE)
@@ -90,12 +90,12 @@ impl Song {
                 Ok(tempo_desc.get_value())
             });
 
-            let child_chroma: thread::ScopedJoinHandle<'_, Result<(f32, (f32, f32)), String>> = s
-                .spawn(|_| {
+            let child_chroma: thread::ScopedJoinHandle<'_, Result<Vec<f32>, String>> =
+                s.spawn(|_| {
                     let sample_array = self
                         .sample_array
                         .as_ref()
-                        .ok_or("Error: tried to analyse an empty song.".to_string())?;
+                        .ok_or_else(|| "Error: tried to analyse an empty song.".to_string())?;
                     let mut chroma_desc = ChromaDesc::new(self.sample_rate, 12);
                     chroma_desc.do_(&sample_array);
                     Ok(chroma_desc.get_values())
@@ -106,7 +106,7 @@ impl Song {
                     let sample_array = self
                         .sample_array
                         .as_ref()
-                        .ok_or("Error: tried to analyse an empty song.")?;
+                        .ok_or_else(|| "Error: tried to analyse an empty song.")?;
                     let mut spectral_desc = SpectralDesc::new(self.sample_rate);
                     let windows = sample_array
                         .windows(SpectralDesc::WINDOW_SIZE)
@@ -124,7 +124,7 @@ impl Song {
                 let sample_array = self
                     .sample_array
                     .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.")?;
+                    .ok_or_else(|| "Error: tried to analyse an empty song.")?;
                 let mut zcr_desc = ZeroCrossingRateDesc::default();
                 zcr_desc.do_(&sample_array);
                 Ok(zcr_desc.get_value())
@@ -135,7 +135,7 @@ impl Song {
                 let sample_array = self
                     .sample_array
                     .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.")?;
+                    .ok_or_else(|| "Error: tried to analyse an empty song.")?;
                 let windows = sample_array.chunks(LoudnessDesc::WINDOW_SIZE);
 
                 for window in windows {
@@ -146,22 +146,14 @@ impl Song {
 
             // Non-streaming approach for that one
             let tempo = child_tempo.join().unwrap()?;
-            let (is_major, fifth) = child_chroma.join().unwrap()?;
+            let chroma = child_chroma.join().unwrap()?;
             let (centroid, rolloff, flatness) = child_timbral.join().unwrap()?;
             let loudness = child_loudness.join().unwrap()?;
             let zcr = child_zcr.join().unwrap()?;
 
-            Ok(vec![
-                tempo,
-                centroid,
-                zcr,
-                rolloff,
-                flatness,
-                loudness,
-                is_major,
-                fifth.0,
-                fifth.1,
-            ])
+            let mut result = vec![tempo, centroid, zcr, rolloff, flatness, loudness];
+            result.extend_from_slice(&chroma);
+            Ok(result)
         })
         .unwrap()
     }
@@ -170,8 +162,10 @@ impl Song {
     pub fn decode(path: &str) -> Result<Song, String> {
         ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
         log::set_level(Level::Quiet);
-        let mut song = Song::default();
-        song.path = path.to_string();
+        let mut song = Song {
+            path: path.to_string(),
+            ..Default::default()
+        };
         let mut format = ffmpeg::format::input(&path)
             .map_err(|e| format!("FFmpeg error while opening format: {:?}.", e))?;
         let (mut codec, stream, expected_sample_number) = {
@@ -299,38 +293,35 @@ impl Song {
         // Flush the stream
         // TODO check that it's still how to do this
         let packet = ffmpeg::codec::packet::Packet::empty();
-        loop {
-            match codec.send_packet(&packet) {
-                Ok(_) => (),
-                Err(Error::Other { errno: EINVAL }) => {
-                    return Err(String::from("Wrong codec opened."))
-                }
-                Err(Error::Eof) => {
-                    println!("Premature EOF reached while decoding.");
-                    drop(tx);
-                    song.sample_array = Some(child.join().unwrap()?);
-                    song.sample_rate = SAMPLE_RATE;
-                    return Ok(song);
-                }
-                // Silently fail on decoding errors; pray for the best
-                Err(_) => (),
-            };
-
-            loop {
-                let mut decoded = ffmpeg::frame::Audio::empty();
-                match codec.receive_frame(&mut decoded) {
-                    Ok(_) => {
-                        tx.send(decoded).map_err(|e| {
-                            format!(
-                                "Error while sending decoded frame to the resampling thread: {:?}",
-                                e
-                            )
-                        })?;
-                    }
-                    Err(_) => break,
-                }
+        match codec.send_packet(&packet) {
+            Ok(_) => (),
+            Err(Error::Other { errno: EINVAL }) => {
+                return Err(String::from("Wrong codec opened."))
             }
-            break;
+            Err(Error::Eof) => {
+                println!("Premature EOF reached while decoding.");
+                drop(tx);
+                song.sample_array = Some(child.join().unwrap()?);
+                song.sample_rate = SAMPLE_RATE;
+                return Ok(song);
+            }
+            // Silently fail on decoding errors; pray for the best
+            Err(_) => (),
+        };
+
+        loop {
+            let mut decoded = ffmpeg::frame::Audio::empty();
+            match codec.receive_frame(&mut decoded) {
+                Ok(_) => {
+                    tx.send(decoded).map_err(|e| {
+                        format!(
+                            "Error while sending decoded frame to the resampling thread: {:?}",
+                            e
+                        )
+                    })?;
+                }
+                Err(_) => break,
+            }
         }
 
         drop(tx);
@@ -344,11 +335,10 @@ impl Song {
 mod tests {
     use super::*;
     use ripemd160::{Digest, Ripemd160};
-    use std::f32::consts::PI;
 
     #[test]
     fn test_analyse() {
-        let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
+        let song = Song::new("data/s16_mono_22_5kHz.flac").unwrap();
         let expected_analysis = vec![
             0.37860596,
             -0.75483,
@@ -356,9 +346,16 @@ mod tests {
             -0.6326486,
             -0.77610075,
             0.27126348,
-            -1.,
-            f32::cos(5. * PI / 3.),
-            f32::sin(5. * PI / 3.),
+            -0.35661936,
+            -0.63578653,
+            -0.29593682,
+            0.06421304,
+            0.21852458,
+            -0.581239,
+            -0.9466835,
+            -0.9481153,
+            -0.9820945,
+            -0.95968974,
         ];
         for (x, y) in song.analysis.iter().zip(expected_analysis) {
             assert!(0.01 > (x - y).abs());
