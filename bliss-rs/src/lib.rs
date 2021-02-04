@@ -149,7 +149,6 @@ pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, String>> {
             handles.push(s.spawn(move |_| {
                 let mut result = Vec::with_capacity(chunk.len());
                 for path in chunk {
-                    println!("Analyzing path {}", path);
                     let song = Song::new(&path);
                     result.push(song);
                 }
