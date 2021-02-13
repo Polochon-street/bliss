@@ -23,6 +23,10 @@ crossbeam = "*"
 noisy_float = "0.1.13"
 ffmpeg-next = "*"
 
+[dev-dependencies]
+mpd = "*"
+rusqlite = { git = "https://github.com/rusqlite/rusqlite" }
+
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
 
