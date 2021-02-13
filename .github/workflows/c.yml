@@ -1,0 +1,21 @@
+name: C
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Packages
+      run: sudo apt-get install build-essential yasm libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libavfilter-dev libswresample-dev libfftw3-dev
+    - name: Build
+      run: mkdir build && cd build && cmake .. && cmake --build .
+    - name: Tests
+      run: cd build && make CTEST_OUTPUT_ON_FAILURE=1 test
