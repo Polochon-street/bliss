@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/Polochon-street/bliss.svg?branch=master)](https://travis-ci.com/Polochon-street/bliss)
+![Rust build](https://github.com/Polochon-street/bliss/workflows/Rust/badge.svg)
 
 # Bliss music analyser - Rust version
 Bliss-rs the Rust improvement of the first iteration of Bliss. The data it
