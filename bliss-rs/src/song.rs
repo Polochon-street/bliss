@@ -17,7 +17,7 @@ use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::SAMPLE_RATE;
-use crate::{Song, M};
+use crate::Song;
 use crossbeam::thread;
 use ffmpeg::codec::threading::{Config, Type as ThreadingType};
 use ffmpeg::util;
@@ -27,7 +27,7 @@ use ffmpeg_next::util::error::Error;
 use ffmpeg_next::util::error::EINVAL;
 use ffmpeg_next::util::log;
 use ffmpeg_next::util::log::level::Level;
-use ndarray::{arr1, Array1};
+use ndarray::{arr1, Array};
 use std::sync::mpsc;
 use std::thread as std_thread;
 
@@ -56,10 +56,14 @@ pub fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec
 impl Song {
     #[allow(dead_code)]
     pub fn distance(&self, other: &Self) -> f32 {
-        let a1: &Array1<f32> = &arr1(&self.analysis);
-        let a2: &Array1<f32> = &arr1(&other.analysis);
+        let a1 = arr1(&self.analysis.to_vec());
+        let a2 = arr1(&other.analysis.to_vec());
+        // Could be any square symmetric positive semi-definite matrix;
+        // just no metric learning has been done yet.
+        // See https://lelele.io/thesis.pdf chapter 4.
+        let m = Array::eye(self.analysis.len());
 
-        M.dot(&(a1 - a2)).dot(&(a1 - a2))
+        (arr1(&self.analysis) - &a2).dot(&m).dot(&(&a1 - &a2))
     }
 
     pub fn new(path: &str) -> Result<Self, String> {
@@ -469,7 +473,7 @@ mod tests {
             0.,
             1.,
         ];
-        assert_eq!(a.distance(&b), 0.69275045,)
+        assert_eq!(a.distance(&b), 5.986180)
     }
 
     #[test]
