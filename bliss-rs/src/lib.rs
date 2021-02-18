@@ -2,12 +2,12 @@
 // TODO get pub stuff right
 // TODO use proper logging system instead of just printlns
 pub mod chroma;
+pub mod library;
 pub mod misc;
 pub mod song;
 pub mod temporal;
 pub mod timbral;
 pub mod utils;
-pub mod library;
 
 extern crate crossbeam;
 extern crate num_cpus;
@@ -28,10 +28,9 @@ pub struct Song {
     pub genre: String,
     /// Vec containing analysis, in order: tempo, spectral_centroid,
     /// zero_crossing_rate, spectral_rolloff, spectral_flatness, loudness,
-    /// chroma interval feature 1 to 10 
+    /// chroma interval feature 1 to 10
     pub analysis: Vec<f32>,
 }
-
 
 /// Simple function to bulk analyze a set of songs represented by their
 /// absolute paths.

@@ -16,8 +16,8 @@ use crate::chroma::ChromaDesc;
 use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
-use crate::SAMPLE_RATE;
 use crate::Song;
+use crate::SAMPLE_RATE;
 use crossbeam::thread;
 use ffmpeg::codec::threading::{Config, Type as ThreadingType};
 use ffmpeg::util;
@@ -299,9 +299,7 @@ impl Song {
         let packet = ffmpeg::codec::packet::Packet::empty();
         match codec.send_packet(&packet) {
             Ok(_) => (),
-            Err(Error::Other { errno: EINVAL }) => {
-                return Err(String::from("Wrong codec opened."))
-            }
+            Err(Error::Other { errno: EINVAL }) => return Err(String::from("Wrong codec opened.")),
             Err(Error::Eof) => {
                 println!("Premature EOF reached while decoding.");
                 drop(tx);
