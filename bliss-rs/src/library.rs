@@ -65,10 +65,15 @@ pub trait Library {
         playlist
     }
 
-    /// Analyzes a song library, using `get_songs_paths`, `store_song` and
-    /// `store_error_song` implementations.
-    fn analyze_library(&mut self) -> Result<(), String> {
-        let paths = self.get_songs_paths();
+    /// Analyze and store songs in `paths`, using `store_song` and
+    /// `store_error_song` implementations.
+    ///
+    /// Note: this is mostly useful for updating a song library. For the first
+    /// run, you probably want to use `analyze_library`.
+    fn analyze_paths(&mut self, paths: Vec<String>) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
         let num_cpus = num_cpus::get();
 
         let (tx, rx): (
@@ -107,6 +112,13 @@ pub trait Library {
             child.join().unwrap();
         }
         Ok(())
+    }
+
+    /// Analyzes a song library, using `get_songs_paths`, `store_song` and
+    /// `store_error_song` implementations.
+    fn analyze_library(&mut self) -> Result<(), String> {
+        let paths = self.get_songs_paths();
+        self.analyze_paths(paths)
     }
 }
 
@@ -249,5 +261,11 @@ mod test {
             vec![first_song.to_owned(), second_song, third_song],
             test_library.playlist_from_song(first_song, 200)
         );
+    }
+
+    #[test]
+    fn test_analyze_empty_path() {
+        let mut test_library = TestLibrary::default();
+        assert!(test_library.analyze_paths(vec![]).is_ok());
     }
 }
