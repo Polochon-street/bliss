@@ -17,10 +17,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Packages
-      run: sudo apt-get install build-essential yasm libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libavfilter-dev libswresample-dev libfftw3-dev libaubio-dev libaubio5
+      run: sudo apt-get install build-essential yasm libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libavfilter-dev libavdevice-dev libswresample-dev libfftw3-dev libaubio-dev libaubio5 ffmpeg
     - name: Build
       working-directory: ./bliss-rs
-      run: cargo build --verbose --features "build-ffmpeg aubio-lib"
+      run: cargo build --verbose
     - name: Run tests
       working-directory: ./bliss-rs
-      run: cargo test --verbose --features "build-ffmpeg aubio-lib"
+      run: cargo test --verbose
