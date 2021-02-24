@@ -26,4 +26,4 @@ jobs:
       run: cargo test --verbose
     - name: Run example tests
       working-directory: ./bliss-rs
-      run: cargo test --verbose --examples -- --test-threads=1
+      run: cargo test --verbose --examples

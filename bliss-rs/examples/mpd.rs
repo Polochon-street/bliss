@@ -8,6 +8,7 @@
 //! --playlist.
 use bliss_rs::library::Library;
 use bliss_rs::Song;
+#[cfg(not(test))]
 use dirs::data_local_dir;
 use mpd::search::{Query, Term};
 #[cfg(not(test))]
@@ -37,6 +38,7 @@ impl MPDLibrary {
         Client::connect("127.0.0.1:6600").unwrap()
     }
 
+    #[cfg(not(test))]
     fn get_database_folder() -> PathBuf {
         match env::var("XDG_DATA_HOME") {
             // TODO check that path is valid
@@ -274,14 +276,10 @@ fn main() -> Result<(), String> {
     if command == "rescan" {
         library.full_rescan().unwrap();
     } else if command == "playlist" {
-        let playlist = library.playlist_from_song(library.current_song(), 20);
-        println!(
-            "{:?}",
-            playlist
-                .iter()
-                .map(|x| x.path.to_string())
-                .collect::<Vec<String>>()
-        );
+        let playlist = library.playlist_from_song(library.current_song(), 6);
+        for song in playlist {
+            println!("{}", song.path);
+        }
     } else if command == "update" {
         library.update();
     }
@@ -328,13 +326,14 @@ mod test {
         pub fn get_mpd_conn() -> MockMPDClient {
             MockMPDClient::connect("127.0.0.1:6600").unwrap()
         }
+
+        pub fn get_database_folder() -> PathBuf {
+            TempDir::new("test").unwrap().path().to_path_buf()
+        }
     }
 
     #[test]
     fn test_full_rescan() {
-        let temp_directory = TempDir::new("test-analyze").unwrap();
-        env::set_var("XDG_DATA_HOME", temp_directory.path().to_str().unwrap());
-
         let mut library = MPDLibrary::new(String::from(""));
         let sqlite_conn = library.sqlite_conn.lock().unwrap();
         sqlite_conn
@@ -399,9 +398,6 @@ mod test {
 
     #[test]
     fn test_playlist() {
-        let temp_directory = TempDir::new("test-playlist").unwrap();
-        env::set_var("XDG_DATA_HOME", temp_directory.path().to_str().unwrap());
-
         let library = MPDLibrary::new(String::from(""));
 
         let sqlite_conn = library.sqlite_conn.lock().unwrap();
@@ -454,9 +450,6 @@ mod test {
 
     #[test]
     fn test_update() {
-        let temp_directory = TempDir::new("test-playlist").unwrap();
-        env::set_var("XDG_DATA_HOME", temp_directory.path().to_str().unwrap());
-
         let mut library = MPDLibrary::new(String::from(""));
 
         let sqlite_conn = library.sqlite_conn.lock().unwrap();
