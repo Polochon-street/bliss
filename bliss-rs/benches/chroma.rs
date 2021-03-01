@@ -6,9 +6,8 @@ mod test {
     extern crate test;
     use bliss_rs::chroma::*;
     use bliss_rs::utils::stft;
-    use bliss_rs::utils::TEMPLATES_MAJMIN;
     use bliss_rs::Song;
-    use ndarray::{arr2, Array, Array1, Array2};
+    use ndarray::{arr2, Array1, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;
     use test::Bencher;
@@ -50,17 +49,6 @@ mod test {
     }
 
     #[bench]
-    fn bench_analysis_template_match(b: &mut Bencher) {
-        let file = File::open("data/chroma.npy").unwrap();
-        let chroma = Array2::<f64>::read_npy(file).unwrap();
-
-        let templates = Array::from_shape_vec((12, 24), TEMPLATES_MAJMIN.to_vec()).unwrap();
-        b.iter(|| {
-            analysis_template_match(&chroma, &templates, true);
-        });
-    }
-
-    #[bench]
     fn bench_normalize_feature_sequence(b: &mut Bencher) {
         let array = arr2(&[[0.1, 0.3, 0.4], [1.1, 0.53, 1.01]]);
         b.iter(|| {
@@ -69,62 +57,12 @@ mod test {
     }
 
     #[bench]
-    fn bench_smooth_downsample_feature_sequence(b: &mut Bencher) {
-        let file = File::open("data/chroma.npy").unwrap();
-        let chroma = Array2::<f64>::read_npy(file).unwrap();
-
-        b.iter(|| {
-            smooth_downsample_feature_sequence(&chroma, 45, 15);
-        });
-    }
-
-    #[bench]
-    fn bench_sort_by_fifths(b: &mut Bencher) {
-        let file = File::open("data/filtered_features.npy").unwrap();
-        let features = Array2::<f64>::read_npy(file).unwrap();
-
-        b.iter(|| {
-            sort_by_fifths(&features);
-        });
-    }
-
-    #[bench]
-    fn bench_generate_template_matrix(b: &mut Bencher) {
-        let templates = arr2(&[
-            [1., 1.],
-            [0., 0.],
-            [0., 0.],
-            [0., 1.],
-            [1., 0.],
-            [0., 0.],
-            [0., 0.],
-            [1., 1.],
-            [0., 0.],
-            [0., 0.],
-            [0., 0.],
-            [0., 0.],
-        ]);
-        b.iter(|| {
-            generate_template_matrix(&templates);
-        });
-    }
-
-    #[bench]
-    fn bench_fifth_is_major(b: &mut Bencher) {
-        let file = File::open("data/chroma.npy").unwrap();
-        let chroma = Array2::<f64>::read_npy(file).unwrap();
-
-        b.iter(|| {
-            chroma_fifth_is_major(&chroma);
-        });
-    }
-
-    #[bench]
     fn bench_chroma_desc(b: &mut Bencher) {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
+        let signal = song.sample_array.unwrap();
         b.iter(|| {
-            chroma_desc.do_(&song.sample_array);
+            chroma_desc.do_(&signal);
             chroma_desc.get_values();
         });
     }
@@ -133,8 +71,9 @@ mod test {
     fn bench_chroma_stft(b: &mut Bencher) {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(song.sample_rate, 12);
+        let signal = song.sample_array.unwrap();
         b.iter(|| {
-            chroma_desc.do_(&song.sample_array);
+            chroma_desc.do_(&signal);
             chroma_desc.get_values();
         });
     }
@@ -143,7 +82,8 @@ mod test {
     fn bench_chroma_stft_decode(b: &mut Bencher) {
         let signal = Song::decode("data/s16_mono_22_5kHz.flac")
             .unwrap()
-            .sample_array;
+            .sample_array
+            .unwrap();
         let mut stft = stft(&signal, 8192, 2205);
 
         b.iter(|| {
