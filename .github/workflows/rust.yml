@@ -16,6 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: false
     - name: Packages
       run: sudo apt-get install build-essential yasm libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libavfilter-dev libavdevice-dev libswresample-dev libfftw3-dev libaubio-dev libaubio5 ffmpeg
     - name: Build
@@ -27,3 +31,6 @@ jobs:
     - name: Run example tests
       working-directory: ./bliss-rs
       run: cargo test --verbose --examples
+    - name: Build benches
+      working-directory: ./bliss-rs
+      run: cargo +nightly bench --verbose --no-run

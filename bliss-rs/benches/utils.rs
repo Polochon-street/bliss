@@ -21,10 +21,10 @@ mod test {
 
     #[bench]
     fn bench_compute_stft(b: &mut Bencher) {
-        let song = Song::decode("data/piano.flac").unwrap();
+        let signal = Song::decode("data/piano.flac").unwrap().sample_array.unwrap();
 
         b.iter(|| {
-            stft(&song.sample_array, 2048, 512);
+            stft(&signal, 2048, 512);
         });
     }
 
