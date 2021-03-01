@@ -146,8 +146,11 @@ pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
 
 // All the functions below are more than heavily inspired from
 // librosa"s code: https://github.com/librosa/librosa/blob/main/librosa/feature/spectral.py#L1165
-// TODO maybe hardcode it? Since it doesn't need to be recomputed every time
 // chroma(22050, n_fft=5, n_chroma=12)
+//
+// Could be precomputed, but it takes very little time to compute it
+// on the fly compared to the rest of the functions, and we'd lose the
+// possibility to tweak parameters.
 pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
     let ctroct = 5.0;
     let octwidth = 2.;
@@ -223,7 +226,7 @@ pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec
 
     let length = spectrum.len_of(Axis(0));
 
-    // TODO this could be a bitvec
+    // TODO Make this a bitvec when that won't mean depending on a crate
     let freq_mask = fft_freqs
         .iter()
         .map(|&f| (fmin <= f) && (f < fmax))
@@ -272,7 +275,6 @@ pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_oct
     if frequencies.is_empty() {
         return 0.0;
     }
-    // todo make it return a ref to frequencies
     hz_to_octs_inplace(frequencies, 0.0, 12);
     frequencies.mapv_inplace(|x| f64::from(bins_per_octave) * x % 1.0);
 
@@ -290,8 +292,6 @@ pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_oct
     (-50. + (100. * resolution * max_index as f64)) / 100.
 }
 
-// TODO maybe merge pitch and mags upstream if one wants to micro-optimize
-// stuff.
 pub fn estimate_tuning(
     sample_rate: u32,
     spectrum: &Array2<f64>,
@@ -301,19 +301,22 @@ pub fn estimate_tuning(
 ) -> f64 {
     let (pitch, mag) = pip_track(sample_rate, &spectrum, n_fft);
 
-    let (filtered_pitch, filtered_mag): (Vec<f64>, Vec<f64>) =
-        pitch.iter().zip(&mag).filter(|(&p, _)| p > 0.).unzip();
+    let (filtered_pitch, filtered_mag): (Vec<N64>, Vec<N64>) = pitch
+        .iter()
+        .zip(&mag)
+        .filter(|(&p, _)| p > 0.)
+        .map(|(x, y)| (n64(*x), n64(*y)))
+        .unzip();
 
-    // TODO maybe use noisy floats to avoid the skipnan
-    let threshold: f64 = Array::from(filtered_mag.to_vec())
-        .quantile_axis_skipnan_mut(Axis(0), n64(0.5), &Midpoint)
+    let threshold: N64 = Array::from(filtered_mag.to_vec())
+        .quantile_axis_mut(Axis(0), n64(0.5), &Midpoint)
         .unwrap()
         .into_scalar();
 
     let mut pitch = filtered_pitch
         .iter()
         .zip(&filtered_mag)
-        .filter_map(|(&p, &m)| if m >= threshold { Some(p) } else { None })
+        .filter_map(|(&p, &m)| if m >= threshold { Some(p.into()) } else { None })
         .collect::<Array1<f64>>();
     pitch_tuning(&mut pitch, resolution, bins_per_octave)
 }
