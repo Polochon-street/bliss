@@ -1,8 +1,8 @@
 //! Module containing the Library trait, useful to get started to implement
 //! a plug-in for an audio player.
 use crate::Song;
-use ndarray::{arr1, Array, Array1};
-use ndarray_stats::QuantileExt;
+use ndarray::{arr1, Array};
+use noisy_float::prelude::*;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
@@ -40,29 +40,16 @@ pub trait Library {
     fn playlist_from_song(&self, first_song: Song, playlist_length: usize) -> Vec<Song> {
         let analysis_current_song = arr1(&first_song.analysis.to_vec());
         let mut songs = self.get_stored_songs();
-        // Get rid of the song we want to build a playlist from
-        songs.retain(|x| *x != first_song);
-        let mut array: Array1<f32> = Array1::zeros(songs.len());
         let m = Array::eye(first_song.analysis.len());
-        // TODO make that better
-        for (i, song) in songs.iter().enumerate() {
-            array[[i]] = (arr1(&song.analysis) - &analysis_current_song)
+        songs.sort_by_cached_key(|song| {
+            n32((arr1(&song.analysis) - &analysis_current_song)
                 .dot(&m)
-                .dot(&(arr1(&song.analysis) - &analysis_current_song));
-        }
-
-        let mut playlist: Vec<Song> = vec![first_song];
-        let playlist_length = (playlist_length - 1).min(array.len());
-        // TODO also make that better
-        for _ in 0..playlist_length {
-            let min_index = array.argmin().unwrap();
-            let mut vec = array.to_vec();
-            vec.remove(min_index);
-            array = arr1(&vec);
-            playlist.push(songs[min_index].to_owned());
-            songs.remove(min_index);
-        }
-        playlist
+                .dot(&(arr1(&song.analysis) - &analysis_current_song)))
+        });
+        songs
+            .into_iter()
+            .take(playlist_length)
+            .collect::<Vec<Song>>()
     }
 
     /// Analyze and store songs in `paths`, using `store_song` and
@@ -220,14 +207,21 @@ mod test {
             ..Default::default()
         };
 
+        let fourth_song = Song {
+            path: String::from("path-to-fourth"),
+            analysis: vec![20., 21., 20.],
+            ..Default::default()
+        };
+
         test_library.internal_storage = vec![
             first_song.to_owned(),
-            second_song.to_owned(),
+            fourth_song.to_owned(),
             third_song.to_owned(),
+            second_song.to_owned(),
         ];
         assert_eq!(
-            vec![first_song.to_owned(), second_song],
-            test_library.playlist_from_song(first_song, 2)
+            vec![first_song.to_owned(), second_song, third_song],
+            test_library.playlist_from_song(first_song, 3)
         );
     }
 
