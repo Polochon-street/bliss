@@ -6,6 +6,7 @@
 extern crate aubio_lib;
 
 use aubio_rs::level_lin;
+use ndarray::{arr1, Axis};
 
 use super::utils::{mean, Normalize};
 
@@ -39,13 +40,20 @@ impl LoudnessDesc {
         self.values.push(level);
     }
 
-    pub fn get_value(&mut self) -> f32 {
-        let mut mean_values = mean(&self.values);
+    pub fn get_value(&mut self) -> Vec<f32> {
+        let mut std_value = arr1(&self.values).std_axis(Axis(0), 0.).into_scalar();
+        let mut mean_value = mean(&self.values);
         // Make sure the dB don't go less than -90dB
-        if mean_values < 1e-9 {
-            mean_values = 1e-9
+        if mean_value < 1e-9 {
+            mean_value = 1e-9
         };
-        self.normalize(10.0 * mean_values.log10())
+        if std_value < 1e-9 {
+            std_value = 1e-9
+        }
+        vec![
+            self.normalize(10.0 * mean_value.log10()),
+            self.normalize(10.0 * std_value.log10()),
+        ]
     }
 }
 
@@ -70,7 +78,10 @@ mod tests {
         {
             loudness_desc.do_(&chunk);
         }
-        assert!(0.01 > (0.271263 - loudness_desc.get_value()).abs());
+        let expected_values = vec![0.271263, 0.2577181];
+        for (expected, actual) in expected_values.iter().zip(loudness_desc.get_value().iter()) {
+            assert!(0.01 > (expected - actual).abs());
+        }
     }
 
     #[test]
@@ -78,16 +89,25 @@ mod tests {
         let mut loudness_desc = LoudnessDesc::default();
         let silence_chunk = vec![0.; 1024];
         loudness_desc.do_(&silence_chunk);
-        assert_eq!(-1., loudness_desc.get_value());
+        let expected_values = vec![-1., -1.];
+        for (expected, actual) in expected_values.iter().zip(loudness_desc.get_value().iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
 
         let mut loudness_desc = LoudnessDesc::default();
         let silence_chunk = vec![1.; 1024];
         loudness_desc.do_(&silence_chunk);
-        assert_eq!(1., loudness_desc.get_value());
+        let expected_values = vec![1., -1.];
+        for (expected, actual) in expected_values.iter().zip(loudness_desc.get_value().iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
 
         let mut loudness_desc = LoudnessDesc::default();
         let silence_chunk = vec![-1.; 1024];
         loudness_desc.do_(&silence_chunk);
-        assert_eq!(1., loudness_desc.get_value());
+        let expected_values = vec![1., -1.];
+        for (expected, actual) in expected_values.iter().zip(loudness_desc.get_value().iter()) {
+            assert!(0.0000001 > (expected - actual).abs());
+        }
     }
 }

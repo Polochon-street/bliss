@@ -430,7 +430,6 @@ mod test {
             -0.9820945,
             -0.95968974,
         ];
-        println!("{:?}", chroma_desc.get_values());
         for (expected, actual) in expected_values.iter().zip(chroma_desc.get_values().iter()) {
             assert!(0.0000001 > (expected - actual).abs());
         }
@@ -474,7 +473,6 @@ mod test {
         let stft = stft(&signal, 8192, 2205);
 
         let tuning = estimate_tuning(22050, &stft, 8192, 0.01, 12);
-        println!("{:?}", tuning);
         assert!(0.000001 > (-0.04999999999999999 - tuning).abs());
     }
 
