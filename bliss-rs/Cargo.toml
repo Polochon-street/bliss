@@ -8,6 +8,7 @@ edition = "2018"
 
 [features]
 build-ffmpeg = ["ffmpeg-next/build"]
+bench = []
 
 [dependencies]
 # TODO set proper deps

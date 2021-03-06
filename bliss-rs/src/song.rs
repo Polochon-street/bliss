@@ -53,6 +53,17 @@ pub fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec
     sample_array.extend_from_slice(&f32_frame);
 }
 
+#[derive(Default)]
+pub struct InternalSong {
+    pub path: String,
+    pub artist: String,
+    pub title: String,
+    pub album: String,
+    pub track_number: String,
+    pub genre: String,
+    pub sample_array: Vec<f32>,
+}
+
 impl Song {
     #[allow(dead_code)]
     pub fn distance(&self, other: &Self) -> f32 {
@@ -68,22 +79,26 @@ impl Song {
 
     pub fn new(path: &str) -> Result<Self, String> {
         // TODO error handling here
-        let mut song = Song::decode(&path)?;
+        let raw_song = Song::decode(&path)?;
 
-        song.analysis = (&song).analyse()?;
-        song.sample_array = None;
-        Ok(song)
+        Ok(
+            Song {
+                path: raw_song.path,
+                artist: raw_song.artist,
+                title: raw_song.title,
+                album: raw_song.album,
+                track_number: raw_song.track_number,
+                genre: raw_song.genre,
+                analysis: Song::analyse(raw_song.sample_array)?,
+            }
+        )
     }
 
     // TODO write down somewhere that this can be done windows by windows
-    pub fn analyse(&self) -> Result<Vec<f32>, String> {
+    fn analyse(sample_array: Vec<f32>) -> Result<Vec<f32>, String> {
         thread::scope(|s| {
             let child_tempo: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
-                let sample_array = self
-                    .sample_array
-                    .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.".to_string())?;
-                let mut tempo_desc = BPMDesc::new(self.sample_rate);
+                let mut tempo_desc = BPMDesc::new(SAMPLE_RATE);
                 let windows = sample_array
                     .windows(BPMDesc::WINDOW_SIZE)
                     .step_by(BPMDesc::HOP_SIZE);
@@ -96,11 +111,7 @@ impl Song {
 
             let child_chroma: thread::ScopedJoinHandle<'_, Result<Vec<f32>, String>> =
                 s.spawn(|_| {
-                    let sample_array = self
-                        .sample_array
-                        .as_ref()
-                        .ok_or("Error: tried to analyse an empty song.".to_string())?;
-                    let mut chroma_desc = ChromaDesc::new(self.sample_rate, 12);
+                    let mut chroma_desc = ChromaDesc::new(SAMPLE_RATE, 12);
                     chroma_desc.do_(&sample_array);
                     Ok(chroma_desc.get_values())
                 });
@@ -109,11 +120,7 @@ impl Song {
                 '_,
                 Result<(Vec<f32>, Vec<f32>, Vec<f32>), String>,
             > = s.spawn(|_| {
-                let sample_array = self
-                    .sample_array
-                    .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.")?;
-                let mut spectral_desc = SpectralDesc::new(self.sample_rate);
+                let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
                 let windows = sample_array
                     .windows(SpectralDesc::WINDOW_SIZE)
                     .step_by(SpectralDesc::HOP_SIZE);
@@ -127,10 +134,6 @@ impl Song {
             });
 
             let child_zcr: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
-                let sample_array = self
-                    .sample_array
-                    .as_ref()
-                    .ok_or("Error: tried to analyse an empty song.")?;
                 let mut zcr_desc = ZeroCrossingRateDesc::default();
                 zcr_desc.do_(&sample_array);
                 Ok(zcr_desc.get_value())
@@ -139,10 +142,6 @@ impl Song {
             let child_loudness: thread::ScopedJoinHandle<'_, Result<Vec<f32>, String>> =
                 s.spawn(|_| {
                     let mut loudness_desc = LoudnessDesc::default();
-                    let sample_array = self
-                        .sample_array
-                        .as_ref()
-                        .ok_or("Error: tried to analyse an empty song.")?;
                     let windows = sample_array.chunks(LoudnessDesc::WINDOW_SIZE);
 
                     for window in windows {
@@ -170,10 +169,10 @@ impl Song {
     }
 
     // TODO DRY me
-    pub fn decode(path: &str) -> Result<Song, String> {
+    pub(crate) fn decode(path: &str) -> Result<InternalSong, String> {
         ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
         log::set_level(Level::Quiet);
-        let mut song = Song {
+        let mut song = InternalSong {
             path: path.to_string(),
             ..Default::default()
         };
@@ -200,7 +199,6 @@ impl Song {
             (codec, stream.index(), expected_sample_number)
         };
         let mut sample_array: Vec<f32> = Vec::with_capacity(expected_sample_number as usize);
-
         if let Some(title) = format.metadata().get("title") {
             song.title = title.to_string();
         };
@@ -277,8 +275,7 @@ impl Song {
                 Err(Error::Eof) => {
                     println!("Premature EOF reached while decoding.");
                     drop(tx);
-                    song.sample_array = Some(child.join().unwrap()?);
-                    song.sample_rate = SAMPLE_RATE;
+                    song.sample_array = child.join().unwrap()?;
                     return Ok(song);
                 }
                 // Silently fail on decoding errors; pray for the best
@@ -310,8 +307,7 @@ impl Song {
             Err(Error::Eof) => {
                 println!("Premature EOF reached while decoding.");
                 drop(tx);
-                song.sample_array = Some(child.join().unwrap()?);
-                song.sample_rate = SAMPLE_RATE;
+                song.sample_array = child.join().unwrap()?;
                 return Ok(song);
             }
             // Silently fail on decoding errors; pray for the best
@@ -334,8 +330,7 @@ impl Song {
         }
 
         drop(tx);
-        song.sample_array = Some(child.join().unwrap()?);
-        song.sample_rate = SAMPLE_RATE;
+        song.sample_array = child.join().unwrap()?;
         Ok(song)
     }
 }
@@ -348,7 +343,6 @@ mod tests {
     #[test]
     fn test_analyse() {
         let song = Song::new("data/s16_mono_22_5kHz.flac").unwrap();
-        println!("{:?}", song.analysis);
         let expected_analysis = vec![
             0.3709823,
             -0.849141,
@@ -379,7 +373,7 @@ mod tests {
     fn _test_decode(path: &str, expected_hash: &[u8]) {
         let song = Song::decode(path).unwrap();
         let mut hasher = Ripemd160::new();
-        for sample in song.sample_array.unwrap().iter() {
+        for sample in song.sample_array.iter() {
             hasher.update(sample.to_le_bytes().to_vec());
         }
 
@@ -439,19 +433,19 @@ mod tests {
     fn test_decode_right_capacity_vec() {
         let path = String::from("data/s16_mono_22_5kHz.flac");
         let song = Song::decode(&path).unwrap();
-        let sample_array = song.sample_array.unwrap();
+        let sample_array = song.sample_array;
         assert_eq!(sample_array.len(), sample_array.capacity());
 
         let path = String::from("data/s32_stereo_44_1_kHz.flac");
         let song = Song::decode(&path).unwrap();
-        let sample_array = song.sample_array.unwrap();
+        let sample_array = song.sample_array;
         assert_eq!(sample_array.len(), sample_array.capacity());
 
         // Not 100% sure that the number of samples for ogg is known
         // precisely in advance
         let path = String::from("data/capacity_fix.ogg");
         let song = Song::decode(&path).unwrap();
-        let sample_array = song.sample_array.unwrap();
+        let sample_array = song.sample_array;
         assert!(sample_array.len() as f32 / sample_array.capacity() as f32 > 0.95);
         assert!(sample_array.len() as f32 / (sample_array.capacity() as f32) < 1.);
     }
@@ -502,5 +496,20 @@ mod tests {
         ];
 
         assert_eq!(a.distance(&a), 0.)
+    }
+}
+
+#[cfg(all(feature = "bench", test))]
+mod bench {
+    extern crate test;
+    use crate::Song;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_resample_multi(b: &mut Bencher) {
+        let path = String::from("./data/s32_stereo_44_1_kHz.flac");
+        b.iter(|| {
+            Song::decode(&path).unwrap();
+        });
     }
 }

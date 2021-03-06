@@ -265,7 +265,6 @@ mod tests {
         let mut zcr_desc = ZeroCrossingRateDesc::default();
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             zcr_desc.do_(&chunk);
@@ -288,7 +287,6 @@ mod tests {
         let mut spectral_desc = SpectralDesc::new(22050);
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             spectral_desc.do_(&chunk);
@@ -303,10 +301,9 @@ mod tests {
     #[test]
     fn test_spectral_flatness() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
-        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             spectral_desc.do_(&chunk);
@@ -331,10 +328,9 @@ mod tests {
         }
 
         let song = Song::decode("data/tone_11080Hz.flac").unwrap();
-        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             spectral_desc.do_(&chunk);
@@ -348,10 +344,9 @@ mod tests {
     #[test]
     fn test_spectral_roll_off() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
-        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             spectral_desc.do_(&chunk);
@@ -367,10 +362,9 @@ mod tests {
     #[test]
     fn test_spectral_centroid() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
-        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             spectral_desc.do_(&chunk);
@@ -394,10 +388,9 @@ mod tests {
             assert!(0.0000001 > (expected - actual).abs());
         }
         let song = Song::decode("data/tone_11080Hz.flac").unwrap();
-        let mut spectral_desc = SpectralDesc::new(song.sample_rate);
+        let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(SpectralDesc::HOP_SIZE)
         {
             spectral_desc.do_(&chunk);
@@ -406,5 +399,32 @@ mod tests {
         for (expected, actual) in expected_values.iter().zip(spectral_desc.get_centroid().iter()) {
             assert!(0.00001 > (expected - actual).abs());
         }
+    }
+}
+
+#[cfg(all(feature = "bench", test))]
+mod bench {
+    extern crate test;
+    use crate::timbral::{ZeroCrossingRateDesc, SpectralDesc};
+    use test::Bencher;
+
+    #[bench]
+    fn bench_spectral_desc(b: &mut Bencher) {
+        let mut spectral_desc = SpectralDesc::new(10);
+        let chunk = vec![0.; 512];
+
+        b.iter(|| {
+            spectral_desc.do_(&chunk);
+        });
+    }
+
+    #[bench]
+    fn bench_zcr_desc(b: &mut Bencher) {
+        let mut zcr_desc = ZeroCrossingRateDesc::new(10);
+        let chunk = vec![0.; 512];
+
+        b.iter(|| {
+            zcr_desc.do_(&chunk);
+        });
     }
 }
