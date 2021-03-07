@@ -1,6 +1,7 @@
 //! Module containing the Library trait, useful to get started to implement
 //! a plug-in for an audio player.
 use crate::Song;
+use log::info;
 use ndarray::{arr1, Array};
 use noisy_float::prelude::*;
 use std::sync::mpsc;
@@ -78,7 +79,7 @@ pub trait Library {
             let owned_chunk = chunk.to_owned();
             let child = thread::spawn(move || {
                 for path in owned_chunk {
-                    println!("Analyzing path {}", path);
+                    info!("Analyzing file '{}'", path);
                     let song = Song::new(&path);
                     tx_thread.send((path.to_string(), song)).unwrap();
                 }

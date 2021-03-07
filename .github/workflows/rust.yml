@@ -34,3 +34,6 @@ jobs:
     - name: Build benches
       working-directory: ./bliss-rs
       run: cargo +nightly bench --verbose --features=bench --no-run
+    - name: Build examples
+      working-directory: ./bliss-rs
+      run: cargo build --examples --verbose

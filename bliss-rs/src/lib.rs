@@ -1,14 +1,12 @@
-// temporarily pub
-// TODO get pub stuff right
-// TODO use proper logging system instead of just printlns
+// TODO Make sure String is the right error we want to return
 #![cfg_attr(feature = "bench", feature(test))]
-pub mod chroma;
+mod chroma;
 pub mod library;
-pub mod misc;
-pub mod song;
-pub mod temporal;
-pub mod timbral;
-pub mod utils;
+mod misc;
+mod song;
+mod temporal;
+mod timbral;
+mod utils;
 
 extern crate crossbeam;
 extern crate num_cpus;
