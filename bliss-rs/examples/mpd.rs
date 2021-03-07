@@ -7,7 +7,7 @@
 //! Playlists can then subsequently be made from the current song using
 //! --playlist.
 use bliss_rs::library::Library;
-use bliss_rs::Song;
+use bliss_rs::{BlissError, Song};
 #[cfg(not(test))]
 use dirs::data_local_dir;
 use env_logger;
@@ -249,7 +249,7 @@ impl Library for MPDLibrary {
         }
     }
 
-    fn store_error_song(&mut self, song_path: String, _: String) {
+    fn store_error_song(&mut self, song_path: String, _: BlissError) {
         self.sqlite_conn
             .lock()
             .unwrap()

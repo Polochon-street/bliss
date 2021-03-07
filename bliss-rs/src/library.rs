@@ -1,6 +1,6 @@
 //! Module containing the Library trait, useful to get started to implement
 //! a plug-in for an audio player.
-use crate::Song;
+use crate::{BlissError, Song};
 use log::info;
 use ndarray::{arr1, Array};
 use noisy_float::prelude::*;
@@ -18,7 +18,7 @@ pub trait Library {
     fn store_song(&mut self, song: Song);
     /// Log and / or store that an error happened while trying to decode and
     /// analyze a song.
-    fn store_error_song(&mut self, song_path: String, error: String);
+    fn store_error_song(&mut self, song_path: String, error: BlissError);
     /// Retrieve a list of all the stored Songs.
     ///
     /// This should work only after having run `analyze_library` at least
@@ -65,8 +65,8 @@ pub trait Library {
         let num_cpus = num_cpus::get();
 
         let (tx, rx): (
-            Sender<(String, Result<Song, String>)>,
-            Receiver<(String, Result<Song, String>)>,
+            Sender<(String, Result<Song, BlissError>)>,
+            Receiver<(String, Result<Song, BlissError>)>,
         ) = mpsc::channel();
         let mut handles = Vec::new();
         let mut chunk_length = paths.len() / num_cpus;
@@ -134,8 +134,8 @@ mod test {
             self.internal_storage.push(song);
         }
 
-        fn store_error_song(&mut self, song_path: String, error: String) {
-            self.failed_files.push((song_path, error));
+        fn store_error_song(&mut self, song_path: String, error: BlissError) {
+            self.failed_files.push((song_path, error.to_string()));
         }
 
         fn get_stored_songs(&self) -> Vec<Song> {

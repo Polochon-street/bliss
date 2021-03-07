@@ -16,8 +16,7 @@ use crate::chroma::ChromaDesc;
 use crate::misc::LoudnessDesc;
 use crate::temporal::BPMDesc;
 use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
-use crate::Song;
-use crate::SAMPLE_RATE;
+use crate::{BlissError, Song, SAMPLE_RATE};
 use ::log::warn;
 use crossbeam::thread;
 use ffmpeg::codec::threading::{Config, Type as ThreadingType};
@@ -54,7 +53,7 @@ fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec<f32
     sample_array.extend_from_slice(&f32_frame);
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct InternalSong {
     pub path: String,
     pub artist: String,
@@ -78,7 +77,7 @@ impl Song {
         (arr1(&self.analysis) - &a2).dot(&m).dot(&(&a1 - &a2))
     }
 
-    pub fn new(path: &str) -> Result<Self, String> {
+    pub fn new(path: &str) -> Result<Self, BlissError> {
         // TODO error handling here
         let raw_song = Song::decode(&path)?;
 
@@ -94,21 +93,22 @@ impl Song {
     }
 
     // TODO write down somewhere that this can be done windows by windows
-    fn analyse(sample_array: Vec<f32>) -> Result<Vec<f32>, String> {
+    fn analyse(sample_array: Vec<f32>) -> Result<Vec<f32>, BlissError> {
         thread::scope(|s| {
-            let child_tempo: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
-                let mut tempo_desc = BPMDesc::new(SAMPLE_RATE);
-                let windows = sample_array
-                    .windows(BPMDesc::WINDOW_SIZE)
-                    .step_by(BPMDesc::HOP_SIZE);
+            let child_tempo: thread::ScopedJoinHandle<'_, Result<f32, BlissError>> =
+                s.spawn(|_| {
+                    let mut tempo_desc = BPMDesc::new(SAMPLE_RATE);
+                    let windows = sample_array
+                        .windows(BPMDesc::WINDOW_SIZE)
+                        .step_by(BPMDesc::HOP_SIZE);
 
-                for window in windows {
-                    tempo_desc.do_(&window);
-                }
-                Ok(tempo_desc.get_value())
-            });
+                    for window in windows {
+                        tempo_desc.do_(&window);
+                    }
+                    Ok(tempo_desc.get_value())
+                });
 
-            let child_chroma: thread::ScopedJoinHandle<'_, Result<Vec<f32>, String>> =
+            let child_chroma: thread::ScopedJoinHandle<'_, Result<Vec<f32>, BlissError>> =
                 s.spawn(|_| {
                     let mut chroma_desc = ChromaDesc::new(SAMPLE_RATE, 12);
                     chroma_desc.do_(&sample_array);
@@ -117,7 +117,7 @@ impl Song {
 
             let child_timbral: thread::ScopedJoinHandle<
                 '_,
-                Result<(Vec<f32>, Vec<f32>, Vec<f32>), String>,
+                Result<(Vec<f32>, Vec<f32>, Vec<f32>), BlissError>,
             > = s.spawn(|_| {
                 let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
                 let windows = sample_array
@@ -132,14 +132,14 @@ impl Song {
                 Ok((centroid, rolloff, flatness))
             });
 
-            let child_zcr: thread::ScopedJoinHandle<'_, Result<f32, String>> = s.spawn(|_| {
+            let child_zcr: thread::ScopedJoinHandle<'_, Result<f32, BlissError>> = s.spawn(|_| {
                 let mut zcr_desc = ZeroCrossingRateDesc::default();
                 zcr_desc.do_(&sample_array);
                 Ok(zcr_desc.get_value())
             });
 
-            let child_loudness: thread::ScopedJoinHandle<'_, Result<Vec<f32>, String>> =
-                s.spawn(|_| {
+            let child_loudness: thread::ScopedJoinHandle<'_, Result<Vec<f32>, BlissError>> = s
+                .spawn(|_| {
                     let mut loudness_desc = LoudnessDesc::default();
                     let windows = sample_array.chunks(LoudnessDesc::WINDOW_SIZE);
 
@@ -168,30 +168,32 @@ impl Song {
     }
 
     // TODO DRY me
-    pub(crate) fn decode(path: &str) -> Result<InternalSong, String> {
-        ffmpeg::init().map_err(|e| format!("FFmpeg init error: {:?}.", e))?;
+    pub(crate) fn decode(path: &str) -> Result<InternalSong, BlissError> {
+        ffmpeg::init()
+            .map_err(|e| BlissError::DecodingError(format!("ffmpeg init error: {:?}.", e)))?;
         log::set_level(Level::Quiet);
         let mut song = InternalSong {
             path: path.to_string(),
             ..Default::default()
         };
         let mut format = ffmpeg::format::input(&path)
-            .map_err(|e| format!("FFmpeg error while opening format: {:?}.", e))?;
+            .map_err(|e| BlissError::DecodingError(format!("while opening format: {:?}.", e)))?;
         let (mut codec, stream, expected_sample_number) = {
             let stream = format
                 .streams()
                 .find(|s| s.codec().medium() == ffmpeg::media::Type::Audio)
-                .ok_or("No audio stream found.")?;
+                .ok_or(BlissError::DecodingError(String::from(
+                    "No audio stream found.",
+                )))?;
             stream.codec().set_threading(Config {
                 kind: ThreadingType::Frame,
                 count: 0,
                 safe: true,
             });
-            let codec = stream
-                .codec()
-                .decoder()
-                .audio()
-                .map_err(|e| format!("FFmpeg error when finding codec: {:?}.", e))?;
+            let codec =
+                stream.codec().decoder().audio().map_err(|e| {
+                    BlissError::DecodingError(format!("when finding codec: {:?}.", e))
+                })?;
             let expected_sample_number = (SAMPLE_RATE as f32 * stream.duration() as f32
                 / stream.time_base().denominator() as f32)
                 .ceil();
@@ -230,27 +232,28 @@ impl Song {
             SAMPLE_RATE,
         )
         .map_err(|e| {
-            format!(
-                "FFmpeg error trying to allocate resampling context: {:?}",
+            BlissError::DecodingError(format!(
+                "while trying to allocate resampling context: {:?}",
                 e
-            )
+            ))
         })?;
 
         let (tx, rx) = mpsc::channel();
-        let child = std_thread::spawn(move || -> Result<Vec<f32>, String> {
+        let child = std_thread::spawn(move || -> Result<Vec<f32>, BlissError> {
             let mut resampled = ffmpeg::frame::Audio::empty();
             for decoded in rx.iter() {
                 resample_context
                     .run(&decoded, &mut resampled)
-                    .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?;
+                    .map_err(|e| {
+                        BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
+                    })?;
                 push_to_sample_array(&resampled, &mut sample_array);
             }
 
             loop {
-                match resample_context
-                    .flush(&mut resampled)
-                    .map_err(|e| format!("FFmpeg error while trying to resample song: {:?}", e))?
-                {
+                match resample_context.flush(&mut resampled).map_err(|e| {
+                    BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
+                })? {
                     Some(_) => {
                         push_to_sample_array(&resampled, &mut sample_array);
                     }
@@ -269,7 +272,9 @@ impl Song {
             match codec.send_packet(&packet) {
                 Ok(_) => (),
                 Err(Error::Other { errno: EINVAL }) => {
-                    return Err(String::from("Wrong codec opened."))
+                    return Err(BlissError::DecodingError(String::from(
+                        "wrong codec opened.",
+                    )))
                 }
                 Err(Error::Eof) => {
                     warn!("Premature EOF reached while decoding.");
@@ -286,10 +291,10 @@ impl Song {
                 match codec.receive_frame(&mut decoded) {
                     Ok(_) => {
                         tx.send(decoded).map_err(|e| {
-                            format!(
-                                "Error while sending decoded frame to the resampling thread: {:?}",
+                            BlissError::DecodingError(format!(
+                                "while sending decoded frame to the resampling thread: {:?}",
                                 e
-                            )
+                            ))
                         })?;
                     }
                     Err(_) => break,
@@ -302,7 +307,11 @@ impl Song {
         let packet = ffmpeg::codec::packet::Packet::empty();
         match codec.send_packet(&packet) {
             Ok(_) => (),
-            Err(Error::Other { errno: EINVAL }) => return Err(String::from("Wrong codec opened.")),
+            Err(Error::Other { errno: EINVAL }) => {
+                return Err(BlissError::DecodingError(String::from(
+                    "wrong codec opened.",
+                )))
+            }
             Err(Error::Eof) => {
                 warn!("Premature EOF reached while decoding.");
                 drop(tx);
@@ -318,10 +327,10 @@ impl Song {
             match codec.receive_frame(&mut decoded) {
                 Ok(_) => {
                     tx.send(decoded).map_err(|e| {
-                        format!(
-                            "Error while sending decoded frame to the resampling thread: {:?}",
+                        BlissError::DecodingError(format!(
+                            "while sending decoded frame to the resampling thread: {:?}",
                             e
-                        )
+                        ))
                     })?;
                 }
                 Err(_) => break,
@@ -380,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn tags() {
+    fn test_tags() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         assert_eq!(song.artist, "David TMX");
         assert_eq!(song.title, "Renaissance");
@@ -390,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn resample_multi() {
+    fn test_resample_multi() {
         let path = String::from("data/s32_stereo_44_1_kHz.flac");
         let expected_hash = [
             0xc5, 0xf8, 0x23, 0xce, 0x63, 0x2c, 0xf4, 0xa0, 0x72, 0x66, 0xbb, 0x49, 0xad, 0x84,
@@ -400,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn resample_stereo() {
+    fn test_resample_stereo() {
         let path = String::from("data/s16_stereo_22_5kHz.flac");
         let expected_hash = [
             0x24, 0xed, 0x45, 0x58, 0x06, 0xbf, 0xfb, 0x05, 0x57, 0x5f, 0xdc, 0x4d, 0xb4, 0x9b,
@@ -410,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn decode_mono() {
+    fn test_decode_mono() {
         let path = String::from("data/s16_mono_22_5kHz.flac");
         // Obtained through
         // ffmpeg -i data/s16_mono_22_5kHz.flac -ar 22050 -ac 1 -c:a pcm_f32le
@@ -495,6 +504,20 @@ mod tests {
         ];
 
         assert_eq!(a.distance(&a), 0.)
+    }
+
+    #[test]
+    fn test_decode_errors() {
+        assert_eq!(
+            Song::decode("nonexistent").unwrap_err(),
+            BlissError::DecodingError(String::from(
+                "while opening format: ffmpeg::Error(2: No such file or directory)."
+            )),
+        );
+        assert_eq!(
+            Song::decode("data/picture.png").unwrap_err(),
+            BlissError::DecodingError(String::from("No audio stream found.")),
+        );
     }
 }
 
