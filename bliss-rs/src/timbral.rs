@@ -26,7 +26,7 @@ use crate::SAMPLE_RATE;
  *
  * All descriptors are currently summarized by their mean only.
  */
-pub struct SpectralDesc {
+pub(crate) struct SpectralDesc {
     phase_vocoder: PVoc,
     sample_rate: u32,
 
@@ -207,12 +207,13 @@ impl Normalize for SpectralDesc {
  * The value range is between 0 and 1.
  */
 #[derive(Default)]
-pub struct ZeroCrossingRateDesc {
+pub(crate) struct ZeroCrossingRateDesc {
     values: Vec<u32>,
     number_samples: usize,
 }
 
 impl ZeroCrossingRateDesc {
+    #[allow(dead_code)]
     pub fn new(_sample_rate: u32) -> Self {
         ZeroCrossingRateDesc::default()
     }
@@ -263,10 +264,7 @@ mod tests {
     fn test_zcr() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut zcr_desc = ZeroCrossingRateDesc::default();
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             zcr_desc.do_(&chunk);
         }
         assert!(0.001 > (-0.85036 - zcr_desc.get_value()).abs());
@@ -279,21 +277,24 @@ mod tests {
 
         let expected_values = vec![-1., -1.];
         spectral_desc.do_(&chunk);
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_flatness().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_flatness().iter())
+        {
             assert!(0.0000001 > (expected - actual).abs());
         }
 
         let song = Song::decode("data/white_noise.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(22050);
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
         // White noise - as close to 1 as possible
         let expected_values = vec![0.6706717, -0.9685736];
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_flatness().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_flatness().iter())
+        {
             assert!(0.001 > (expected - actual).abs());
         }
     }
@@ -302,16 +303,16 @@ mod tests {
     fn test_spectral_flatness() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
         // Spectral flatness mean value computed here with phase vocoder before normalization: 0.111949615
         // Essentia value with spectrum / hann window: 0.11197535695207445
         let expected_values = vec![-0.77610075, -0.8148179];
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_flatness().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_flatness().iter())
+        {
             assert!(0.01 > (expected - actual).abs());
         }
     }
@@ -323,20 +324,23 @@ mod tests {
 
         let expected_values = vec![-1., -1.];
         spectral_desc.do_(&chunk);
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_rolloff().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_rolloff().iter())
+        {
             assert!(0.0000001 > (expected - actual).abs());
         }
 
         let song = Song::decode("data/tone_11080Hz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
         let expected_values = vec![0.9967681, -0.99615175];
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_rolloff().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_rolloff().iter())
+        {
             assert!(0.0001 > (expected - actual).abs());
         }
     }
@@ -345,16 +349,16 @@ mod tests {
     fn test_spectral_roll_off() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
         let expected_values = vec![-0.6326486, -0.7260933];
         // Roll-off mean value computed here with phase vocoder before normalization: 2026.7644
         // Essentia value with spectrum / hann window: 1979.632683520047
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_rolloff().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_rolloff().iter())
+        {
             assert!(0.01 > (expected - actual).abs());
         }
     }
@@ -363,16 +367,16 @@ mod tests {
     fn test_spectral_centroid() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
         // Spectral centroid mean value computed here with phase vocoder before normalization: 1354.2273
         // Essentia value with spectrum / hann window: 1351
         let expected_values = vec![-0.75483, -0.87916887];
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_centroid().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_centroid().iter())
+        {
             assert!(0.0001 > (expected - actual).abs());
         }
     }
@@ -384,19 +388,22 @@ mod tests {
 
         spectral_desc.do_(&chunk);
         let expected_values = vec![-1., -1.];
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_centroid().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_centroid().iter())
+        {
             assert!(0.0000001 > (expected - actual).abs());
         }
         let song = Song::decode("data/tone_11080Hz.flac").unwrap();
         let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
-        for chunk in song
-            .sample_array
-            .chunks_exact(SpectralDesc::HOP_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(SpectralDesc::HOP_SIZE) {
             spectral_desc.do_(&chunk);
         }
         let expected_values = vec![0.97266, -0.9609926];
-        for (expected, actual) in expected_values.iter().zip(spectral_desc.get_centroid().iter()) {
+        for (expected, actual) in expected_values
+            .iter()
+            .zip(spectral_desc.get_centroid().iter())
+        {
             assert!(0.00001 > (expected - actual).abs());
         }
     }
@@ -405,7 +412,7 @@ mod tests {
 #[cfg(all(feature = "bench", test))]
 mod bench {
     extern crate test;
-    use crate::timbral::{ZeroCrossingRateDesc, SpectralDesc};
+    use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
     use test::Bencher;
 
     #[bench]

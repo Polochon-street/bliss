@@ -6,7 +6,7 @@ use rustfft::FftPlanner;
 extern crate ffmpeg_next as ffmpeg;
 use std::f32::consts::PI;
 
-pub fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
+fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
     let prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();
     let suffix = array[(array.len() - 2) - pad + 1..array.len() - 1]
         .iter()
@@ -21,7 +21,7 @@ pub fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
     output
 }
 
-pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f64> {
+pub(crate) fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f64> {
     // Take advantage of raw-major order to have contiguous window for the
     // `assign`, reversing the axes to have the expected shape at the end only.
     let mut stft = Array2::zeros((
@@ -56,11 +56,11 @@ pub fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> Array2<f
     stft.permuted_axes((1, 0))
 }
 
-pub fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
+pub(crate) fn mean<T: Clone + Into<f32>>(input: &[T]) -> f32 {
     input.iter().map(|x| x.clone().into() as f32).sum::<f32>() / input.len() as f32
 }
 
-pub trait Normalize {
+pub(crate) trait Normalize {
     const MAX_VALUE: f32;
     const MIN_VALUE: f32;
 
@@ -72,7 +72,7 @@ pub trait Normalize {
 // Essentia algorithm
 // https://github.com/MTG/essentia/blob/master/src/algorithms/temporal/zerocrossingrate.cpp
 // TODO add a threshold to avoid noise around zero
-pub fn number_crossings(input: &[f32]) -> u32 {
+pub(crate) fn number_crossings(input: &[f32]) -> u32 {
     let mut crossings = 0;
 
     let mut was_positive = input[0] > 0.;
@@ -92,7 +92,7 @@ pub fn number_crossings(input: &[f32]) -> u32 {
 // of 8), with values belonging to [0; 2^65].
 // This finely optimized geometric mean courtesy of
 // Jacques-Henri Jourdan (https://jhjourdan.mketjh.fr/)
-pub fn geometric_mean(input: &[f32]) -> f32 {
+pub(crate) fn geometric_mean(input: &[f32]) -> f32 {
     let mut exponents: i32 = 0;
     let mut mantissas: f64 = 1.;
     for ch in input.chunks_exact(8) {
@@ -112,7 +112,7 @@ pub fn geometric_mean(input: &[f32]) -> f32 {
         .exp2()
 }
 
-pub fn hz_to_octs_inplace(
+pub(crate) fn hz_to_octs_inplace(
     frequencies: &mut Array1<f64>,
     tuning: f64,
     bins_per_octave: u32,
@@ -126,7 +126,8 @@ pub fn hz_to_octs_inplace(
 
 // TODO try to make this FFT real only
 // TODO have less buffers - technically, we probably only need two
-pub fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
+#[allow(dead_code)]
+pub(crate) fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let mut common_length = input.len() + kernel.len();
     if (common_length % 2) != 0 {
         common_length -= 1;
@@ -534,9 +535,7 @@ mod bench {
 
     #[bench]
     fn bench_compute_stft(b: &mut Bencher) {
-        let signal = Song::decode("data/piano.flac")
-            .unwrap()
-            .sample_array;
+        let signal = Song::decode("data/piano.flac").unwrap().sample_array;
 
         b.iter(|| {
             stft(&signal, 2048, 512);
