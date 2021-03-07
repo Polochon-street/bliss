@@ -17,15 +17,16 @@ pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;
 
 #[derive(Default, Debug, PartialEq, Clone)]
+/// Simple object used to represent a Song, with its path, analysis, and
+/// other metadata (artist, genre...)
 pub struct Song {
-    // TODO make private
     pub path: String,
     pub artist: String,
     pub title: String,
     pub album: String,
     pub track_number: String,
     pub genre: String,
-    /// Vec containing analysis, in order: tempo, zero-crossing rate, 
+    /// Vec containing analysis, in order: tempo, zero-crossing rate,
     /// mean spectral centroid, std deviation spectral centroid,
     /// mean spectral rolloff, std deviation spectral rolloff
     /// mean spectral_flatness, std deviation spectral flatness,

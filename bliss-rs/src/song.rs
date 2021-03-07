@@ -31,7 +31,7 @@ use ndarray::{arr1, Array};
 use std::sync::mpsc;
 use std::thread as std_thread;
 
-pub fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
+fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
     if frame.samples() == 0 {
         return;
     }
@@ -54,7 +54,7 @@ pub fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec
 }
 
 #[derive(Default)]
-pub struct InternalSong {
+pub(crate) struct InternalSong {
     pub path: String,
     pub artist: String,
     pub title: String,
@@ -81,17 +81,15 @@ impl Song {
         // TODO error handling here
         let raw_song = Song::decode(&path)?;
 
-        Ok(
-            Song {
-                path: raw_song.path,
-                artist: raw_song.artist,
-                title: raw_song.title,
-                album: raw_song.album,
-                track_number: raw_song.track_number,
-                genre: raw_song.genre,
-                analysis: Song::analyse(raw_song.sample_array)?,
-            }
-        )
+        Ok(Song {
+            path: raw_song.path,
+            artist: raw_song.artist,
+            title: raw_song.title,
+            album: raw_song.album,
+            track_number: raw_song.track_number,
+            genre: raw_song.genre,
+            analysis: Song::analyse(raw_song.sample_array)?,
+        })
     }
 
     // TODO write down somewhere that this can be done windows by windows

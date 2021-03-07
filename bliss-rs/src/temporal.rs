@@ -24,7 +24,7 @@ use aubio_rs::{OnsetMode, Tempo};
  * has trouble to identify tempo > 190 BPM - did not investigate too much)
  *
  */
-pub struct BPMDesc {
+pub(crate) struct BPMDesc {
     aubio_obj: Tempo,
 }
 
@@ -72,7 +72,7 @@ impl Normalize for BPMDesc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SAMPLE_RATE, Song};
+    use crate::{Song, SAMPLE_RATE};
 
     #[test]
     fn test_tempo_real() {

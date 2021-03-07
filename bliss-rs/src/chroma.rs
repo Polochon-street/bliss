@@ -24,7 +24,7 @@ use noisy_float::prelude::*;
  * without consequences, this one performs better if the full song is used at
  * once.
  */
-pub struct ChromaDesc {
+pub(crate) struct ChromaDesc {
     sample_rate: u32,
     n_chroma: u32,
     values_chroma: Array2<f64>,
@@ -37,7 +37,6 @@ impl Normalize for ChromaDesc {
 
 impl ChromaDesc {
     pub const WINDOW_SIZE: usize = 8192;
-    pub const HOP_SIZE: usize = 2205;
 
     pub fn new(sample_rate: u32, n_chroma: u32) -> ChromaDesc {
         ChromaDesc {
@@ -91,7 +90,7 @@ impl ChromaDesc {
 
 // Functions below are Rust versions of python notebooks by AudioLabs Erlang
 // (https://www.audiolabs-erlangen.de/resources/MIR/FMP/C0/C0.html)
-pub fn chroma_interval_features(chroma: &Array2<f64>) -> Array1<f64> {
+fn chroma_interval_features(chroma: &Array2<f64>) -> Array1<f64> {
     let chroma = normalize_feature_sequence(&chroma.mapv(|x| (x * 15.).exp()));
     let templates = arr2(&[
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -111,7 +110,7 @@ pub fn chroma_interval_features(chroma: &Array2<f64>) -> Array1<f64> {
     interval_feature_matrix.mean_axis(Axis(1)).unwrap()
 }
 
-pub fn extract_interval_features(chroma: &Array2<f64>, templates: &Array2<i32>) -> Array2<f64> {
+fn extract_interval_features(chroma: &Array2<f64>, templates: &Array2<i32>) -> Array2<f64> {
     let mut f_intervals: Array2<f64> = Array::zeros((chroma.shape()[1], templates.shape()[1]));
     for (template, mut f_interval) in templates
         .axis_iter(Axis(1))
@@ -131,7 +130,7 @@ pub fn extract_interval_features(chroma: &Array2<f64>, templates: &Array2<i32>) 
     f_intervals.t().to_owned()
 }
 
-pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
+fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     let mut normalized_sequence = feature.to_owned();
     for mut column in normalized_sequence.gencolumns_mut() {
         let mut sum = column.mapv(|x| x.abs()).sum();
@@ -151,7 +150,7 @@ pub fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
 // Could be precomputed, but it takes very little time to compute it
 // on the fly compared to the rest of the functions, and we'd lose the
 // possibility to tweak parameters.
-pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
+fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
     let ctroct = 5.0;
     let octwidth = 2.;
     let n_chroma_float = f64::from(n_chroma);
@@ -216,7 +215,7 @@ pub fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64)
     wts.slice_move(s![.., ..non_aliased])
 }
 
-pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64>, Vec<f64>) {
+fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64>, Vec<f64>) {
     let sample_rate_float = f64::from(sample_rate);
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(sample_rate_float / 2.0);
@@ -271,7 +270,7 @@ pub fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec
 }
 
 // Only use this with strictly positive `frequencies`.
-pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
+fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
     if frequencies.is_empty() {
         return 0.0;
     }
@@ -292,7 +291,7 @@ pub fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_oct
     (-50. + (100. * resolution * max_index as f64)) / 100.
 }
 
-pub fn estimate_tuning(
+fn estimate_tuning(
     sample_rate: u32,
     spectrum: &Array2<f64>,
     n_fft: usize,
@@ -321,7 +320,7 @@ pub fn estimate_tuning(
     pitch_tuning(&mut pitch, resolution, bins_per_octave)
 }
 
-pub fn chroma_stft(
+fn chroma_stft(
     sample_rate: u32,
     spectrum: &mut Array2<f64>,
     n_fft: usize,
@@ -529,7 +528,7 @@ mod bench {
     extern crate test;
     use super::*;
     use crate::utils::stft;
-    use crate::{SAMPLE_RATE, Song};
+    use crate::{Song, SAMPLE_RATE};
     use ndarray::{arr2, Array1, Array2};
     use ndarray_npy::ReadNpyExt;
     use std::fs::File;

@@ -28,7 +28,7 @@ use super::utils::{mean, Normalize};
  * way more visual)
  */
 #[derive(Default)]
-pub struct LoudnessDesc {
+pub(crate) struct LoudnessDesc {
     pub values: Vec<f32>,
 }
 
@@ -71,10 +71,7 @@ mod tests {
     fn test_loudness() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut loudness_desc = LoudnessDesc::default();
-        for chunk in song
-            .sample_array
-            .chunks_exact(LoudnessDesc::WINDOW_SIZE)
-        {
+        for chunk in song.sample_array.chunks_exact(LoudnessDesc::WINDOW_SIZE) {
             loudness_desc.do_(&chunk);
         }
         let expected_values = vec![0.271263, 0.2577181];
