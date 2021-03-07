@@ -73,7 +73,6 @@ mod tests {
         let mut loudness_desc = LoudnessDesc::default();
         for chunk in song
             .sample_array
-            .unwrap()
             .chunks_exact(LoudnessDesc::WINDOW_SIZE)
         {
             loudness_desc.do_(&chunk);

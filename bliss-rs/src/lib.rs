@@ -1,6 +1,7 @@
 // temporarily pub
 // TODO get pub stuff right
 // TODO use proper logging system instead of just printlns
+#![cfg_attr(feature = "bench", feature(test))]
 pub mod chroma;
 pub mod library;
 pub mod misc;
@@ -18,8 +19,6 @@ pub const SAMPLE_RATE: u32 = 22050;
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct Song {
     // TODO make private
-    pub sample_array: Option<Vec<f32>>,
-    pub sample_rate: u32,
     pub path: String,
     pub artist: String,
     pub title: String,
