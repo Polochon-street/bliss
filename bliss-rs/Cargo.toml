@@ -23,6 +23,8 @@ rayon = "*"
 crossbeam = "*"
 noisy_float = "0.1.13"
 ffmpeg-next = "*"
+log = "*"
+env_logger = "*"
 
 [dev-dependencies]
 mpd = "*"

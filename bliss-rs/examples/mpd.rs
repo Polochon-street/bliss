@@ -10,6 +10,8 @@ use bliss_rs::library::Library;
 use bliss_rs::Song;
 #[cfg(not(test))]
 use dirs::data_local_dir;
+use env_logger;
+use log::error;
 use mpd::search::{Query, Term};
 #[cfg(not(test))]
 use mpd::Client;
@@ -263,11 +265,12 @@ impl Library for MPDLibrary {
 
 // TODO maybe store the MPD base path persistently somewhere
 fn main() -> Result<(), String> {
+    env_logger::init();
     let args: Vec<String> = env::args().collect();
     let (command, base_path) = match args.len() {
         3 => (&args[1], &args[2]),
         _ => {
-            println!("Usage: ./{} <command> <MPD base path>", args[0]);
+            error!("Usage: ./{} <command> <MPD base path>", args[0]);
             return Err(String::from(""));
         }
     };
