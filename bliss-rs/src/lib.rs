@@ -1,4 +1,4 @@
-// TODO Make sure String is the right error we want to return
+// TODO wage war against unwraps
 #![cfg_attr(feature = "bench", feature(test))]
 mod chroma;
 pub mod library;
@@ -10,6 +10,7 @@ mod utils;
 
 extern crate crossbeam;
 extern crate num_cpus;
+use thiserror::Error;
 
 pub const CHANNELS: u16 = 1;
 pub const SAMPLE_RATE: u32 = 22050;
@@ -33,12 +34,20 @@ pub struct Song {
     pub analysis: Vec<f32>,
 }
 
+#[derive(Error, Debug, PartialEq)]
+pub enum BlissError {
+    #[error("Error happened while decoding file – {0}")]
+    DecodingError(String),
+    #[error("Error happened while analyzing file – {0}")]
+    AnalysisError(String),
+}
+
 /// Simple function to bulk analyze a set of songs represented by their
 /// absolute paths.
 ///
 /// When making an extension for an audio player, prefer
 /// implementing the `Library` trait.
-pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, String>> {
+pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, BlissError>> {
     let mut songs = Vec::with_capacity(paths.len());
     let num_cpus = num_cpus::get();
 
@@ -89,7 +98,7 @@ mod tests {
         ]);
         let mut errored_songs: Vec<String> = results
             .iter()
-            .filter_map(|x| x.as_ref().err().cloned())
+            .filter_map(|x| x.as_ref().err().map(|x| x.to_string()))
             .collect();
         errored_songs.sort_by(|a, b| a.cmp(b));
 
@@ -102,7 +111,7 @@ mod tests {
         assert_eq!(
             vec![
                 String::from(
-                    "FFmpeg error while opening format: ffmpeg::Error(2: No such file or directory)."
+                    "Error happened while decoding file – while opening format: ffmpeg::Error(2: No such file or directory)."
                 );
                 8
             ],
