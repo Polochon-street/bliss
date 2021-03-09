@@ -58,7 +58,7 @@ pub trait Library {
     ///
     /// Note: this is mostly useful for updating a song library. For the first
     /// run, you probably want to use `analyze_library`.
-    fn analyze_paths(&mut self, paths: Vec<String>) -> Result<(), String> {
+    fn analyze_paths(&mut self, paths: Vec<String>) -> Result<(), BlissError> {
         if paths.is_empty() {
             return Ok(());
         }
@@ -97,14 +97,16 @@ pub trait Library {
         }
 
         for child in handles {
-            child.join().unwrap();
+            child
+                .join()
+                .map_err(|_| BlissError::AnalysisError(format!("in analysis")))?;
         }
         Ok(())
     }
 
     /// Analyzes a song library, using `get_songs_paths`, `store_song` and
     /// `store_error_song` implementations.
-    fn analyze_library(&mut self) -> Result<(), String> {
+    fn analyze_library(&mut self) -> Result<(), BlissError> {
         let paths = self.get_songs_paths();
         self.analyze_paths(paths)
     }

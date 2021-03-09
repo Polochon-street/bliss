@@ -94,16 +94,31 @@ impl Song {
 
     // TODO write down somewhere that this can be done windows by windows
     fn analyse(sample_array: Vec<f32>) -> Result<Vec<f32>, BlissError> {
+        let largest_window = vec![
+            BPMDesc::WINDOW_SIZE,
+            ChromaDesc::WINDOW_SIZE,
+            SpectralDesc::WINDOW_SIZE,
+            LoudnessDesc::WINDOW_SIZE,
+        ]
+        .into_iter()
+        .max()
+        .unwrap();
+        if sample_array.len() < largest_window {
+            return Err(BlissError::AnalysisError(String::from(
+                "empty or too short song.",
+            )));
+        }
+
         thread::scope(|s| {
             let child_tempo: thread::ScopedJoinHandle<'_, Result<f32, BlissError>> =
                 s.spawn(|_| {
-                    let mut tempo_desc = BPMDesc::new(SAMPLE_RATE);
+                    let mut tempo_desc = BPMDesc::new(SAMPLE_RATE)?;
                     let windows = sample_array
                         .windows(BPMDesc::WINDOW_SIZE)
                         .step_by(BPMDesc::HOP_SIZE);
 
                     for window in windows {
-                        tempo_desc.do_(&window);
+                        tempo_desc.do_(&window)?;
                     }
                     Ok(tempo_desc.get_value())
                 });
@@ -111,7 +126,7 @@ impl Song {
             let child_chroma: thread::ScopedJoinHandle<'_, Result<Vec<f32>, BlissError>> =
                 s.spawn(|_| {
                     let mut chroma_desc = ChromaDesc::new(SAMPLE_RATE, 12);
-                    chroma_desc.do_(&sample_array);
+                    chroma_desc.do_(&sample_array)?;
                     Ok(chroma_desc.get_values())
                 });
 
@@ -119,12 +134,12 @@ impl Song {
                 '_,
                 Result<(Vec<f32>, Vec<f32>, Vec<f32>), BlissError>,
             > = s.spawn(|_| {
-                let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE);
+                let mut spectral_desc = SpectralDesc::new(SAMPLE_RATE)?;
                 let windows = sample_array
                     .windows(SpectralDesc::WINDOW_SIZE)
                     .step_by(SpectralDesc::HOP_SIZE);
                 for window in windows {
-                    spectral_desc.do_(&window);
+                    spectral_desc.do_(&window)?;
                 }
                 let centroid = spectral_desc.get_centroid();
                 let rolloff = spectral_desc.get_rolloff();
@@ -347,6 +362,21 @@ impl Song {
 mod tests {
     use super::*;
     use ripemd160::{Digest, Ripemd160};
+
+    #[test]
+    fn test_analysis_too_small() {
+        let error = Song::analyse(vec![0.]).unwrap_err();
+        assert_eq!(
+            error,
+            BlissError::AnalysisError(String::from("empty or too short song."))
+        );
+
+        let error = Song::analyse(vec![]).unwrap_err();
+        assert_eq!(
+            error,
+            BlissError::AnalysisError(String::from("empty or too short song."))
+        );
+    }
 
     #[test]
     fn test_analyse() {

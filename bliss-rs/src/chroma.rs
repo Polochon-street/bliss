@@ -9,6 +9,7 @@ extern crate noisy_float;
 
 use crate::utils::stft;
 use crate::utils::{hz_to_octs_inplace, Normalize};
+use crate::BlissError;
 use ndarray::{arr1, arr2, concatenate, s, Array, Array1, Array2, Axis, Zip};
 use ndarray_stats::interpolate::Midpoint;
 use ndarray_stats::QuantileExt;
@@ -52,23 +53,24 @@ impl ChromaDesc {
      * Passing a full song here once instead of streaming smaller parts of the
      * song will greatly improve accuracy.
      */
-    pub fn do_(&mut self, signal: &[f32]) {
-        let mut stft = stft(signal, 8192, 2205);
+    pub fn do_(&mut self, signal: &[f32]) -> Result<(), BlissError> {
+        let mut stft = stft(signal, ChromaDesc::WINDOW_SIZE, 2205);
         let tuning = estimate_tuning(
             self.sample_rate as u32,
             &stft,
             ChromaDesc::WINDOW_SIZE,
             0.01,
             12,
-        );
+        )?;
         let chroma = chroma_stft(
             self.sample_rate,
             &mut stft,
             ChromaDesc::WINDOW_SIZE,
             self.n_chroma,
             tuning,
-        );
+        )?;
         self.values_chroma = concatenate![Axis(1), self.values_chroma, chroma];
+        Ok(())
     }
 
     /**
@@ -150,7 +152,12 @@ fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
 // Could be precomputed, but it takes very little time to compute it
 // on the fly compared to the rest of the functions, and we'd lose the
 // possibility to tweak parameters.
-fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> Array2<f64> {
+fn chroma_filter(
+    sample_rate: u32,
+    n_fft: usize,
+    n_chroma: u32,
+    tuning: f64,
+) -> Result<Array2<f64>, BlissError> {
     let ctroct = 5.0;
     let octwidth = 2.;
     let n_chroma_float = f64::from(n_chroma);
@@ -206,16 +213,22 @@ fn chroma_filter(sample_rate: u32, n_fft: usize, n_chroma: u32, tuning: f64) -> 
     unsafe {
         uninit.set_len(wts.len());
     }
-    let mut b = Array::from(uninit).into_shape(wts.dim()).unwrap();
+    let mut b = Array::from(uninit)
+        .into_shape(wts.dim())
+        .map_err(|e| BlissError::AnalysisError(format!("in chroma: {}", e.to_string())))?;
     b.slice_mut(s![-3.., ..]).assign(&wts.slice(s![..3, ..]));
     b.slice_mut(s![..-3, ..]).assign(&wts.slice(s![3.., ..]));
 
     wts = b;
     let non_aliased = (1 + n_fft / 2) as usize;
-    wts.slice_move(s![.., ..non_aliased])
+    Ok(wts.slice_move(s![.., ..non_aliased]))
 }
 
-fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64>, Vec<f64>) {
+fn pip_track(
+    sample_rate: u32,
+    spectrum: &Array2<f64>,
+    n_fft: usize,
+) -> Result<(Vec<f64>, Vec<f64>), BlissError> {
     let sample_rate_float = f64::from(sample_rate);
     let fmin = 150.0_f64;
     let fmax = 4000.0_f64.min(sample_rate_float / 2.0);
@@ -232,7 +245,7 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64
         .collect::<Vec<bool>>();
 
     let ref_value = spectrum.map_axis(Axis(0), |x| {
-        let first: f64 = *x.first().unwrap();
+        let first: f64 = *x.first().expect("empty spectrum axis");
         let max = x.fold(first, |acc, &elem| if acc > elem { acc } else { elem });
         threshold * max
     });
@@ -244,8 +257,14 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64
     let mut pitches = Vec::with_capacity(taken_columns * length);
     let mut mags = Vec::with_capacity(taken_columns * length);
 
-    let beginning = freq_mask.iter().position(|&b| b).unwrap();
-    let end = freq_mask.iter().rposition(|&b| b).unwrap();
+    let beginning = freq_mask
+        .iter()
+        .position(|&b| b)
+        .ok_or(BlissError::AnalysisError("in chroma".to_string()))?;
+    let end = freq_mask
+        .iter()
+        .rposition(|&b| b)
+        .ok_or(BlissError::AnalysisError("in chroma".to_string()))?;
 
     let zipped = Zip::indexed(spectrum.slice(s![beginning..end - 3, ..]))
         .and(spectrum.slice(s![beginning + 1..end - 2, ..]))
@@ -266,13 +285,17 @@ fn pip_track(sample_rate: u32, spectrum: &Array2<f64>, n_fft: usize) -> (Vec<f64
         }
     });
 
-    (pitches, mags)
+    Ok((pitches, mags))
 }
 
 // Only use this with strictly positive `frequencies`.
-fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_octave: u32) -> f64 {
+fn pitch_tuning(
+    frequencies: &mut Array1<f64>,
+    resolution: f64,
+    bins_per_octave: u32,
+) -> Result<f64, BlissError> {
     if frequencies.is_empty() {
-        return 0.0;
+        return Ok(0.0);
     }
     hz_to_octs_inplace(frequencies, 0.0, 12);
     frequencies.mapv_inplace(|x| f64::from(bins_per_octave) * x % 1.0);
@@ -285,10 +308,12 @@ fn pitch_tuning(frequencies: &mut Array1<f64>, resolution: f64, bins_per_octave:
     for &idx in indexes.iter() {
         counts[idx] += 1;
     }
-    let max_index = counts.argmax().unwrap();
+    let max_index = counts
+        .argmax()
+        .map_err(|e| BlissError::AnalysisError(format!("in chroma: {}", e.to_string())))?;
 
     // Return the bin with the most reoccuring frequency.
-    (-50. + (100. * resolution * max_index as f64)) / 100.
+    Ok((-50. + (100. * resolution * max_index as f64)) / 100.)
 }
 
 fn estimate_tuning(
@@ -297,8 +322,8 @@ fn estimate_tuning(
     n_fft: usize,
     resolution: f64,
     bins_per_octave: u32,
-) -> f64 {
-    let (pitch, mag) = pip_track(sample_rate, &spectrum, n_fft);
+) -> Result<f64, BlissError> {
+    let (pitch, mag) = pip_track(sample_rate, &spectrum, n_fft)?;
 
     let (filtered_pitch, filtered_mag): (Vec<N64>, Vec<N64>) = pitch
         .iter()
@@ -309,7 +334,7 @@ fn estimate_tuning(
 
     let threshold: N64 = Array::from(filtered_mag.to_vec())
         .quantile_axis_mut(Axis(0), n64(0.5), &Midpoint)
-        .unwrap()
+        .map_err(|e| BlissError::AnalysisError(format!("in chroma: {}", e.to_string())))?
         .into_scalar();
 
     let mut pitch = filtered_pitch
@@ -326,9 +351,9 @@ fn chroma_stft(
     n_fft: usize,
     n_chroma: u32,
     tuning: f64,
-) -> Array2<f64> {
+) -> Result<Array2<f64>, BlissError> {
     spectrum.par_mapv_inplace(|x| x * x);
-    let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning);
+    let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning)?;
 
     raw_chroma = raw_chroma.dot(spectrum);
     for mut row in raw_chroma.gencolumns_mut() {
@@ -338,7 +363,7 @@ fn chroma_stft(
         }
         row /= sum;
     }
-    raw_chroma
+    Ok(raw_chroma)
 }
 
 #[cfg(test)]
@@ -416,7 +441,7 @@ mod test {
     fn test_chroma_desc() {
         let song = Song::decode("data/s16_mono_22_5kHz.flac").unwrap();
         let mut chroma_desc = ChromaDesc::new(SAMPLE_RATE, 12);
-        chroma_desc.do_(&song.sample_array);
+        chroma_desc.do_(&song.sample_array).unwrap();
         let expected_values = vec![
             -0.35661936,
             -0.63578653,
@@ -444,7 +469,7 @@ mod test {
         let file = File::open("data/chroma.npy").unwrap();
         let expected_chroma = Array2::<f64>::read_npy(file).unwrap();
 
-        let chroma = chroma_stft(22050, &mut stft, 8192, 12, -0.04999999999999999);
+        let chroma = chroma_stft(22050, &mut stft, 8192, 12, -0.04999999999999999).unwrap();
 
         assert!(!chroma.is_empty() && !expected_chroma.is_empty());
 
@@ -458,7 +483,7 @@ mod test {
         let file = File::open("data/spectrum-chroma.npy").unwrap();
         let arr = Array2::<f64>::read_npy(file).unwrap();
 
-        let tuning = estimate_tuning(22050, &arr, 2048, 0.01, 12);
+        let tuning = estimate_tuning(22050, &arr, 2048, 0.01, 12).unwrap();
         assert!(0.000001 > (-0.09999999999999998 - tuning).abs());
     }
 
@@ -469,7 +494,7 @@ mod test {
             .sample_array;
         let stft = stft(&signal, 8192, 2205);
 
-        let tuning = estimate_tuning(22050, &stft, 8192, 0.01, 12);
+        let tuning = estimate_tuning(22050, &stft, 8192, 0.01, 12).unwrap();
         assert!(0.000001 > (-0.04999999999999999 - tuning).abs());
     }
 
@@ -478,13 +503,13 @@ mod test {
         let file = File::open("data/pitch-tuning.npy").unwrap();
         let mut pitch = Array1::<f64>::read_npy(file).unwrap();
 
-        assert_eq!(-0.1, pitch_tuning(&mut pitch, 0.05, 12));
+        assert_eq!(-0.1, pitch_tuning(&mut pitch, 0.05, 12).unwrap());
     }
 
     #[test]
     fn test_pitch_tuning_no_frequencies() {
         let mut frequencies = arr1(&[]);
-        assert_eq!(0.0, pitch_tuning(&mut frequencies, 0.05, 12));
+        assert_eq!(0.0, pitch_tuning(&mut frequencies, 0.05, 12).unwrap());
     }
 
     #[test]
@@ -498,7 +523,7 @@ mod test {
         let pitches_file = File::open("data/spectrum-chroma-pitches.npy").unwrap();
         let expected_pitches = Array1::<f64>::read_npy(pitches_file).unwrap();
 
-        let (mut pitches, mut mags) = pip_track(22050, &spectrum, 2048);
+        let (mut pitches, mut mags) = pip_track(22050, &spectrum, 2048).unwrap();
         pitches.sort_by(|a, b| a.partial_cmp(b).unwrap());
         mags.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
@@ -515,7 +540,7 @@ mod test {
         let file = File::open("data/chroma-filter.npy").unwrap();
         let expected_filter = Array2::<f64>::read_npy(file).unwrap();
 
-        let filter = chroma_filter(22050, 2048, 12, -0.1);
+        let filter = chroma_filter(22050, 2048, 12, -0.1).unwrap();
 
         for (expected, actual) in expected_filter.iter().zip(filter.iter()) {
             assert!(0.000000001 > (expected - actual).abs());
@@ -540,7 +565,7 @@ mod bench {
         let arr = Array2::<f64>::read_npy(file).unwrap();
 
         b.iter(|| {
-            estimate_tuning(22050, &arr, 2048, 0.01, 12);
+            estimate_tuning(22050, &arr, 2048, 0.01, 12).unwrap();
         });
     }
 
@@ -549,7 +574,7 @@ mod bench {
         let file = File::open("data/pitch-tuning.npy").unwrap();
         let pitch = Array1::<f64>::read_npy(file).unwrap();
         b.iter(|| {
-            pitch_tuning(&mut pitch.to_owned(), 0.05, 12);
+            pitch_tuning(&mut pitch.to_owned(), 0.05, 12).unwrap();
         });
     }
 
@@ -559,14 +584,14 @@ mod bench {
         let spectrum = Array2::<f64>::read_npy(file).unwrap();
 
         b.iter(|| {
-            pip_track(22050, &spectrum, 2048);
+            pip_track(22050, &spectrum, 2048).unwrap();
         });
     }
 
     #[bench]
     fn bench_chroma_filter(b: &mut Bencher) {
         b.iter(|| {
-            chroma_filter(22050, 2048, 12, -0.1);
+            chroma_filter(22050, 2048, 12, -0.1).unwrap();
         });
     }
 
@@ -584,7 +609,7 @@ mod bench {
         let mut chroma_desc = ChromaDesc::new(SAMPLE_RATE, 12);
         let signal = song.sample_array;
         b.iter(|| {
-            chroma_desc.do_(&signal);
+            chroma_desc.do_(&signal).unwrap();
             chroma_desc.get_values();
         });
     }
@@ -595,7 +620,7 @@ mod bench {
         let mut chroma_desc = ChromaDesc::new(SAMPLE_RATE, 12);
         let signal = song.sample_array;
         b.iter(|| {
-            chroma_desc.do_(&signal);
+            chroma_desc.do_(&signal).unwrap();
             chroma_desc.get_values();
         });
     }
@@ -608,7 +633,7 @@ mod bench {
         let mut stft = stft(&signal, 8192, 2205);
 
         b.iter(|| {
-            chroma_stft(22050, &mut stft, 8192, 12, -0.04999999999999999);
+            chroma_stft(22050, &mut stft, 8192, 12, -0.04999999999999999).unwrap();
         });
     }
 }

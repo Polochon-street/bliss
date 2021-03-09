@@ -1,4 +1,3 @@
-// TODO wage war against unwraps
 #![cfg_attr(feature = "bench", feature(test))]
 mod chroma;
 pub mod library;
@@ -12,8 +11,8 @@ extern crate crossbeam;
 extern crate num_cpus;
 use thiserror::Error;
 
-pub const CHANNELS: u16 = 1;
-pub const SAMPLE_RATE: u32 = 22050;
+const CHANNELS: u16 = 1;
+const SAMPLE_RATE: u32 = 22050;
 
 #[derive(Default, Debug, PartialEq, Clone)]
 /// Simple object used to represent a Song, with its path, analysis, and
@@ -47,6 +46,7 @@ pub enum BlissError {
 ///
 /// When making an extension for an audio player, prefer
 /// implementing the `Library` trait.
+#[doc(hidden)]
 pub fn bulk_analyse(paths: Vec<String>) -> Vec<Result<Song, BlissError>> {
     let mut songs = Vec::with_capacity(paths.len());
     let num_cpus = num_cpus::get();

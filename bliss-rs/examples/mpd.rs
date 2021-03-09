@@ -153,7 +153,7 @@ impl MPDLibrary {
         self.analyze_paths(to_analyze).unwrap();
     }
 
-    fn full_rescan(&mut self) -> Result<(), String> {
+    fn full_rescan(&mut self) -> Result<(), BlissError> {
         let sqlite_conn = self.sqlite_conn.lock().unwrap();
         sqlite_conn.execute("delete from feature", []).unwrap();
         sqlite_conn.execute("delete from song", []).unwrap();
