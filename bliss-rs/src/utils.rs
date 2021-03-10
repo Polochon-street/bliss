@@ -5,6 +5,7 @@ use rustfft::num_traits::Zero;
 use rustfft::FftPlanner;
 extern crate ffmpeg_next as ffmpeg;
 use std::f32::consts::PI;
+use log::warn;
 
 fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
     let prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();
@@ -46,7 +47,13 @@ pub(crate) fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> A
         .zip(stft.genrows_mut())
     {
         let mut signal = (arr1(&window) * &hann_window).mapv(|x| Complex::new(x, 0.));
-        fft.process(signal.as_slice_mut().unwrap());
+        match signal.as_slice_mut() {
+            Some(s) => fft.process(s),
+            None => {
+                warn!("non-contiguous slice found for stft; expect slow performances.");
+                fft.process(&mut signal.to_vec());
+            }
+        };
         stft_col.assign(
             &signal
                 .slice(s![..window_length / 2 + 1])
