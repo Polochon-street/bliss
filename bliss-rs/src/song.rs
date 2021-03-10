@@ -78,7 +78,6 @@ impl Song {
     }
 
     pub fn new(path: &str) -> Result<Self, BlissError> {
-        // TODO error handling here
         let raw_song = Song::decode(&path)?;
 
         Ok(Song {
@@ -92,7 +91,17 @@ impl Song {
         })
     }
 
-    // TODO write down somewhere that this can be done windows by windows
+    /**
+     * Analyse a song decoded in `sample_array`, with one channel @ 22050 Hz.
+     *
+     * The current implementation doesn't make use of it,
+     * but the song can also be streamed wrt.
+     * each descriptor (with the exception of the chroma descriptor which
+     * yields worse results when streamed).
+     *
+     * Useful in the rare cases where the full song is not
+     * completely available.
+     **/
     fn analyse(sample_array: Vec<f32>) -> Result<Vec<f32>, BlissError> {
         let largest_window = vec![
             BPMDesc::WINDOW_SIZE,
