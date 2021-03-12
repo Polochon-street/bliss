@@ -209,9 +209,17 @@ impl Song {
                 stream.codec().decoder().audio().map_err(|e| {
                     BlissError::DecodingError(format!("when finding codec: {:?}.", e))
                 })?;
+            // Add SAMPLE_RATE to have one second margin to avoid reallocating if
+            // the duration is slightly more than estimated
+            // TODO another way to get the exact number of samples is to decode
+            // everything once, compute the real number of samples from that,
+            // allocate the array with that number, and decode again. Check
+            // what's faster between reallocating, and just have one second
+            // leeway.
             let expected_sample_number = (SAMPLE_RATE as f32 * stream.duration() as f32
                 / stream.time_base().denominator() as f32)
-                .ceil();
+                .ceil()
+                + SAMPLE_RATE as f32;
             (codec, stream.index(), expected_sample_number)
         };
         let mut sample_array: Vec<f32> = Vec::with_capacity(expected_sample_number as usize);
@@ -264,7 +272,6 @@ impl Song {
                     })?;
                 push_to_sample_array(&resampled, &mut sample_array);
             }
-
             loop {
                 match resample_context.flush(&mut resampled).map_err(|e| {
                     BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
@@ -273,8 +280,10 @@ impl Song {
                         push_to_sample_array(&resampled, &mut sample_array);
                     }
                     None => {
+                        if resampled.samples() == 0 {
+                            break;
+                        }
                         push_to_sample_array(&resampled, &mut sample_array);
-                        break;
                     }
                 };
             }
@@ -462,6 +471,19 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_mp3() {
+        let path = String::from("data/s32_stereo_44_1_kHz.mp3");
+        // Obtained through
+        // ffmpeg -i data/s16_mono_22_5kHz.mp3 -ar 22050 -ac 1 -c:a pcm_f32le
+        // -f hash -hash ripemd160 -
+        let expected_hash = [
+            0x28, 0x25, 0x6b, 0x7b, 0x6e, 0x37, 0x1c, 0xcf, 0xc7, 0x06, 0xdf, 0x62, 0x8c, 0x0e,
+            0x91, 0xf7, 0xd6, 0x1f, 0xac, 0x5b,
+        ];
+        _test_decode(&path, &expected_hash);
+    }
+
+    #[test]
     fn test_dont_panic_no_channel_layout() {
         let path = String::from("data/no_channel.wav");
         Song::decode(&path).unwrap();
@@ -472,19 +494,23 @@ mod tests {
         let path = String::from("data/s16_mono_22_5kHz.flac");
         let song = Song::decode(&path).unwrap();
         let sample_array = song.sample_array;
-        assert_eq!(sample_array.len(), sample_array.capacity());
+        assert_eq!(
+            sample_array.len() + SAMPLE_RATE as usize,
+            sample_array.capacity()
+        );
 
         let path = String::from("data/s32_stereo_44_1_kHz.flac");
         let song = Song::decode(&path).unwrap();
         let sample_array = song.sample_array;
-        assert_eq!(sample_array.len(), sample_array.capacity());
+        assert_eq!(
+            sample_array.len() + SAMPLE_RATE as usize,
+            sample_array.capacity()
+        );
 
-        // Not 100% sure that the number of samples for ogg is known
-        // precisely in advance
         let path = String::from("data/capacity_fix.ogg");
         let song = Song::decode(&path).unwrap();
         let sample_array = song.sample_array;
-        assert!(sample_array.len() as f32 / sample_array.capacity() as f32 > 0.95);
+        assert!(sample_array.len() as f32 / sample_array.capacity() as f32 > 0.90);
         assert!(sample_array.len() as f32 / (sample_array.capacity() as f32) < 1.);
     }
 
