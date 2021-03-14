@@ -166,21 +166,21 @@ impl SpectralDesc {
         self.phase_vocoder
             .do_(chunk, fftgrain.as_mut_slice())
             .map_err(|e| {
-                    BlissError::AnalysisError(format!(
-                        "error while processing aubio pv object: {}",
-                        e.to_string()
-                    ))
-                })?;
+                BlissError::AnalysisError(format!(
+                    "error while processing aubio pv object: {}",
+                    e.to_string()
+                ))
+            })?;
 
         let bin = self
             .centroid_aubio_desc
             .do_result(fftgrain.as_slice())
             .map_err(|e| {
-                    BlissError::AnalysisError(format!(
-                        "error while processing aubio centroid object: {}",
-                        e.to_string()
-                    ))
-                })?;
+                BlissError::AnalysisError(format!(
+                    "error while processing aubio centroid object: {}",
+                    e.to_string()
+                ))
+            })?;
 
         let freq = bin_to_freq(
             bin,

@@ -400,7 +400,7 @@ mod tests {
     fn test_analyse() {
         let song = Song::new("data/s16_mono_22_5kHz.flac").unwrap();
         let expected_analysis = vec![
-            0.3709823,
+            0.3846389,
             -0.849141,
             -0.75481045,
             -0.8790748,
