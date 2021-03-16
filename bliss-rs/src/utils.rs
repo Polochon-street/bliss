@@ -4,8 +4,8 @@ use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::FftPlanner;
 extern crate ffmpeg_next as ffmpeg;
-use std::f32::consts::PI;
 use log::warn;
+use std::f32::consts::PI;
 
 fn reflect_pad(array: &[f32], pad: usize) -> Vec<f32> {
     let prefix = array[1..=pad].iter().rev().copied().collect::<Vec<f32>>();

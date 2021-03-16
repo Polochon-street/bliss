@@ -8,6 +8,11 @@ extern crate aubio_lib;
 use crate::utils::Normalize;
 use crate::BlissError;
 use aubio_rs::{OnsetMode, Tempo};
+use log::warn;
+use ndarray::arr1;
+use ndarray_stats::interpolate::Midpoint;
+use ndarray_stats::Quantile1dExt;
+use noisy_float::prelude::*;
 
 /**
  * Beats per minutes ([BPM](https://en.wikipedia.org/wiki/Tempo#Measurement))
@@ -27,13 +32,14 @@ use aubio_rs::{OnsetMode, Tempo};
  */
 pub(crate) struct BPMDesc {
     aubio_obj: Tempo,
+    bpms: Vec<f32>,
 }
 
 // TODO use the confidence value to discard this descriptor if confidence
 // is too low.
 impl BPMDesc {
     pub const WINDOW_SIZE: usize = 512;
-    pub const HOP_SIZE: usize = BPMDesc::WINDOW_SIZE / 4;
+    pub const HOP_SIZE: usize = BPMDesc::WINDOW_SIZE / 2;
 
     pub fn new(sample_rate: u32) -> Result<Self, BlissError> {
         Ok(BPMDesc {
@@ -49,13 +55,21 @@ impl BPMDesc {
                     e.to_string()
                 ))
             })?,
+            bpms: Vec::new(),
         })
     }
 
     pub fn do_(&mut self, chunk: &[f32]) -> Result<(), BlissError> {
-        self.aubio_obj.do_result(chunk).map_err(|e| {
-            BlissError::AnalysisError(format!("aubio error while computing tempo {}", e.to_string()))
+        let result = self.aubio_obj.do_result(chunk).map_err(|e| {
+            BlissError::AnalysisError(format!(
+                "aubio error while computing tempo {}",
+                e.to_string()
+            ))
         })?;
+
+        if result > 0. {
+            self.bpms.push(self.aubio_obj.get_bpm());
+        }
         Ok(())
     }
 
@@ -67,7 +81,14 @@ impl BPMDesc {
      */
     // TODO analyse a whole library and check that this is not > 1.
     pub fn get_value(&mut self) -> f32 {
-        self.normalize(self.aubio_obj.get_bpm())
+        if self.bpms.is_empty() {
+            warn!("Set tempo value to zero because no beats were found.");
+            return -1.;
+        }
+        let median = arr1(&self.bpms).mapv(n32)
+            .quantile_mut(n64(0.5), &Midpoint)
+            .unwrap();
+        self.normalize(median.into())
     }
 }
 
@@ -123,7 +144,7 @@ mod tests {
         // The highest value I could obtain was with these params, even though
         // apparently the higher bound is 206 BPM, but here I found ~189 BPM.
         let mut one_chunk = vec![0.; 6989];
-        one_chunk.append(&mut vec![1.; 100]);
+        one_chunk.append(&mut vec![1.; 20]);
         let chunks = std::iter::repeat(one_chunk.iter())
             .take(500)
             .flatten()
@@ -132,7 +153,7 @@ mod tests {
         for chunk in chunks.chunks_exact(BPMDesc::HOP_SIZE) {
             tempo_desc.do_(&chunk).unwrap();
         }
-        // 0.83 is 189 BPM normalized
-        assert!(0.01 > (0.83015 - tempo_desc.get_value()).abs());
+        // 0.86 is 192BPM normalized
+        assert!(0.01 > (0.86 - tempo_desc.get_value()).abs());
     }
 }
