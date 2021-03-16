@@ -31,7 +31,6 @@ pub(crate) fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> A
     ));
     let signal = reflect_pad(&signal, window_length / 2);
 
-    // TODO actually have it constant - no need to compute it everytime
     // Periodic, so window_size + 1
     let mut hann_window = Array::zeros(window_length + 1);
     for n in 0..window_length {

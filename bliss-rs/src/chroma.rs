@@ -238,7 +238,7 @@ fn pip_track(
 
     let length = spectrum.len_of(Axis(0));
 
-    // TODO Make this a bitvec when that won't mean depending on a crate
+    // TODO>1.0 Make this a bitvec when that won't mean depending on a crate
     let freq_mask = fft_freqs
         .iter()
         .map(|&f| (fmin <= f) && (f < fmax))

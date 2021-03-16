@@ -191,7 +191,7 @@ impl Song {
         .unwrap()
     }
 
-    // TODO DRY me
+    // TODO>1.0 DRY me
     pub(crate) fn decode(path: &str) -> Result<InternalSong, BlissError> {
         ffmpeg::init()
             .map_err(|e| BlissError::DecodingError(format!("ffmpeg init error: {:?}.", e)))?;
@@ -220,7 +220,7 @@ impl Song {
                 })?;
             // Add SAMPLE_RATE to have one second margin to avoid reallocating if
             // the duration is slightly more than estimated
-            // TODO another way to get the exact number of samples is to decode
+            // TODO>1.0 another way to get the exact number of samples is to decode
             // everything once, compute the real number of samples from that,
             // allocate the array with that number, and decode again. Check
             // what's faster between reallocating, and just have one second
@@ -315,8 +315,7 @@ impl Song {
                     song.sample_array = child.join().unwrap()?;
                     return Ok(song);
                 }
-                // Silently fail on decoding errors; pray for the best
-                Err(_) => (),
+                Err(e) => warn!("decoding error: {}", e),
             };
 
             loop {
@@ -336,7 +335,6 @@ impl Song {
         }
 
         // Flush the stream
-        // TODO check that it's still how to do this
         let packet = ffmpeg::codec::packet::Packet::empty();
         match codec.send_packet(&packet) {
             Ok(_) => (),
@@ -351,8 +349,7 @@ impl Song {
                 song.sample_array = child.join().unwrap()?;
                 return Ok(song);
             }
-            // Silently fail on decoding errors; pray for the best
-            Err(_) => (),
+            Err(e) => warn!("decoding error: {}", e),
         };
 
         loop {
