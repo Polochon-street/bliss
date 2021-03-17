@@ -35,7 +35,7 @@ pub(crate) struct BPMDesc {
     bpms: Vec<f32>,
 }
 
-// TODO use the confidence value to discard this descriptor if confidence
+// TODO>1.0 use the confidence value to discard this descriptor if confidence
 // is too low.
 impl BPMDesc {
     pub const WINDOW_SIZE: usize = 512;
@@ -79,7 +79,6 @@ impl BPMDesc {
      *
      * - `song` Song to compute score from
      */
-    // TODO analyse a whole library and check that this is not > 1.
     pub fn get_value(&mut self) -> f32 {
         if self.bpms.is_empty() {
             warn!("Set tempo value to zero because no beats were found.");
