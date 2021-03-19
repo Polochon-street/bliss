@@ -84,7 +84,8 @@ impl BPMDesc {
             warn!("Set tempo value to zero because no beats were found.");
             return -1.;
         }
-        let median = arr1(&self.bpms).mapv(n32)
+        let median = arr1(&self.bpms)
+            .mapv(n32)
             .quantile_mut(n64(0.5), &Midpoint)
             .unwrap();
         self.normalize(median.into())
