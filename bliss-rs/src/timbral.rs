@@ -146,7 +146,6 @@ impl SpectralDesc {
                     ))
                 },
             )?,
-            // TODO vec with capacity?
             values_centroid: Vec::new(),
             values_rolloff: Vec::new(),
             values_flatness: Vec::new(),

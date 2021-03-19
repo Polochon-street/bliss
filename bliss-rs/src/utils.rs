@@ -77,7 +77,6 @@ pub(crate) trait Normalize {
 
 // Essentia algorithm
 // https://github.com/MTG/essentia/blob/master/src/algorithms/temporal/zerocrossingrate.cpp
-// TODO add a threshold to avoid noise around zero
 pub(crate) fn number_crossings(input: &[f32]) -> u32 {
     let mut crossings = 0;
 
@@ -130,8 +129,6 @@ pub(crate) fn hz_to_octs_inplace(
     frequencies
 }
 
-// TODO try to make this FFT real only
-// TODO have less buffers - technically, we probably only need two
 #[allow(dead_code)]
 pub(crate) fn convolve(input: &Array1<f64>, kernel: &Array1<f64>) -> Array1<f64> {
     let mut common_length = input.len() + kernel.len();
