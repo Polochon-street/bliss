@@ -19,16 +19,19 @@ use crate::timbral::{SpectralDesc, ZeroCrossingRateDesc};
 use crate::{BlissError, Song, SAMPLE_RATE};
 use ::log::warn;
 use crossbeam::thread;
-use ffmpeg::codec::threading::{Config, Type as ThreadingType};
-use ffmpeg::util;
-use ffmpeg::util::format::sample::{Sample, Type};
+use ffmpeg_next::codec::threading::{Config, Type as ThreadingType};
+use ffmpeg_next::software::resampling::context::Context;
+use ffmpeg_next::util;
 use ffmpeg_next::util::channel_layout::ChannelLayout;
 use ffmpeg_next::util::error::Error;
 use ffmpeg_next::util::error::EINVAL;
+use ffmpeg_next::util::format::sample::{Sample, Type};
+use ffmpeg_next::util::frame::audio::Audio;
 use ffmpeg_next::util::log;
 use ffmpeg_next::util::log::level::Level;
 use ndarray::{arr1, Array};
 use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
 use std::thread as std_thread;
 
 fn push_to_sample_array(frame: &ffmpeg::frame::Audio, sample_array: &mut Vec<f32>) {
@@ -62,6 +65,38 @@ pub(crate) struct InternalSong {
     pub track_number: String,
     pub genre: String,
     pub sample_array: Vec<f32>,
+}
+
+fn resample_frame(
+    rx: Receiver<Audio>,
+    mut resample_context: Context,
+    mut sample_array: Vec<f32>,
+) -> Result<Vec<f32>, BlissError> {
+    let mut resampled = ffmpeg::frame::Audio::empty();
+    for decoded in rx.iter() {
+        resample_context
+            .run(&decoded, &mut resampled)
+            .map_err(|e| {
+                BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
+            })?;
+        push_to_sample_array(&resampled, &mut sample_array);
+    }
+    loop {
+        match resample_context.flush(&mut resampled).map_err(|e| {
+            BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
+        })? {
+            Some(_) => {
+                push_to_sample_array(&resampled, &mut sample_array);
+            }
+            None => {
+                if resampled.samples() == 0 {
+                    break;
+                }
+                push_to_sample_array(&resampled, &mut sample_array);
+            }
+        };
+    }
+    Ok(sample_array)
 }
 
 impl Song {
@@ -191,7 +226,6 @@ impl Song {
         .unwrap()
     }
 
-    // TODO>1.0 DRY me
     pub(crate) fn decode(path: &str) -> Result<InternalSong, BlissError> {
         ffmpeg::init()
             .map_err(|e| BlissError::DecodingError(format!("ffmpeg init error: {:?}.", e)))?;
@@ -231,7 +265,7 @@ impl Song {
                 + SAMPLE_RATE as f32;
             (codec, stream.index(), expected_sample_number)
         };
-        let mut sample_array: Vec<f32> = Vec::with_capacity(expected_sample_number as usize);
+        let sample_array: Vec<f32> = Vec::with_capacity(expected_sample_number as usize);
         if let Some(title) = format.metadata().get("title") {
             song.title = title.to_string();
         };
@@ -255,7 +289,7 @@ impl Song {
             }
         };
         codec.set_channel_layout(in_channel_layout);
-        let mut resample_context = ffmpeg::software::resampling::context::Context::get(
+        let resample_context = ffmpeg::software::resampling::context::Context::get(
             codec.format(),
             in_channel_layout,
             codec.rate(),
@@ -271,33 +305,7 @@ impl Song {
         })?;
 
         let (tx, rx) = mpsc::channel();
-        let child = std_thread::spawn(move || -> Result<Vec<f32>, BlissError> {
-            let mut resampled = ffmpeg::frame::Audio::empty();
-            for decoded in rx.iter() {
-                resample_context
-                    .run(&decoded, &mut resampled)
-                    .map_err(|e| {
-                        BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
-                    })?;
-                push_to_sample_array(&resampled, &mut sample_array);
-            }
-            loop {
-                match resample_context.flush(&mut resampled).map_err(|e| {
-                    BlissError::DecodingError(format!("while trying to resample song: {:?}", e))
-                })? {
-                    Some(_) => {
-                        push_to_sample_array(&resampled, &mut sample_array);
-                    }
-                    None => {
-                        if resampled.samples() == 0 {
-                            break;
-                        }
-                        push_to_sample_array(&resampled, &mut sample_array);
-                    }
-                };
-            }
-            Ok(sample_array)
-        });
+        let child = std_thread::spawn(move || resample_frame(rx, resample_context, sample_array));
         for (s, packet) in format.packets() {
             if s.index() != stream {
                 continue;
