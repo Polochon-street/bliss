@@ -39,6 +39,8 @@ pub enum BlissError {
     DecodingError(String),
     #[error("Error happened while analyzing file – {0}")]
     AnalysisError(String),
+    #[error("Error happened with the music library provider - {0}")]
+    ProviderError(String),
 }
 
 /// Simple function to bulk analyze a set of songs represented by their
