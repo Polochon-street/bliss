@@ -139,11 +139,13 @@ impl MPDLibrary {
     fn update(&mut self) {
         let stored_songs = self
             .get_stored_songs()
+            .unwrap()
             .iter()
             .map(|x| x.path.to_owned())
             .collect::<HashSet<String>>();
         let mpd_songs = self
             .get_songs_paths()
+            .unwrap()
             .into_iter()
             .collect::<HashSet<String>>();
         let to_analyze = mpd_songs
@@ -163,7 +165,7 @@ impl MPDLibrary {
 }
 
 impl Library for MPDLibrary {
-    fn get_stored_songs(&self) -> Vec<Song> {
+    fn get_stored_songs(&self) -> Result<Vec<Song>, BlissError> {
         let sqlite_conn = self.sqlite_conn.lock().unwrap();
         let mut stmt = sqlite_conn
             .prepare(
@@ -191,12 +193,12 @@ impl Library for MPDLibrary {
                 ..Default::default()
             })
             .collect();
-        songs
+        Ok(songs)
     }
 
-    fn get_songs_paths(&self) -> Vec<String> {
+    fn get_songs_paths(&self) -> Result<Vec<String>, BlissError> {
         let mut mpd_conn = Self::get_mpd_conn();
-        mpd_conn
+        Ok(mpd_conn
             .list(&Term::File, &Query::default())
             .unwrap()
             .iter()
@@ -208,10 +210,10 @@ impl Library for MPDLibrary {
                         .unwrap(),
                 )
             })
-            .collect::<Vec<String>>()
+            .collect::<Vec<String>>())
     }
 
-    fn store_song(&mut self, song: Song) {
+    fn store_song(&mut self, song: &Song) -> Result<(), BlissError> {
         let sqlite_conn = self.sqlite_conn.lock().unwrap();
         sqlite_conn
             .execute(
@@ -247,9 +249,10 @@ impl Library for MPDLibrary {
                 )
                 .unwrap();
         }
+        Ok(())
     }
 
-    fn store_error_song(&mut self, song_path: String, _: BlissError) {
+    fn store_error_song(&mut self, song_path: String, _: BlissError) -> Result<(), BlissError> {
         self.sqlite_conn
             .lock()
             .unwrap()
@@ -260,6 +263,7 @@ impl Library for MPDLibrary {
                 [song_path],
             )
             .unwrap();
+        Ok(())
     }
 }
 
@@ -279,7 +283,9 @@ fn main() -> Result<(), String> {
     if command == "rescan" {
         library.full_rescan().unwrap();
     } else if command == "playlist" {
-        let playlist = library.playlist_from_song(library.current_song(), 6);
+        let playlist = library
+            .playlist_from_song(library.current_song(), 6)
+            .unwrap();
         for song in playlist {
             println!("{}", song.path);
         }
@@ -437,6 +443,7 @@ mod test {
         drop(sqlite_conn);
         let playlist = library
             .playlist_from_song(library.current_song(), 20)
+            .unwrap()
             .iter()
             .map(|x| x.path.to_owned())
             .collect::<Vec<String>>();
