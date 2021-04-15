@@ -32,6 +32,8 @@ mpd = "*"
 rusqlite = { git = "https://github.com/rusqlite/rusqlite" }
 dirs = "3.0.1"
 tempdir = "0.3.7"
+clap = "2.33.3"
+anyhow = "1.0.40"
 
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
