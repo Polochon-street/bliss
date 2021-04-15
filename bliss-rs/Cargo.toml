@@ -11,25 +11,24 @@ build-ffmpeg = ["ffmpeg-next/build"]
 bench = []
 
 [dependencies]
-# TODO set proper deps
 ripemd160 = "0.9.0"
-ndarray-npy = "0.7.0"
-ndarray = { version = "0.14.0", features = ["rayon"] }
+ndarray-npy = "0.8.0"
+ndarray = { version = "0.15.0", features = ["rayon"] }
 num_cpus = "1.13.0"
-ndarray-stats = { git = "https://github.com/rust-ndarray/ndarray-stats" }
+ndarray-stats = "0.5.0"
 rustfft = "5.0.1"
 lazy_static = "1.4.0"
-rayon = "*"
-crossbeam = "*"
-noisy_float = "0.1.13"
-ffmpeg-next = "*"
-log = "*"
-env_logger = "*"
-thiserror = "*"
+rayon = "1.5.0"
+crossbeam = "0.8.0"
+noisy_float = "0.2.0"
+ffmpeg-next = "4.3.8"
+log = "0.4.14"
+env_logger = "0.8.3"
+thiserror = "1.0.24"
 
 [dev-dependencies]
-mpd = "*"
-rusqlite = { git = "https://github.com/rusqlite/rusqlite" }
+mpd = "0.0.12"
+rusqlite = "0.25.0"
 dirs = "3.0.1"
 tempdir = "0.3.7"
 clap = "2.33.3"

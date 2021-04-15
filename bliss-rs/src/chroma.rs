@@ -124,7 +124,7 @@ fn extract_interval_features(chroma: &Array2<f64>, templates: &Array2<i32>) -> A
             let rolled = arr1(&vec);
             let power = Zip::from(chroma.t())
                 .and_broadcast(&rolled)
-                .apply_collect(|&f, &s| f.powi(s))
+                .map_collect(|&f, &s| f.powi(s))
                 .map_axis_mut(Axis(1), |x| x.product());
             f_interval += &power;
         }
@@ -134,7 +134,7 @@ fn extract_interval_features(chroma: &Array2<f64>, templates: &Array2<i32>) -> A
 
 fn normalize_feature_sequence(feature: &Array2<f64>) -> Array2<f64> {
     let mut normalized_sequence = feature.to_owned();
-    for mut column in normalized_sequence.gencolumns_mut() {
+    for mut column in normalized_sequence.columns_mut() {
         let mut sum = column.mapv(|x| x.abs()).sum();
         if sum < 0.0001 {
             sum = 1.;
@@ -183,7 +183,7 @@ fn chroma_filter(
     );
 
     let mut d: Array2<f64> = Array::zeros((n_chroma as usize, (&freq_bins).len()));
-    for (idx, mut row) in d.genrows_mut().into_iter().enumerate() {
+    for (idx, mut row) in d.rows_mut().into_iter().enumerate() {
         row.fill(idx as f64);
     }
     d = -d + &freq_bins;
@@ -196,7 +196,7 @@ fn chroma_filter(
 
     let mut wts = d;
     // Normalize by computing the l2-norm over the columns
-    for mut col in wts.gencolumns_mut() {
+    for mut col in wts.columns_mut() {
         let mut sum = col.mapv(|x| x * x).sum().sqrt();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;
@@ -272,7 +272,7 @@ fn pip_track(
 
     // No need to handle the last column, since freq_mask[length - 1] is
     // always going to be `false` for 22.5kHz
-    zipped.apply(|(i, j), &before_elem, &elem, &after_elem| {
+    zipped.for_each(|(i, j), &before_elem, &elem, &after_elem| {
         if elem > ref_value[j] && after_elem <= elem && before_elem < elem {
             let avg = 0.5 * (after_elem - before_elem);
             let mut shift = 2. * elem - after_elem - before_elem;
@@ -356,7 +356,7 @@ fn chroma_stft(
     let mut raw_chroma = chroma_filter(sample_rate, n_fft, n_chroma, tuning)?;
 
     raw_chroma = raw_chroma.dot(spectrum);
-    for mut row in raw_chroma.gencolumns_mut() {
+    for mut row in raw_chroma.columns_mut() {
         let mut sum = row.mapv(|x| x.abs()).sum();
         if sum < f64::MIN_POSITIVE {
             sum = 1.;

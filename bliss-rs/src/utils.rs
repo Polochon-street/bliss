@@ -43,7 +43,7 @@ pub(crate) fn stft(signal: &[f32], window_length: usize, hop_length: usize) -> A
     for (window, mut stft_col) in signal
         .windows(window_length)
         .step_by(hop_length)
-        .zip(stft.genrows_mut())
+        .zip(stft.rows_mut())
     {
         let mut signal = (arr1(&window) * &hann_window).mapv(|x| Complex::new(x, 0.));
         match signal.as_slice_mut() {
