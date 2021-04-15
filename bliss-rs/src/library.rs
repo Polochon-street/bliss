@@ -1,7 +1,7 @@
 //! Module containing the Library trait, useful to get started to implement
 //! a plug-in for an audio player.
 use crate::{BlissError, Song};
-use log::{error, info};
+use log::{error, info, warn};
 use ndarray::{arr1, Array};
 use noisy_float::prelude::*;
 use std::sync::mpsc;
@@ -96,12 +96,18 @@ pub trait Library {
         for (path, song) in rx.iter() {
             // A storage fail should just warn the user, but not abort the whole process
             match song {
-                Ok(song) => self
-                    .store_song(&song)
-                    .unwrap_or_else(|_| error!("Error while storing song {}", (&song).path)),
-                Err(e) => self
-                    .store_error_song(path.to_string(), e)
-                    .unwrap_or_else(|_| error!("Error while storing errored song {}", path)),
+                Ok(song) => {
+                    self
+                        .store_song(&song)
+                        .unwrap_or_else(|_| error!("Error while storing song '{}'", (&song).path));
+                    info!("Analyzed and stored song '{}' successfully.", (&song).path)
+                },
+                Err(e) => {
+                    self
+                        .store_error_song(path.to_string(), e)
+                        .unwrap_or_else(|e| error!("Error while storing errored song '{}': {}", path, e));
+                    warn!("Analysis of song '{}' failed. Storing error.", path)
+                },
             }
         }
 

@@ -310,7 +310,7 @@ impl Library for MPDLibrary {
             .unwrap()
             .execute(
                 "
-            insert into song(path) values (?1)
+            insert or ignore into song(path) values (?1)
             ",
                 [path],
             )
