@@ -58,7 +58,7 @@ impl MPDLibrary {
         let mpd_host = match env::var("MPD_HOST") {
             Ok(h) => h,
             Err(_) => {
-                warn!("Could not find any MPD_HOST environment variable set. Defaulting to 127.0.0.1:6600");
+                warn!("Could not find any MPD_HOST environment variable set. Defaulting to 127.0.0.1:6600.");
                 String::from("127.0.0.1:6600")
             }
         };
@@ -167,7 +167,7 @@ impl MPDLibrary {
             .difference(&stored_songs)
             .cloned()
             .collect::<Vec<String>>();
-        info!("Found {} new songs to analyze", to_analyze.len());
+        info!("Found {} new songs to analyze.", to_analyze.len());
         self.analyze_paths(to_analyze)?;
         Ok(())
     }
@@ -310,7 +310,7 @@ impl Library for MPDLibrary {
             .unwrap()
             .execute(
                 "
-            insert into song(path) values (?1)
+            insert or ignore into song(path) values (?1)
             ",
                 [path],
             )
@@ -360,7 +360,7 @@ fn main() -> Result<()> {
     if matches.is_present("rescan") {
         let base_path = matches.value_of("rescan").unwrap();
         let mut library = MPDLibrary::new(base_path.to_string())?;
-        library.full_rescan().unwrap();
+        library.full_rescan()?;
     } else if matches.is_present("update") {
         let base_path = matches.value_of("update").unwrap();
         let mut library = MPDLibrary::new(base_path.to_string())?;
@@ -368,7 +368,7 @@ fn main() -> Result<()> {
     } else if matches.is_present("playlist") {
         let number_songs = match matches.value_of("playlist").unwrap().parse::<usize>() {
             Err(_) => {
-                bail!("Playlist number must be a valid number");
+                bail!("Playlist number must be a valid number.");
             }
             Ok(n) => n,
         };
