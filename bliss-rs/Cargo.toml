@@ -37,8 +37,8 @@ anyhow = "1.0.40"
 [dependencies.aubio-rs]
 git = "https://github.com/katyo/aubio-rs"
 
+# Like this until https://github.com/aubio/aubio/issues/336 is solved one way
+# or the other
 [dependencies.aubio-lib]
 git = "https://github.com/Polochon-street/aubio-rs"
-optional = true
-branch = "fix-python-version"
-features = ["with-fftw3"]
+branch = "aubio-tweaks"

@@ -3,7 +3,6 @@
 //! Contains functions to extract & summarize the zero-crossing rate,
 //! spectral centroid, spectral flatness and spectral roll-off of
 //! a given Song.
-#[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 
 use aubio_rs::vec::CVec;

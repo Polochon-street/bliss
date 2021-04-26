@@ -3,7 +3,6 @@
 //! Contains functions to compute the chromagram of a song, and
 //! then from this chromagram extract the song's tone and mode
 //! (minor / major).
-#[cfg(feature = "aubio-lib")]
 extern crate aubio_lib;
 extern crate noisy_float;
 
