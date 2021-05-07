@@ -4,9 +4,9 @@ version = "0.1.0"
 authors = ["Polochon-street <polochonstreet@gmx.fr>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
+# Until ffmpeg-next is updated for 4.4
+default = ["build-ffmpeg"]
 build-ffmpeg = ["ffmpeg-next/build"]
 bench = []
 
@@ -35,7 +35,7 @@ clap = "2.33.3"
 anyhow = "1.0.40"
 
 [dependencies.aubio-rs]
-git = "https://github.com/katyo/aubio-rs"
+git = "https://github.com/Polochon-street/aubio-rs"
 
 # Like this until https://github.com/aubio/aubio/issues/336 is solved one way
 # or the other

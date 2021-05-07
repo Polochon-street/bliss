@@ -66,9 +66,9 @@ dependencies = [
 [[package]]
 name = "aubio-rs"
 version = "0.1.3"
-source = "git+https://github.com/katyo/aubio-rs#81757678e3a89716a490dbb5f3d69c7f53183306"
+source = "git+https://github.com/Polochon-street/aubio-rs#81757678e3a89716a490dbb5f3d69c7f53183306"
 dependencies = [
- "aubio-sys 0.1.3 (git+https://github.com/katyo/aubio-rs)",
+ "aubio-sys 0.1.3 (git+https://github.com/Polochon-street/aubio-rs)",
 ]
 
 [[package]]
@@ -82,7 +82,7 @@ dependencies = [
 [[package]]
 name = "aubio-sys"
 version = "0.1.3"
-source = "git+https://github.com/katyo/aubio-rs#81757678e3a89716a490dbb5f3d69c7f53183306"
+source = "git+https://github.com/Polochon-street/aubio-rs#81757678e3a89716a490dbb5f3d69c7f53183306"
 dependencies = [
  "pkg-config",
 ]
