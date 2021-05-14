@@ -18,10 +18,10 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly
+        toolchain: nightly-2021-04-01
         override: false
     - name: Packages
-      run: sudo apt-get install build-essential yasm libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libavfilter-dev libavdevice-dev libswresample-dev libfftw3-dev libaubio-dev libaubio5 ffmpeg
+      run: sudo apt-get install build-essential yasm libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libavfilter-dev libavdevice-dev libswresample-dev libfftw3-dev ffmpeg
     - name: Build
       working-directory: ./bliss-rs
       run: cargo build --verbose
@@ -33,7 +33,7 @@ jobs:
       run: cargo test --verbose --examples
     - name: Build benches
       working-directory: ./bliss-rs
-      run: cargo +nightly bench --verbose --features=bench --no-run
+      run: cargo +nightly-2021-04-01 bench --verbose --features=bench --no-run
     - name: Build examples
       working-directory: ./bliss-rs
       run: cargo build --examples --verbose
