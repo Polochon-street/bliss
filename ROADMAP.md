@@ -1,3 +1,5 @@
+All of this is done ✅, see [bliss-rs](https://github.com/Polochon-street/bliss-rs)
+
 # Roadmap for bliss-rs
 
 This is a rough roadmap for where I want to go for `bliss-rs`.
