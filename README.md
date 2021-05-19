@@ -1,5 +1,7 @@
-![C build](https://github.com/Polochon-street/bliss/workflows/C/badge.svg)
-![Rust build](https://github.com/Polochon-street/bliss/workflows/Rust/badge.svg)
+![build](https://github.com/Polochon-street/bliss/workflows/C/badge.svg)
+
+# Note: this is now in support-mode only.
+# For new features, see [bliss-rs](https://github.com/Polochon-street/bliss-rs).
 
 # Bliss music analyzer v1.2.0
 Bliss music library is a multithreaded C library used to compute distance between songs. It is especially usable through MPD with [Blissify](https://github.com/Phyks/Blissify).
