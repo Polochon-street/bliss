@@ -1,3 +1,4 @@
+#include <libavcodec/avcodec.h>
 #include <libavutil/opt.h>
 #include <libswresample/swresample.h>
 
@@ -46,8 +47,6 @@ int bl_audio_decode(char const *const filename, struct bl_song *const song) {
   int got_frame;
   // Position in the data buffer
   int index;
-  // Initialize AV lib
-  av_register_all();
   context = avformat_alloc_context();
 
   av_log_set_level(AV_LOG_QUIET);
@@ -353,8 +352,8 @@ int fill_song_properties(struct bl_song *const song, char const *const filename,
 int append_buffer_to_song(struct bl_song *const song, int *index_ptr,
                           int nb_samples, int8_t **beginning_ptr,
                           uint64_t *size_ptr, uint8_t *decoded_samples) {
-  size_t data_size = av_samples_get_buffer_size(
-      NULL, CHANNELS, nb_samples, AV_SAMPLE_FMT_S16, 1);
+  size_t data_size = av_samples_get_buffer_size(NULL, CHANNELS, nb_samples,
+                                                AV_SAMPLE_FMT_S16, 1);
   if ((*index_ptr * song->nb_bytes_per_sample + data_size) > *size_ptr) {
     int8_t *ptr;
     ptr = realloc(*beginning_ptr, *size_ptr + data_size);
@@ -416,7 +415,7 @@ int process_frame(struct bl_song *const song, int8_t **beginning_ptr,
   }
   if (nb_samples > 0)
     if (append_buffer_to_song(song, index_ptr, nb_samples, beginning_ptr,
-                             size_ptr, decoded_samples) == BL_UNEXPECTED)
+                              size_ptr, decoded_samples) == BL_UNEXPECTED)
       return BL_UNEXPECTED;
 
   if (song->resampled == 1) {
